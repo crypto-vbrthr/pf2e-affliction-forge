@@ -136,7 +136,7 @@ Version 0.1.11 defines and edits this contract only. It does not yet execute rol
 
 The template stores the start state. The controller stores the current runtime state, so identifying an affliction later does not require rewriting its template.
 
-The exact player-sheet/chat visibility behavior is reserved for the controller/runtime implementation.
+Version 0.1.13 stores this as live controller state and updates PF2e `unidentified` / token-icon presentation. Strict player-sheet/chat concealment is still reserved for a later visibility/runtime block.
 
 ## Check gates and multiple saves
 
@@ -184,7 +184,7 @@ flags["pf2e-affliction-forge"] = {
 
 Schema-v1 templates remain discoverable. Opening them normalizes their definition to schema v2; saving them writes the current schema.
 
-## Reserved active-controller state
+## Active-controller state
 
 The controller contract is now schema v2:
 
@@ -211,4 +211,24 @@ The controller contract is now schema v2:
 }
 ```
 
-This remains a persistence contract in 0.1.11. Controller application, checks, stage transitions, and player visibility are implemented in later runtime blocks.
+In 0.1.13 this state is live. Application creates the controller and manual stage transitions update `currentStage`, `stageEnteredAt`, `nextCheckAt`, `activeStageEffectUuids`, and `revision`.
+
+The controller Item additionally stores:
+
+```js
+flags["pf2e-affliction-forge"] = {
+  managed: true,
+  documentKind: "affliction-controller",
+  definitionId: "...",
+  definitionSnapshot: { /* normalized schema-v2 definition */ },
+  instanceId: "affliction-instance....",
+  sourceTemplateUuid: "..." || null,
+  sourceDefinitionVersion: 4 || null,
+  origin: { /* source module/actor/item/token metadata */ },
+  state: { /* controller state above */ }
+}
+```
+
+Generated stage-effect Item(s) use `documentKind: "affliction-stage-effect"` and carry the same `instanceId`, `controllerUuid`, `stageId`, and `stageNumber`. This source tagging is the authoritative cleanup boundary.
+
+Automatic checks, automatic progression, and strict player visibility remain later runtime work.

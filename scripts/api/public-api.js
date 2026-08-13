@@ -34,6 +34,7 @@ import { createAfflictionTemplateService } from "../affliction/documents/afflict
 import {
   getDocumentKind,
   isAfflictionController,
+  isAfflictionStageEffect,
   isAfflictionTemplate,
   isManagedAfflictionDocument
 } from "../affliction/documents/affliction-flags.js";
@@ -41,6 +42,7 @@ import {
   createAfflictionControllerState,
   validateAfflictionControllerState
 } from "../affliction/runtime/controller-state.js";
+import { createAfflictionInstanceService } from "../affliction/runtime/affliction-instance-service.js";
 import { createAfflictionEditorUiApi } from "../affliction/editor/affliction-editor.js";
 import {
   criticalForgeEffectValidator,
@@ -57,7 +59,9 @@ function effectValidatorOrNull() {
 }
 
 export function createPublicApi() {
-  const templateService = createAfflictionTemplateService({ effectValidator: effectValidatorOrNull() });
+  const effectValidator = effectValidatorOrNull();
+  const templateService = createAfflictionTemplateService({ effectValidator });
+  const instanceService = createAfflictionInstanceService({ effectValidator });
   return Object.freeze({
     version: API_VERSION,
     moduleVersion: MODULE_VERSION,
@@ -105,7 +109,8 @@ export function createPublicApi() {
       kindOf: (item) => getDocumentKind(item),
       isManaged: (item) => isManagedAfflictionDocument(item),
       isTemplate: (item) => isAfflictionTemplate(item),
-      isController: (item) => isAfflictionController(item)
+      isController: (item) => isAfflictionController(item),
+      isStageEffect: (item) => isAfflictionStageEffect(item)
     }),
 
     templates: Object.freeze({
@@ -126,12 +131,38 @@ export function createPublicApi() {
       validateState: (state, definition = null) => validateAfflictionControllerState(state, definition)
     }),
 
+    instances: Object.freeze({
+      apply: ({ templateUuid = null, definition = null, targets = null, targetActorUuid = null, ...options } = {}) => {
+        const resolvedTargets = targets ?? targetActorUuid;
+        if (templateUuid) return instanceService.applyTemplate(templateUuid, resolvedTargets, options);
+        if (definition) return instanceService.applyDefinition(definition, resolvedTargets, options);
+        throw new TypeError("instances.apply() requires templateUuid or definition.");
+      },
+      applyTemplate: (templateOrUuid, targets, options = {}) => instanceService.applyTemplate(templateOrUuid, targets, options),
+      applyDefinition: (definition, targets, options = {}) => instanceService.applyDefinition(definition, targets, options),
+      get: (controllerOrUuid) => instanceService.get(controllerOrUuid),
+      inspect: (controller) => instanceService.inspect(controller),
+      listForActor: (actorOrUuid) => instanceService.listForActor(actorOrUuid),
+      setStage: (controllerOrUuid, stage, options = {}) => instanceService.setStage(controllerOrUuid, stage, options),
+      advance: (controllerOrUuid, delta = 1, options = {}) => instanceService.advance(controllerOrUuid, delta, options),
+      reapplyStage: (controllerOrUuid, options = {}) => instanceService.reapplyStage(controllerOrUuid, options),
+      setIdentification: (controllerOrUuid, state, options = {}) => instanceService.setIdentification(controllerOrUuid, state, options),
+      end: (controllerOrUuid, options = {}) => instanceService.end(controllerOrUuid, options),
+      cleanupDeletedController: (controller) => instanceService.cleanupDeletedController(controller)
+    }),
+
     ui: Object.freeze({
       afflictionEditor: createAfflictionEditorUiApi(),
       forge: Object.freeze({
         open: async (options = {}) => {
           const { openAfflictionForge } = await import("../affliction/forge/affliction-forge.js");
           return openAfflictionForge(options);
+        }
+      }),
+      controller: Object.freeze({
+        open: async (controllerOrUuid, options = {}) => {
+          const { openAfflictionController } = await import("../affliction/runtime/affliction-controller-app.js");
+          return openAfflictionController(controllerOrUuid, options);
         }
       })
     }),

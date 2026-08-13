@@ -1,0 +1,73 @@
+<div class="affliction-controller-shell">
+  <header class="affliction-controller-identity">
+    <img src="{{img}}" alt="">
+    <div>
+      <h2>{{name}}</h2>
+      <div class="affliction-controller-subtitle">
+        <span><i class="fa-solid fa-user-shield"></i> {{actorName}}</span>
+        <span>{{statusLabel}}</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="affliction-controller-stage">
+    <div class="affliction-controller-stage-summary">
+      <div>
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Runtime.CurrentStage"}}</small>
+        <strong>{{stageLabel}}</strong>
+      </div>
+      <div>
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Runtime.ActiveEffects"}}</small>
+        <strong>{{activeEffectCount}}</strong>
+      </div>
+      <div>
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Runtime.Revision"}}</small>
+        <strong>{{state.revision}}</strong>
+      </div>
+    </div>
+
+    <div class="affliction-controller-stage-actions">
+      <button type="button" data-action="previousStage" {{#unless canPrevious}}disabled{{/unless}}>
+        <i class="fa-solid fa-arrow-left"></i>
+        {{localize "PF2E_AFFLICTION_FORGE.Runtime.PreviousStage"}}
+      </button>
+      <button type="button" data-action="reapplyStage" {{#unless canReapply}}disabled{{/unless}}>
+        <i class="fa-solid fa-rotate"></i>
+        {{localize "PF2E_AFFLICTION_FORGE.Runtime.ReapplyStage"}}
+      </button>
+      <button type="button" data-action="nextStage" {{#unless canNext}}disabled{{/unless}}>
+        {{localize "PF2E_AFFLICTION_FORGE.Runtime.NextStage"}}
+        <i class="fa-solid fa-arrow-right"></i>
+      </button>
+    </div>
+  </section>
+
+  <section class="affliction-controller-identification">
+    <label>
+      <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Identification"}}</span>
+      <select data-affliction-identification>
+        {{#each identificationStates as |entry|}}
+          <option value="{{entry.value}}" {{#if entry.selected}}selected{{/if}}>{{entry.label}}</option>
+        {{/each}}
+      </select>
+    </label>
+    <button type="button" data-action="setIdentification">
+      <i class="fa-solid fa-eye"></i>
+      {{localize "PF2E_AFFLICTION_FORGE.Runtime.ApplyIdentification"}}
+    </button>
+  </section>
+
+  <footer class="affliction-controller-footer">
+    <div class="affliction-controller-source">
+      {{#if sourceTemplateUuid}}
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Runtime.SourceTemplate"}}: {{sourceTemplateUuid}}</small>
+      {{else}}
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Runtime.SourceDraft"}}</small>
+      {{/if}}
+    </div>
+    <button type="button" class="danger" data-action="endAffliction">
+      <i class="fa-solid fa-skull-crossbones"></i>
+      {{localize "PF2E_AFFLICTION_FORGE.Runtime.EndAffliction"}}
+    </button>
+  </footer>
+</div>

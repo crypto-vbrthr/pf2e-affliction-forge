@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.12 hardens live template deletion so deleted afflictions cannot survive as stale drafts or cached library entries.",
-  "version": "0.1.12",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.13 adds active controller application and manual stage transitions through the Critical Forge Effect Engine.",
+  "version": "0.1.13",
   "authors": [
     {
       "name": "crypto-vbrthr"

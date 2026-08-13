@@ -83,6 +83,7 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
       saveAsTemplate: AfflictionForgeApp.#saveAsTemplate,
       validateDraft: AfflictionForgeApp.#validateDraft,
       copyDefinition: AfflictionForgeApp.#copyDefinition,
+      applyToSelection: AfflictionForgeApp.#applyToSelection,
       refreshLibrary: AfflictionForgeApp.#refreshLibrary,
       openTemplate: AfflictionForgeApp.#openTemplate,
       copyTemplateToWorld: AfflictionForgeApp.#copyTemplateToWorld,
@@ -177,7 +178,7 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     const canSave = isDraft || current.writable;
 
     return {
-      criticalForgeReady: compatibility.effectApiAvailable && compatibility.effectEditorAvailable,
+      criticalForgeReady: compatibility.effectApiAvailable && compatibility.effectSourceApiAvailable && compatibility.effectEditorAvailable,
       criticalForgeVersion: compatibility.moduleVersion ?? "—",
       apiVersion: this.#api().version,
       schemaVersion: this.#api().schemaVersion,
@@ -445,6 +446,42 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     return document;
   }
 
+  #selectedTargets() {
+    const controlled = [...(globalThis.canvas?.tokens?.controlled ?? [])];
+    if (controlled.length > 0) return controlled;
+    const targeted = [...(game.user?.targets ?? [])];
+    return targeted;
+  }
+
+  async #applyCurrentToSelection() {
+    const definition = this.#validateForPersistence();
+    if (!definition) return [];
+    const targets = this.#selectedTargets();
+    if (targets.length === 0) {
+      ui.notifications.warn(localize("PF2E_AFFLICTION_FORGE.Runtime.NoTargets"));
+      return [];
+    }
+
+    const stableTemplateReference = this.currentTemplate && !this.editor?.dirty
+      ? this.currentTemplate
+      : null;
+    const options = {
+      sourceTemplateUuid: stableTemplateReference?.uuid ?? null,
+      sourceDefinitionVersion: stableTemplateReference?.definitionVersion ?? null,
+      origin: {
+        application: "affliction-forge",
+        userId: game.user?.id ?? null
+      }
+    };
+    const controllers = await this.#api().instances.applyDefinition(definition, targets, options);
+    ui.notifications.info(game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.AppliedCount", {
+      name: definition.name,
+      count: controllers.length
+    }));
+    if (controllers.length === 1) await this.#api().ui.controller.open(controllers[0]);
+    return controllers;
+  }
+
   static async #newDraft() {
     if (await this.#beginNewDraft()) ui.notifications.info(localize("PF2E_AFFLICTION_FORGE.Forge.NewDraftCreated"));
   }
@@ -478,6 +515,15 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
       ui.notifications.warn(game.i18n.format("PF2E_AFFLICTION_FORGE.Forge.ValidationInvalid", { count: errorCount }));
     } catch (error) {
       console.error(`${MODULE_ID} | Draft validation failed.`, error);
+      ui.notifications.error(String(error?.message ?? error));
+    }
+  }
+
+  static async #applyToSelection() {
+    try {
+      await this.#applyCurrentToSelection();
+    } catch (error) {
+      console.error(`${MODULE_ID} | Affliction application failed.`, error);
       ui.notifications.error(String(error?.message ?? error));
     }
   }

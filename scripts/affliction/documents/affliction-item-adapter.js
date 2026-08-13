@@ -61,6 +61,7 @@ export function inspectAfflictionItem(item) {
     documentKind: getDocumentKind(source),
     definitionId: flags?.definitionId ?? null,
     instanceId: flags?.instanceId ?? null,
-    sourceTemplateUuid: flags?.sourceTemplateUuid ?? null
+    sourceTemplateUuid: flags?.sourceTemplateUuid ?? null,
+    sourceDefinitionVersion: flags?.sourceDefinitionVersion ?? null
   });
 }

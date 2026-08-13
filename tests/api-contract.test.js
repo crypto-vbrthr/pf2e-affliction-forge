@@ -17,9 +17,9 @@ modules.set("pf2e-critical-forge", {
 
 const { createPublicApi } = await import("../scripts/api/public-api.js");
 
-test("public API exposes the versioned data contract and embedded editor contract without runtime promises", () => {
+test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
-  assert.equal(api.version, "0.1.12");
+  assert.equal(api.version, "0.1.13");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -41,7 +41,14 @@ test("public API exposes the versioned data contract and embedded editor contrac
   assert.equal(typeof api.ui.afflictionEditor.prepareContext, "function");
   assert.deepEqual(api.ui.afflictionEditor.modes, ["create", "edit", "view"]);
   assert.equal(typeof api.ui.forge.open, "function");
-  assert.equal("instances" in api, false);
+  assert.equal(typeof api.ui.controller.open, "function");
+  assert.equal(typeof api.instances.apply, "function");
+  assert.equal(typeof api.instances.applyDefinition, "function");
+  assert.equal(typeof api.instances.applyTemplate, "function");
+  assert.equal(typeof api.instances.setStage, "function");
+  assert.equal(typeof api.instances.reapplyStage, "function");
+  assert.equal(typeof api.instances.setIdentification, "function");
+  assert.equal(typeof api.instances.end, "function");
 });
 
 test("stage Effect Definitions are validated through Critical Forge when available", () => {

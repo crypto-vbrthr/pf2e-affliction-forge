@@ -21,6 +21,10 @@
         <i class="fa-regular fa-copy"></i>
         {{localize "PF2E_AFFLICTION_FORGE.Forge.CopyDefinition"}}
       </button>
+      <button type="button" data-action="applyToSelection" class="affliction-forge-apply" {{#unless criticalForgeReady}}disabled{{/unless}}>
+        <i class="fa-solid fa-user-plus"></i>
+        {{localize "PF2E_AFFLICTION_FORGE.Runtime.ApplyToSelection"}}
+      </button>
     </div>
     <button type="button" data-action="closeWindow">
       <i class="fa-solid fa-xmark"></i>

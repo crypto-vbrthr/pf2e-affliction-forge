@@ -33,6 +33,7 @@ test("template definition round-trips from stored flags", () => {
     documentKind: "affliction-template",
     definitionId: definition.id,
     instanceId: null,
-    sourceTemplateUuid: null
+    sourceTemplateUuid: null,
+    sourceDefinitionVersion: null
   });
 });

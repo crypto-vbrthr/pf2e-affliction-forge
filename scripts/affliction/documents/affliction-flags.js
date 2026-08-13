@@ -28,6 +28,11 @@ export function isAfflictionController(documentOrSource) {
   return flags?.managed === true && flags.documentKind === DOCUMENT_KINDS.CONTROLLER;
 }
 
+export function isAfflictionStageEffect(documentOrSource) {
+  const flags = getAfflictionFlags(documentOrSource);
+  return flags?.managed === true && flags.documentKind === DOCUMENT_KINDS.STAGE_EFFECT;
+}
+
 export function buildTemplateFlags(definition) {
   return {
     [MODULE_ID]: {
@@ -47,6 +52,7 @@ export function buildControllerFlags({
   definitionSnapshot,
   instanceId,
   sourceTemplateUuid = null,
+  sourceDefinitionVersion = null,
   origin = {},
   state
 }) {
@@ -60,6 +66,7 @@ export function buildControllerFlags({
       definitionSnapshot: deepClone(definitionSnapshot),
       instanceId,
       sourceTemplateUuid,
+      sourceDefinitionVersion,
       origin: deepClone(origin),
       state: deepClone(state)
     }

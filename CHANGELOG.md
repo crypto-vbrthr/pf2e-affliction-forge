@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.13 - Controller Application & Manual Stage Transitions
+
+- Adds the first active Affliction runtime layer.
+- Affliction definitions and templates can be applied to controlled or targeted Actors.
+- Applying an affliction creates an inert PF2e effect Item as the Affliction Controller and stores a normalized definition snapshot, source reference, origin metadata, instance ID, identification state, and runtime state.
+- Stage mechanics are compiled through the public Critical Forge Effect Engine API and created as separately tagged stage-effect Items.
+- Stage effects are linked to exactly one controller instance and are cleaned up by instance ID, allowing multiple independent applications of the same affliction on the same Actor. Critical Forge runtime EffectDefinition IDs are also instance-scoped to avoid definition-ID removal collisions.
+- Adds manual stage previous/next/reapply transitions with rollback protection if stage-effect creation fails.
+- Adds a compact GM-only controller manager, reachable from active controller Item sheets and automatically opened after a single-target application.
+- Adds manual identification-state changes for active instances and updates PF2e unidentified/token-icon presentation on controller and stage effects.
+- Adds public `api.instances` methods for application, inspection, stage transitions, identification changes, listing active instances, and ending an affliction.
+- Ending or externally deleting a controller cleans up its generated stage effects.
+- Adds an `Apply to Selection` action to the Affliction Forge toolbar. Controlled tokens are preferred, with targeted tokens as fallback. Multi-target application rolls back already-created instances if a later target fails.
+- Automated saving throws, progression resolution, scheduler processing, onset expiry, and combat-round automation remain intentionally outside this block.
+
 ## 0.1.12
 
 ### Deleted Template Lifecycle Hardening

@@ -106,15 +106,31 @@ function itemFromSheetApplication(application) {
 export function injectAfflictionTemplateHeaderControl(application, controls) {
   if (!game.user?.isGM || !Array.isArray(controls)) return;
   const item = itemFromSheetApplication(application);
-  if (!item || !game.modules.get(MODULE_ID)?.api?.documents?.isTemplate?.(item)) return;
-  if (controls.some((entry) => entry.action === "pf2e-affliction-forge-edit")) return;
-  controls.unshift({
-    action: "pf2e-affliction-forge-edit",
-    label: localize("PF2E_AFFLICTION_FORGE.Forge.EditInForge"),
-    icon: "fa-solid fa-biohazard",
-    ownership: "OWNER",
-    onClick: () => void openAfflictionForge({ templateUuid: item.uuid })
-  });
+  if (!item) return;
+  const api = game.modules.get(MODULE_ID)?.api;
+
+  if (api?.documents?.isTemplate?.(item)) {
+    if (controls.some((entry) => entry.action === "pf2e-affliction-forge-edit")) return;
+    controls.unshift({
+      action: "pf2e-affliction-forge-edit",
+      label: localize("PF2E_AFFLICTION_FORGE.Forge.EditInForge"),
+      icon: "fa-solid fa-biohazard",
+      ownership: "OWNER",
+      onClick: () => void openAfflictionForge({ templateUuid: item.uuid })
+    });
+    return;
+  }
+
+  if (api?.documents?.isController?.(item)) {
+    if (controls.some((entry) => entry.action === "pf2e-affliction-forge-manage")) return;
+    controls.unshift({
+      action: "pf2e-affliction-forge-manage",
+      label: localize("PF2E_AFFLICTION_FORGE.Runtime.Manage"),
+      icon: "fa-solid fa-biohazard",
+      ownership: "OWNER",
+      onClick: () => void api.ui.controller.open(item)
+    });
+  }
 }
 
 export function handleAfflictionTemplateDeleted(item) {
@@ -131,14 +147,38 @@ export function handleAfflictionTemplateDeleted(item) {
 export function injectLegacyAfflictionTemplateHeaderButton(sheet, buttons) {
   if (!game.user?.isGM || !Array.isArray(buttons)) return;
   const item = itemFromSheetApplication(sheet);
-  if (!item || !game.modules.get(MODULE_ID)?.api?.documents?.isTemplate?.(item)) return;
-  if (buttons.some((entry) => entry.class === "pf2e-affliction-forge-edit")) return;
-  buttons.unshift({
-    class: "pf2e-affliction-forge-edit",
-    label: localize("PF2E_AFFLICTION_FORGE.Forge.EditInForge"),
-    icon: "fas fa-biohazard",
-    onclick: () => void openAfflictionForge({ templateUuid: item.uuid })
+  if (!item) return;
+  const api = game.modules.get(MODULE_ID)?.api;
+
+  if (api?.documents?.isTemplate?.(item)) {
+    if (buttons.some((entry) => entry.class === "pf2e-affliction-forge-edit")) return;
+    buttons.unshift({
+      class: "pf2e-affliction-forge-edit",
+      label: localize("PF2E_AFFLICTION_FORGE.Forge.EditInForge"),
+      icon: "fas fa-biohazard",
+      onclick: () => void openAfflictionForge({ templateUuid: item.uuid })
+    });
+    return;
+  }
+
+  if (api?.documents?.isController?.(item)) {
+    if (buttons.some((entry) => entry.class === "pf2e-affliction-forge-manage")) return;
+    buttons.unshift({
+      class: "pf2e-affliction-forge-manage",
+      label: localize("PF2E_AFFLICTION_FORGE.Runtime.Manage"),
+      icon: "fas fa-biohazard",
+      onclick: () => void api.ui.controller.open(item)
+    });
+  }
+}
+
+export function handleAfflictionRuntimeItemDeleted(item) {
+  const api = game.modules.get(MODULE_ID)?.api;
+  if (!api?.documents?.isController?.(item)) return false;
+  void api.instances.cleanupDeletedController(item).catch((error) => {
+    console.error(`${MODULE_ID} | Failed to clean orphaned Affliction stage effects.`, error);
   });
+  return true;
 }
 
 export function initializeAfflictionForgeUi() {
@@ -152,6 +192,7 @@ export function initializeAfflictionForgeUi() {
   Hooks.on("getHeaderControlsApplicationV2", injectAfflictionTemplateHeaderControl);
   Hooks.on("getItemSheetHeaderButtons", injectLegacyAfflictionTemplateHeaderButton);
   Hooks.on("deleteItem", handleAfflictionTemplateDeleted);
+  Hooks.on("deleteItem", handleAfflictionRuntimeItemDeleted);
 
   const current = document.querySelector("#items, .items-directory");
   if (current) injectAfflictionForgeButton({ tabName: "items" }, current);

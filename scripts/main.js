@@ -14,6 +14,9 @@ Hooks.once("ready", () => {
   if (!compatibility.effectApiAvailable) {
     console.error(`${MODULE_ID} | Critical Forge Effect API is unavailable. Stage Effect validation will be incomplete.`);
   }
+  if (!compatibility.effectSourceApiAvailable) {
+    console.error(`${MODULE_ID} | Critical Forge Effect source API is unavailable. Affliction stage effects cannot be applied.`);
+  }
   if (!compatibility.effectEditorAvailable) {
     console.warn(`${MODULE_ID} | Critical Forge Embedded Effect Editor API is unavailable. Embedded Affliction Editor cannot mount stage Effect Editors.`);
   }
@@ -27,6 +30,7 @@ Hooks.once("ready", () => {
     schemaVersion: api?.schemaVersion,
     controllerSchemaVersion: api?.controllerSchemaVersion,
     afflictionEditorAvailable: typeof api?.ui?.afflictionEditor?.create === "function",
+    instanceRuntimeAvailable: typeof api?.instances?.apply === "function",
     criticalForge: compatibility
   });
 });
