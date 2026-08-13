@@ -1,0 +1,52 @@
+{
+  "id": "pf2e-affliction-forge",
+  "title": "PF2E Affliction Forge",
+  "description": "A modular PF2e framework for defining, editing, applying, and later automating poisons, diseases, curses, and other staged afflictions. Version 0.1.0 establishes the public data contract and integration boundary with PF2E Critical Forge's Effect Engine.",
+  "version": "0.1.0",
+  "authors": [
+    {
+      "name": "crypto-vbrthr"
+    }
+  ],
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14"
+  },
+  "relationships": {
+    "systems": [
+      {
+        "id": "pf2e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "8.1.2"
+        }
+      }
+    ],
+    "requires": [
+      {
+        "id": "pf2e-critical-forge",
+        "type": "module",
+        "compatibility": {
+          "minimum": "1.0.1-rc.1"
+        }
+      }
+    ]
+  },
+  "esmodules": [
+    "scripts/main.js"
+  ],
+  "languages": [
+    {
+      "lang": "de",
+      "name": "Deutsch",
+      "path": "lang/de.json"
+    },
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "license": "LICENSE",
+  "readme": "README.md"
+}

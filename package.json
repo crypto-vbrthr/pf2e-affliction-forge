@@ -1,0 +1,12 @@
+{
+  "name": "pf2e-affliction-forge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
