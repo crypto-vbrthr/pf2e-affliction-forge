@@ -83,16 +83,20 @@ class FakeActor {
 
 globalThis.fromUuid = async (uuid) => registry.get(uuid) ?? null;
 
+const instantExecutions = [];
+
 modules.set("pf2e-critical-forge", {
   active: true,
-  version: "1.0.1-rc.1",
+  version: "1.0.1-rc.3",
   api: {
-    version: "1.0.0",
-    moduleVersion: "1.0.1-rc.1",
+    version: "0.9.6",
+    moduleVersion: "1.0.1-rc.3",
     schemaVersion: 2,
     effects: {
       validate: () => ({ valid: true, issues: [], errors: [] }),
       async toItemSources(definition) {
+        const persistent = (definition.components ?? []).filter((component) => !["damage", "death"].includes(component.type));
+        if (persistent.length === 0) return [];
         return [{
           name: definition.name,
           type: "effect",
@@ -111,7 +115,31 @@ modules.set("pf2e-critical-forge", {
             }
           }
         }];
+      },
+      async execute(definition, target, options = {}) {
+        const actor = target?.documentName === "Actor" ? target : target?.actor;
+        if (actor?.failInstant) {
+          actor.failInstant = false;
+          throw new Error("Synthetic instant execution failure");
+        }
+        const instant = (definition.components ?? []).filter((component) => ["damage", "death"].includes(component.type));
+        if (instant.length === 0) return [];
+        const entry = {
+          definitionId: definition.id,
+          actorUuid: actor?.uuid ?? null,
+          components: structuredClone(instant),
+          itemUuid: options.item?.uuid ?? null,
+          label: options.label ?? null
+        };
+        instantExecutions.push(entry);
+        return instant.map((component) => component.type === "death"
+          ? { kind: "death", category: component.category ?? "direct", applied: true }
+          : { kind: "damage", formula: component.formula, damageType: component.damageType });
       }
+    },
+    components: {
+      get: (type) => type === "death" ? { type: "death", execution: "instant" } : null,
+      list: () => [{ type: "death", execution: "instant" }]
     },
     ui: { effectEditor: { create: () => ({}) } }
   }
@@ -133,9 +161,40 @@ function effect(id, name) {
   };
 }
 
+function mixedEffect(id, name, formula = "2d6") {
+  const result = effect(id, name);
+  result.components.push({ type: "damage", formula, damageType: "poison" });
+  return result;
+}
+
+function damageOnlyEffect(id, name, formula = "1d6") {
+  return {
+    schemaVersion: 2,
+    id,
+    name,
+    duration: { value: -1, unit: "unlimited", expiry: null },
+    components: [{ type: "damage", formula, damageType: "poison" }],
+    application: {},
+    metadata: {}
+  };
+}
+
+function deathOnlyEffect(id, name, category = "direct") {
+  return {
+    schemaVersion: 2,
+    id,
+    name,
+    duration: { value: -1, unit: "unlimited", expiry: null },
+    components: [{ type: "death", category }],
+    application: {},
+    metadata: {}
+  };
+}
+
 function definition() {
   return createAfflictionDefinition({
     name: "Testfäule",
+    initialCheck: null,
     stages: [
       { ...createDefaultStage({ number: 1 }), effect: effect("rot.stage1", "Testfäule · Phase 1") },
       { ...createDefaultStage({ number: 2 }), effect: effect("rot.stage2", "Testfäule · Phase 2") }
@@ -256,11 +315,29 @@ test("failed stage creation rolls back to the previous stage output", async () =
   assert.deepEqual(flags.state.activeStageEffectUuids, [effects[0].uuid]);
 });
 
+
+
+test("definitions with an initial check create a pending controller before any stage effect", async () => {
+  const actor = new FakeActor("heroPending", "Pending Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Expositionsfäule",
+    stages: [{ ...createDefaultStage({ number: 1 }), effect: effect("exposure.stage1", "Expositionsfäule · Phase 1") }]
+  });
+  const [controller] = await service.applyDefinition(source, actor);
+  const flags = getAfflictionFlags(controller);
+  assert.equal(flags.state.status, "pending");
+  assert.equal(flags.state.currentStage, 0);
+  assert.equal(flags.state.nextCheckAt, 1000);
+  assert.equal(actor.items.filter(isAfflictionStageEffect).length, 0);
+});
+
 test("onset creates an incubating controller without a stage effect", async () => {
   const actor = new FakeActor("hero6", "Hero 6");
   const service = createAfflictionInstanceService();
   const source = createAfflictionDefinition({
     name: "Langsames Fieber",
+    initialCheck: null,
     onset: { value: 2, unit: "hours" },
     stages: [{ ...createDefaultStage({ number: 1 }), effect: effect("slow.stage1", "Langsames Fieber · Phase 1") }]
   });
@@ -270,4 +347,191 @@ test("onset creates an incubating controller without a stage effect", async () =
   assert.equal(flags.state.currentStage, 0);
   assert.equal(flags.state.nextCheckAt, 8200);
   assert.equal(actor.items.filter(isAfflictionStageEffect).length, 0);
+});
+
+test("stage entry executes instant damage while persistent mechanics remain stage Items", async () => {
+  instantExecutions.length = 0;
+  const actor = new FakeActor("heroInstant", "Instant Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Scharlachgift",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effect: mixedEffect("scarlet.stage1", "Scharlachgift · Phase 1", "2d6+3")
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  const flags = getAfflictionFlags(controller);
+  const stageEffects = actor.items.filter(isAfflictionStageEffect);
+
+  assert.equal(stageEffects.length, 1);
+  assert.equal(flags.state.activeStageEffectUuids.length, 1);
+  assert.equal(instantExecutions.length, 1);
+  assert.equal(instantExecutions[0].actorUuid, actor.uuid);
+  assert.equal(instantExecutions[0].itemUuid, controller.uuid);
+  assert.equal(instantExecutions[0].components[0].formula, "2d6+3");
+  assert.match(instantExecutions[0].definitionId, /^scarlet\.stage1\.affliction-instance\./);
+});
+
+test("instant-only stages execute without creating empty persistent stage Items", async () => {
+  instantExecutions.length = 0;
+  const actor = new FakeActor("heroInstantOnly", "Instant Only Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Brennendes Gift",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effect: damageOnlyEffect("burn.stage1", "Brennendes Gift · Phase 1", "8")
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  const flags = getAfflictionFlags(controller);
+
+  assert.equal(actor.items.filter(isAfflictionStageEffect).length, 0);
+  assert.deepEqual(flags.state.activeStageEffectUuids, []);
+  assert.equal(instantExecutions.length, 1);
+  assert.equal(instantExecutions[0].components[0].formula, "8");
+});
+
+test("lethal final stages execute Critical Forge death components without creating persistent stage Items", async () => {
+  instantExecutions.length = 0;
+  const actor = new FakeActor("heroLethal", "Lethal Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Schwarze Fäule",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effect: deathOnlyEffect("blackrot.stage1", "Schwarze Fäule · Letzte Phase", "death-effect")
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  const flags = getAfflictionFlags(controller);
+
+  assert.equal(actor.items.filter(isAfflictionStageEffect).length, 0);
+  assert.deepEqual(flags.state.activeStageEffectUuids, []);
+  assert.equal(instantExecutions.length, 1);
+  assert.deepEqual(instantExecutions[0].components, [{ type: "death", category: "death-effect" }]);
+});
+
+test("same-stage resolution keeps persistent effects and executes instant mechanics again", async () => {
+  instantExecutions.length = 0;
+  const actor = new FakeActor("heroSameStage", "Same Stage Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Kreislaufgift",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effect: mixedEffect("cycle.stage1", "Kreislaufgift · Phase 1", "1d6")
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  const stageEffect = actor.items.find(isAfflictionStageEffect);
+  const originalUuid = stageEffect.uuid;
+  assert.equal(instantExecutions.length, 1);
+
+  await service.setStage(controller, 1, { enteredAt: 2000 });
+
+  const flags = getAfflictionFlags(controller);
+  assert.equal(registry.has(originalUuid), true);
+  assert.deepEqual(flags.state.activeStageEffectUuids, [originalUuid]);
+  assert.equal(flags.state.stageEnteredAt, 2000);
+  assert.equal(flags.state.nextCheckAt, 2006);
+  assert.equal(instantExecutions.length, 2);
+});
+
+test("manual stage reapplication refreshes persistent output and reruns instant mechanics", async () => {
+  instantExecutions.length = 0;
+  const actor = new FakeActor("heroReapplyInstant", "Reapply Instant Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Wiederkehrendes Gift",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effect: mixedEffect("repeat.stage1", "Wiederkehrendes Gift · Phase 1", "1d8")
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  const firstUuid = actor.items.find(isAfflictionStageEffect).uuid;
+  await service.reapplyStage(controller, { enteredAt: 3000 });
+  const secondUuid = actor.items.find(isAfflictionStageEffect).uuid;
+
+  assert.notEqual(secondUuid, firstUuid);
+  assert.equal(registry.has(firstUuid), false);
+  assert.equal(instantExecutions.length, 2);
+});
+
+test("an instant execution failure does not roll back an already committed stage transition", async () => {
+  instantExecutions.length = 0;
+  const actor = new FakeActor("heroInstantFailure", "Instant Failure Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Fehlergift",
+    initialCheck: null,
+    stages: [
+      { ...createDefaultStage({ number: 1 }), effect: mixedEffect("failure.stage1", "Fehlergift · Phase 1", "1d4") },
+      { ...createDefaultStage({ number: 2 }), effect: mixedEffect("failure.stage2", "Fehlergift · Phase 2", "2d4") }
+    ]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  actor.failInstant = true;
+  await service.setStage(controller, 2, { enteredAt: 4000 });
+
+  const flags = getAfflictionFlags(controller);
+  const stageEffect = actor.items.find(isAfflictionStageEffect);
+  assert.equal(flags.state.currentStage, 2);
+  assert.equal(getAfflictionFlags(stageEffect).stageId, "stage-2");
+  assert.equal(flags.state.stageEnteredAt, 4000);
+});
+
+test("explicit executeStageInstant retries instant mechanics without changing controller state", async () => {
+  instantExecutions.length = 0;
+  const actor = new FakeActor("heroInstantRetry", "Instant Retry Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Nachwirkendes Gift",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effect: mixedEffect("retry.stage1", "Nachwirkendes Gift · Phase 1", "2d8")
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  const before = structuredClone(getAfflictionFlags(controller).state);
+  const results = await service.executeStageInstant(controller);
+  const after = getAfflictionFlags(controller).state;
+
+  assert.equal(results.length, 1);
+  assert.equal(instantExecutions.length, 2);
+  assert.deepEqual(after, before);
+});
+
+test("hidden afflictions do not leak their identity through instant-damage labels", async () => {
+  instantExecutions.length = 0;
+  const actor = new FakeActor("heroHiddenInstant", "Hidden Instant Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Geheimer Grabfluch",
+    initialCheck: null,
+    identification: { initialState: "hidden" },
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effect: damageOnlyEffect("secret.stage1", "Geheimer Grabfluch · Phase 1", "1d10")
+    }]
+  });
+
+  await service.applyDefinition(source, actor);
+  assert.equal(instantExecutions.length, 1);
+  assert.equal(instantExecutions[0].label.includes("Geheimer Grabfluch"), false);
 });

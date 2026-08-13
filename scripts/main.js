@@ -2,6 +2,7 @@ import { MODULE_ID } from "./constants.js";
 import { initializePublicApi } from "./api/public-api.js";
 import { getCriticalForgeCompatibility } from "./affliction/integration/critical-forge-adapter.js";
 import { initializeAfflictionForgeUi } from "./affliction/forge/affliction-forge.js";
+import { initializeAfflictionSaveRuntime } from "./affliction/runtime/affliction-save-runtime.js";
 
 Hooks.once("init", () => {
   initializePublicApi();
@@ -17,11 +18,18 @@ Hooks.once("ready", () => {
   if (!compatibility.effectSourceApiAvailable) {
     console.error(`${MODULE_ID} | Critical Forge Effect source API is unavailable. Affliction stage effects cannot be applied.`);
   }
+  if (!compatibility.effectExecutionApiAvailable) {
+    console.error(`${MODULE_ID} | Critical Forge Effect execution API is unavailable. Affliction stage instant effects cannot be executed.`);
+  }
+  if (!compatibility.deathComponentAvailable) {
+    console.error(`${MODULE_ID} | Critical Forge death component is unavailable. Lethal Affliction stages cannot execute direct death semantics.`);
+  }
   if (!compatibility.effectEditorAvailable) {
     console.warn(`${MODULE_ID} | Critical Forge Embedded Effect Editor API is unavailable. Embedded Affliction Editor cannot mount stage Effect Editors.`);
   }
 
   initializeAfflictionForgeUi();
+  initializeAfflictionSaveRuntime();
 
   Hooks.callAll("pf2eAfflictionForgeReady", api);
   console.info(`${MODULE_ID} | Ready`, {
@@ -31,6 +39,7 @@ Hooks.once("ready", () => {
     controllerSchemaVersion: api?.controllerSchemaVersion,
     afflictionEditorAvailable: typeof api?.ui?.afflictionEditor?.create === "function",
     instanceRuntimeAvailable: typeof api?.instances?.apply === "function",
+    afflictionEngineAvailable: typeof api?.engine?.process === "function",
     criticalForge: compatibility
   });
 });

@@ -101,7 +101,7 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
 
 ## Saving-throw policy
 
-`saveDefaults` defines how saving throws are intended to be executed later by the Affliction Engine.
+`saveDefaults` defines how saving throws are executed by the Affliction Engine.
 
 Execution modes:
 
@@ -124,7 +124,7 @@ api.definitions.resolveSavePolicy(definition, "primary")
 
 to obtain the effective policy without duplicating inheritance logic in consumer modules.
 
-Version 0.1.11 defines and edits this contract only. It does not yet execute rolls or control chat visibility.
+Version 0.1.16 executes this contract. `automatic` uses a PF2e roll without the modifier dialog, `gm` keeps the GM roll dialog, and `player` creates a player-owner request with a GM fallback when no active player owner is available. `gmOnly` maps to GM-only execution for GM rolls and blind execution for player rolls.
 
 ## Identification
 
@@ -136,7 +136,7 @@ Version 0.1.11 defines and edits this contract only. It does not yet execute rol
 
 The template stores the start state. The controller stores the current runtime state, so identifying an affliction later does not require rewriting its template.
 
-Version 0.1.13 stores this as live controller state and updates PF2e `unidentified` / token-icon presentation. Strict player-sheet/chat concealment is still reserved for a later visibility/runtime block.
+Version 0.1.16 uses this as live controller state. PF2e `unidentified` / token-icon presentation is updated on controller/stage Items, and hidden/suspected player save requests omit the affliction identity and DC. Strict removal of hidden controller Items from non-GM Actor-sheet presentation remains a later hardening block.
 
 ## Check gates and multiple saves
 
@@ -167,6 +167,8 @@ A stage with `check: null` inherits `defaultStageCheck`.
 
 The **Affliction Engine owns the stage lifetime**. Stage effects are therefore normalized by the editor to an unlimited lifetime and later replaced/removed by the Affliction runtime.
 
+Critical Forge classifies components by execution lifetime. Persistent components are converted to stage Effect Items through `api.effects.toItemSources()`. Instant components, including normal one-shot `damage` and immediate `death`, are not stored as stage Items and are executed through `api.effects.execute()`. `death` may use Critical Forge category `direct` or `death-effect`; Affliction Forge deliberately does not reinterpret those semantics. Entering a stage executes its instant components once. If a stage interval resolves back into the same stage, the existing persistent Items remain in place and the instant components execute again. Hidden/suspected afflictions use a generic execution label so PF2e damage breakdown presentation does not reveal the affliction name.
+
 ## Template persistence
 
 Affliction Templates use PF2e Item type `effect`, contain no Rule Elements, and store the definition in module flags:
@@ -186,17 +188,20 @@ Schema-v1 templates remain discoverable. Opening them normalizes their definitio
 
 ## Active-controller state
 
-The controller contract is now schema v2:
+The controller contract remains schema v2 and now carries live save-resolution state:
 
 ```js
 {
   schemaVersion: 2,
   instanceId: "...",
+
+  // pending | incubating | active | paused | recovered | ended
   status: "active",
   currentStage: 1,
+
   appliedAt: 100000,
   stageEnteredAt: 100000,
-  nextCheckAt: null,
+  nextCheckAt: 128800,
 
   identification: {
     state: "hidden",
@@ -206,12 +211,25 @@ The controller contract is now schema v2:
 
   recoverySuccesses: 0,
   activeStageEffectUuids: [],
+
+  // Non-null while one or more required saves are still unresolved.
   pendingCheck: null,
+
+  // Used when the initial result determines a stage before onset finishes.
+  onsetTargetStage: null,
+
+  // Audit snapshot of the most recently completed check gate.
+  lastCheck: null,
+
   revision: 1
 }
 ```
 
-In 0.1.13 this state is live. Application creates the controller and manual stage transitions update `currentStage`, `stageEnteredAt`, `nextCheckAt`, `activeStageEffectUuids`, and `revision`.
+Default controller creation mirrors the definition:
+
+- `initialCheck` present -> `pending`, stage 0
+- no `initialCheck` + onset -> `incubating`, stage 0, `onsetTargetStage: 1`
+- neither -> `active`, stage 1
 
 The controller Item additionally stores:
 
@@ -231,4 +249,69 @@ flags["pf2e-affliction-forge"] = {
 
 Generated stage-effect Item(s) use `documentKind: "affliction-stage-effect"` and carry the same `instanceId`, `controllerUuid`, `stageId`, and `stageNumber`. This source tagging is the authoritative cleanup boundary.
 
-Automatic checks, automatic progression, and strict player visibility remain later runtime work.
+Automatic and manual save checks plus progression and instant stage mechanics, including lethal final stages, are live in 0.1.16. World/combat-time discovery, maximum-duration enforcement, and strict non-GM controller concealment remain later runtime work.
+
+
+## Pending-check runtime shape
+
+`pendingCheck` is engine-owned resumable state. A representative shape is:
+
+```js
+{
+  requestId: "affliction-check....",
+  kind: "initial",       // initial | stage
+  stageNumber: 0,
+  combine: "single",
+  checkIds: ["primary"],
+  outcomes: { /* gate outcome directives */ },
+  requestedAt: 100000,
+  requestedByUserId: "GM_USER_ID",
+  baseRevision: 2,
+
+  requests: {
+    primary: {
+      checkId: "primary",
+      status: "awaiting-player",
+      execution: "player",
+      visibility: "gmOnly",
+      userIds: ["PLAYER_USER_ID"],
+      messageId: "CHAT_MESSAGE_ID"
+    }
+  },
+
+  results: {
+    primary: {
+      checkId: "primary",
+      statistic: "fortitude",
+      dc: 27,
+      degree: "failure",
+      total: 24,
+      d20: 9,
+      execution: "player",
+      visibility: "gmOnly",
+      userId: "PLAYER_USER_ID",
+      resolvedAt: 100012
+    }
+  }
+}
+```
+
+The runtime may add diagnostic fields over the 0.1.x line, but consumers should treat `pendingCheck` as engine-owned and use `api.engine.process()` / `acceptPlayerResult()` instead of mutating it directly.
+
+## Last-check audit shape
+
+After a gate fully resolves, `lastCheck` records the decision that produced the current state:
+
+```js
+{
+  requestId: "affliction-check....",
+  kind: "stage",
+  stageNumber: 2,
+  degree: "success",
+  directive: { action: "stage-delta", delta: -1 },
+  results: { /* resolved per-check results */ },
+  resolvedAt: 128800
+}
+```
+
+This is diagnostic/audit state. The current stage and active generated-effect UUIDs remain authoritative for runtime behavior.

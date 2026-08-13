@@ -801,7 +801,7 @@
    Critical Forge scopes its --ef-* palette to its standalone application root.
    An embedded consumer does not inherit that root, so without this bridge the
    reusable component editor loses field backgrounds, panel fills and soft
-   borders. Keep the palette aligned with Critical Forge 1.0.1-rc.1 while the
+   borders. Keep the palette aligned with Critical Forge 1.0.1-rc.3 while the
    public editor remains responsible for the actual component markup/behavior. */
 .affliction-editor-effect-host[data-affliction-effect-editor="components-only"] {
   --ef-bg: #090910;
@@ -1164,6 +1164,7 @@
 }
 
 .affliction-controller-stage,
+.affliction-controller-checks,
 .affliction-controller-identification {
   border: 1px solid rgba(120, 120, 120, 0.45);
   border-radius: 7px;
@@ -1227,4 +1228,35 @@
 
 .affliction-controller-footer .danger {
   color: var(--color-level-error, #b52b2b);
+}
+
+
+/* 0.1.14 Affliction Engine save runtime */
+.affliction-controller-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.affliction-controller-checks > button {
+  align-self: stretch;
+}
+
+.pf2e-affliction-save-request {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--color-border-highlight, #a98b52) 65%, transparent);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.pf2e-affliction-save-request h4,
+.pf2e-affliction-save-request p {
+  margin: 0;
+}
+
+.pf2e-affliction-save-request button {
+  margin-top: 0.15rem;
 }

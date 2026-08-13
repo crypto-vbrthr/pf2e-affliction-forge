@@ -15,7 +15,7 @@ modules.set("pf2e-critical-forge", {
   active: true,
   api: {
     version: "0.9.4",
-    moduleVersion: "1.0.1-rc.1",
+    moduleVersion: "1.0.1-rc.3",
     schemaVersion: 2,
     effects: { validate: () => ({ valid: true, issues: [], errors: [] }) },
     ui: { effectEditor: { create: () => ({}) } }

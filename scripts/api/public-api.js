@@ -43,6 +43,8 @@ import {
   validateAfflictionControllerState
 } from "../affliction/runtime/controller-state.js";
 import { createAfflictionInstanceService } from "../affliction/runtime/affliction-instance-service.js";
+import { createAfflictionEngine } from "../affliction/runtime/affliction-engine.js";
+import { combineDegrees, normalizeDegreeOfSuccess, resolveDirective } from "../affliction/runtime/affliction-engine-core.js";
 import { createAfflictionEditorUiApi } from "../affliction/editor/affliction-editor.js";
 import {
   criticalForgeEffectValidator,
@@ -62,6 +64,7 @@ export function createPublicApi() {
   const effectValidator = effectValidatorOrNull();
   const templateService = createAfflictionTemplateService({ effectValidator });
   const instanceService = createAfflictionInstanceService({ effectValidator });
+  const afflictionEngine = createAfflictionEngine({ instanceService });
   return Object.freeze({
     version: API_VERSION,
     moduleVersion: MODULE_VERSION,
@@ -131,6 +134,24 @@ export function createPublicApi() {
       validateState: (state, definition = null) => validateAfflictionControllerState(state, definition)
     }),
 
+    engine: Object.freeze({
+      apply: ({ templateUuid = null, definition = null, targets = null, targetActorUuid = null, ...options } = {}) => {
+        const resolvedTargets = targets ?? targetActorUuid;
+        if (templateUuid) return afflictionEngine.applyTemplate(templateUuid, resolvedTargets, options);
+        if (definition) return afflictionEngine.applyDefinition(definition, resolvedTargets, options);
+        throw new TypeError("engine.apply() requires templateUuid or definition.");
+      },
+      applyTemplate: (templateOrUuid, targets, options = {}) => afflictionEngine.applyTemplate(templateOrUuid, targets, options),
+      applyDefinition: (definition, targets, options = {}) => afflictionEngine.applyDefinition(definition, targets, options),
+      inspect: (controllerOrUuid) => afflictionEngine.inspect(controllerOrUuid),
+      process: (controllerOrUuid, options = {}) => afflictionEngine.process(controllerOrUuid, options),
+      processInitial: (controllerOrUuid) => afflictionEngine.processInitial(controllerOrUuid),
+      acceptPlayerResult: (payload = {}) => afflictionEngine.acceptPlayerResult(payload),
+      normalizeDegree: (value) => normalizeDegreeOfSuccess(value),
+      combineDegrees: (values, mode = "single") => combineDegrees(values, mode),
+      resolveDirective: (definition, state, directive) => resolveDirective(definition, state, directive)
+    }),
+
     instances: Object.freeze({
       apply: ({ templateUuid = null, definition = null, targets = null, targetActorUuid = null, ...options } = {}) => {
         const resolvedTargets = targets ?? targetActorUuid;
@@ -146,6 +167,8 @@ export function createPublicApi() {
       setStage: (controllerOrUuid, stage, options = {}) => instanceService.setStage(controllerOrUuid, stage, options),
       advance: (controllerOrUuid, delta = 1, options = {}) => instanceService.advance(controllerOrUuid, delta, options),
       reapplyStage: (controllerOrUuid, options = {}) => instanceService.reapplyStage(controllerOrUuid, options),
+      executeStageInstant: (controllerOrUuid) => instanceService.executeStageInstant(controllerOrUuid),
+      completeOnset: (controllerOrUuid, options = {}) => instanceService.completeOnset(controllerOrUuid, options),
       setIdentification: (controllerOrUuid, state, options = {}) => instanceService.setIdentification(controllerOrUuid, state, options),
       end: (controllerOrUuid, options = {}) => instanceService.end(controllerOrUuid, options),
       cleanupDeletedController: (controller) => instanceService.cleanupDeletedController(controller)

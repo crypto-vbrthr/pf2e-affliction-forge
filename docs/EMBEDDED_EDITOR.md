@@ -83,3 +83,8 @@ definition.identification = {
 ```
 
 Execution of rolls, blind/public chat behavior, and actual player visibility remain runtime responsibilities and are intentionally not implemented by the embedded editor.
+
+
+## Lethal stage effects
+
+With Critical Forge 1.0.1-rc.3 or later, the embedded Critical Forge Effect Editor exposes the `death` instant component directly inside a stage. Affliction Forge does not duplicate that control or its warning UI; hosts receive the same Critical Forge component editor and validation behavior.

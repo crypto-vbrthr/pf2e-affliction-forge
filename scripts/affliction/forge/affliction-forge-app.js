@@ -178,7 +178,10 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     const canSave = isDraft || current.writable;
 
     return {
-      criticalForgeReady: compatibility.effectApiAvailable && compatibility.effectSourceApiAvailable && compatibility.effectEditorAvailable,
+      criticalForgeReady: compatibility.effectApiAvailable
+        && compatibility.effectSourceApiAvailable
+        && compatibility.effectExecutionApiAvailable
+        && compatibility.effectEditorAvailable,
       criticalForgeVersion: compatibility.moduleVersion ?? "—",
       apiVersion: this.#api().version,
       schemaVersion: this.#api().schemaVersion,
@@ -473,13 +476,16 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
         userId: game.user?.id ?? null
       }
     };
-    const controllers = await this.#api().instances.applyDefinition(definition, targets, options);
+    const application = await this.#api().engine.applyDefinition(definition, targets, options);
     ui.notifications.info(game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.AppliedCount", {
       name: definition.name,
-      count: controllers.length
+      count: application.created.length
     }));
-    if (controllers.length === 1) await this.#api().ui.controller.open(controllers[0]);
-    return controllers;
+    if (application.errors.length > 0) {
+      console.warn(`${MODULE_ID} | Some initial Affliction checks could not be completed.`, application.errors);
+    }
+    if (application.controllers.length === 1) await this.#api().ui.controller.open(application.controllers[0]);
+    return application.controllers;
   }
 
   static async #newDraft() {

@@ -5,12 +5,20 @@ import { installFoundryMock } from "./helpers/foundry-mock.js";
 const { modules } = installFoundryMock();
 modules.set("pf2e-critical-forge", {
   active: true,
-  version: "1.0.1-rc.1",
+  version: "1.0.1-rc.3",
   api: {
-    version: "0.9.4",
-    moduleVersion: "1.0.1-rc.1",
+    version: "0.9.6",
+    moduleVersion: "1.0.1-rc.3",
     schemaVersion: 2,
-    effects: { validate: () => ({ valid: true, issues: [], errors: [] }) },
+    effects: {
+      validate: () => ({ valid: true, issues: [], errors: [] }),
+      toItemSources: async () => [],
+      execute: async () => []
+    },
+    components: {
+      get: (type) => type === "death" ? { type: "death", execution: "instant" } : null,
+      list: () => [{ type: "death", execution: "instant" }]
+    },
     ui: { effectEditor: { create: () => ({}) } }
   }
 });
@@ -19,7 +27,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
-  assert.equal(api.version, "0.1.13");
+  assert.equal(api.version, "0.1.16");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -36,6 +44,8 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.templates.list, "function");
   assert.equal(typeof api.controllers.createState, "function");
   assert.equal(api.integration.criticalForge.compatibility().effectEditorAvailable, true);
+  assert.equal(api.integration.criticalForge.compatibility().effectExecutionApiAvailable, true);
+  assert.equal(api.integration.criticalForge.compatibility().deathComponentAvailable, true);
   assert.equal(typeof api.ui.afflictionEditor.create, "function");
   assert.equal(typeof api.ui.afflictionEditor.createSession, "function");
   assert.equal(typeof api.ui.afflictionEditor.prepareContext, "function");
@@ -43,10 +53,17 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.ui.forge.open, "function");
   assert.equal(typeof api.ui.controller.open, "function");
   assert.equal(typeof api.instances.apply, "function");
+  assert.equal(typeof api.engine.apply, "function");
+  assert.equal(typeof api.engine.applyDefinition, "function");
+  assert.equal(typeof api.engine.applyTemplate, "function");
+  assert.equal(typeof api.engine.process, "function");
+  assert.equal(typeof api.engine.processInitial, "function");
+  assert.equal(typeof api.engine.combineDegrees, "function");
   assert.equal(typeof api.instances.applyDefinition, "function");
   assert.equal(typeof api.instances.applyTemplate, "function");
   assert.equal(typeof api.instances.setStage, "function");
   assert.equal(typeof api.instances.reapplyStage, "function");
+  assert.equal(typeof api.instances.executeStageInstant, "function");
   assert.equal(typeof api.instances.setIdentification, "function");
   assert.equal(typeof api.instances.end, "function");
 });

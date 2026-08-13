@@ -17,6 +17,8 @@ export function getCriticalForgeCompatibility() {
     effectSchemaVersion: api?.schemaVersion ?? null,
     effectApiAvailable: typeof api?.effects?.validate === "function",
     effectSourceApiAvailable: typeof api?.effects?.toItemSources === "function",
+    effectExecutionApiAvailable: typeof api?.effects?.execute === "function",
+    deathComponentAvailable: Boolean(api?.components?.get?.("death") ?? api?.components?.list?.()?.find?.((entry) => entry?.type === "death")),
     effectEditorAvailable: typeof api?.ui?.effectEditor?.create === "function"
   });
 }

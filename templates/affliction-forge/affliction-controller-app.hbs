@@ -42,6 +42,27 @@
     </div>
   </section>
 
+  <section class="affliction-controller-checks">
+    <div class="affliction-controller-stage-summary">
+      <div>
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Runtime.NextCheck"}}</small>
+        <strong>{{dueLabel}}</strong>
+      </div>
+      <div>
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Runtime.PendingChecks"}}</small>
+        <strong>{{#if pendingSummary}}{{pendingSummary}}{{else}}—{{/if}}</strong>
+      </div>
+      <div>
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Runtime.LastCheck"}}</small>
+        <strong>{{lastCheckLabel}}</strong>
+      </div>
+    </div>
+    <button type="button" data-action="processCheck" {{#unless canProcess}}disabled{{/unless}}>
+      <i class="fa-solid fa-dice-d20"></i>
+      {{processLabel}}
+    </button>
+  </section>
+
   <section class="affliction-controller-identification">
     <label>
       <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Identification"}}</span>

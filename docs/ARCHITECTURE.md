@@ -1,25 +1,42 @@
-# Architecture 0.1.13
+# Architecture 0.1.16
 
 ```text
 Affliction Template / Definition
             │
             ▼
+      Affliction Engine
+            │
+            ├── canonical application
+            ├── save policy resolution
+            ├── PF2e save execution/request routing
+            ├── multiple-save combination
+            ├── degree-of-success progression
+            └── onset/recovery/rejection decisions
+            │
+            ▼
    Affliction Instance Service
             │
             ├── Controller Item on Actor
-            │      ├── immutable-ish definition snapshot
+            │      ├── definition snapshot
             │      ├── instanceId
             │      ├── current stage/runtime state
+            │      ├── pending check state
+            │      ├── last-check audit snapshot
             │      └── identification state
             │
             └── Critical Forge Effect Engine
-                   │ toItemSources()
-                   ▼
-             Stage Effect Item(s)
-             tagged with instanceId
+                   ├── toItemSources()
+                   │      ▼
+                   │  Persistent Stage Effect Item(s)
+                   │  tagged with instanceId
+                   │
+                   └── execute()
+                          ▼
+                      Instant stage mechanics
+                      (for example one-shot damage or death)
 ```
 
-The editor architecture remains host-agnostic:
+The editor remains independently embeddable:
 
 ```text
 Affliction Forge Container       Future Creature Forge
@@ -35,36 +52,168 @@ Affliction Forge Container       Future Creature Forge
 
 - **Affliction Definition** is the reusable blueprint.
 - **Affliction Controller** is the runtime truth for one application on one Actor.
-- **Affliction Instance Service** owns application, manual stage transitions, instance cleanup, and controller state updates.
-- **Critical Forge Effect Engine** owns translation from semantic stage Effect Definitions to PF2e Item sources and Rule Elements.
-- **Stage Effect Items** are generated output, never runtime truth.
+- **Affliction Engine** owns saving-throw execution, pending request orchestration, result combination, and progression decisions.
+- **Affliction Instance Service** owns controller persistence, application primitives, stage transitions, generated-effect cleanup, and identification updates.
+- **Critical Forge Effect Engine** owns both translation of persistent stage mechanics to PF2e Item sources/Rule Elements and execution of instant components such as one-shot damage and immediate death.
+- **Stage Effect Items** are generated mechanical output, never runtime truth.
 - **Host containers** own persistence/application buttons. The Embedded Affliction Editor remains persistence-neutral.
 - **Templates are inert** and contain no Rule Elements.
 - **Active controllers snapshot definitions**, so later template edits cannot mutate an already running case.
-- **Every generated stage effect carries the controller `instanceId`**, preventing one affliction instance from removing another's effects. Its Critical Forge runtime EffectDefinition ID is also instance-scoped.
+- **Every generated stage effect carries the controller `instanceId`**, preventing one affliction instance from removing another's effects.
 
-## Manual transition transaction
+## Canonical application path
+
+Normal integrations should use the engine rather than create a controller and remember to process exposure themselves:
 
 ```text
-requested stage
-    ↓
-compile new stage through Critical Forge
-    ↓
-remove this instance's old stage effects
-    ↓
-create new stage effect items
-    ↓
-update controller state + effect UUIDs
+Template / Definition
+        ↓
+api.engine.apply*()
+        ↓
+Instance Service creates controller(s)
+        ↓
+Initial exposure gate present?
+        ├── no → controller begins active/onset according to definition
+        └── yes
+             ↓
+        Affliction Engine processes save policy
+             ↓
+        reject / stage / onset / pending player result
 ```
 
-If creation or controller update fails, the service attempts to delete partial new output and recreate the old stage effect set before surfacing the error.
+`api.instances.apply*()` remains intentionally lower level for migrations, diagnostics, and integrations that need to defer initial resolution.
+
+## Save execution boundary
+
+```text
+Affliction Engine
+    ↓ resolve check plan
+Save policy
+    ├── automatic
+    │      └── GM PF2e roll, no modifier dialog
+    ├── gm
+    │      └── GM PF2e roll, normal modifier dialog
+    └── player
+           ├── active owner exists
+           │      └── whispered request → player PF2e roll → module socket → GM accepts
+           └── no active owner
+                  └── GM-manual fallback
+```
+
+Result visibility is orthogonal:
+
+```text
+public
+└── public roll result
+
+gmOnly + automatic/gm
+└── GM roll
+
+gmOnly + player
+└── blind player roll
+```
+
+The progression decision is always committed on a GM client.
+
+## Multiple saves
+
+A check gate can require multiple stable save IDs. The engine records each result in `pendingCheck.results`, allowing player requests to resolve asynchronously. Once all required results are available, the configured combination rule produces one degree of success:
+
+- `single`
+- `best-degree`
+- `worst-degree`
+- `all-success`
+- `any-success`
+
+That degree maps through the gate's outcome table to a transition directive.
+
+## Transition transaction
+
+For a transition to a different stage:
+
+```text
+resolved directive
+    ↓
+compile new persistent output through Critical Forge
+    ↓
+remove this instance's old persistent stage effects
+    ↓
+create new persistent stage effect Items
+    ↓
+update controller stage + timing + lastCheck
+    ↓
+execute instant stage mechanics through Critical Forge
+```
+
+The persistent output is precompiled before destructive work. If persistent creation or controller update fails, the instance service attempts to remove partial new output and recreate the previous stage output. Instant mechanics are deliberately executed **after** the persistent/controller transition is committed because instant damage and death are irreversible and cannot be safely rolled back. If instant execution fails, the committed stage remains active and the failure is reported for explicit retry.
+
+For a save that resolves back to the same active stage:
+
+```text
+renew stageEnteredAt + nextCheckAt + lastCheck
+    ↓
+keep existing persistent stage Items untouched
+    ↓
+execute instant stage mechanics again
+```
+
+This is the interval behavior needed by poisons and diseases that deal damage or other instant mechanics every phase/round while retaining the same persistent conditions. `reapplyStage()` remains the explicit repair path that rebuilds persistent output as well as rerunning instant mechanics.
+
+`lastCheck` is committed as part of the same stage transition update, avoiding a second state write after progression.
+
+## Initial check and onset
+
+Controllers now have explicit pre-stage states:
+
+```text
+initial check present
+└── pending, stage 0
+
+no initial check + onset
+└── incubating, stage 0, onsetTargetStage 1
+
+neither
+└── active, stage 1
+```
+
+When an initial result targets a stage and an onset exists, the engine stores that target in `onsetTargetStage` and starts incubation. Completing onset applies the stored target stage.
+
+## Pending player checks
+
+Player-manual saves can outlive the original engine call. The controller stores a resumable `pendingCheck` with:
+
+- request ID
+- initial/stage gate identity
+- involved check IDs
+- request metadata per check
+- resolved results per check
+- base revision for diagnostics
+
+A returned player result is accepted only when its request/check/user still matches the controller's pending state and Actor ownership.
+
+## Identification boundary
+
+`hidden` and `suspected` already affect runtime presentation and save requests:
+
+- controller/stage Items use PF2e unidentified presentation and hide token icons
+- player save-request text does not reveal the affliction name
+- player save-request text does not display the DC
+- instant-damage breakdown labels use a generic unidentified-affliction label instead of the hidden affliction name
+
+Strict removal of the controller from non-GM Actor-sheet presentation remains a later hardening block.
 
 ## Time boundary
 
-0.1.13 calculates and stores `nextCheckAt` for onset/stage durations, but does not watch it. Rounds use Foundry's configured round duration only as stored world-time metadata. The later scheduler will decide whether a due event is processed by world time or combat round/turn semantics.
+0.1.16 maintains `nextCheckAt` and the engine refuses future checks unless forced. It does **not** yet discover due controllers automatically.
 
-## Save policies and identification
+The later scheduler should be deliberately thin:
 
-Save execution (`automatic | player | gm`) and result visibility (`public | gmOnly`) are still semantic runtime configuration only. No rolls are automatically executed in this block.
+```text
+Foundry world/combat time changes
+        ↓
+discover due controller(s)
+        ↓
+api.engine.process(controllerUuid)
+```
 
-Identification is now mutable on active controllers. The runtime updates PF2e `unidentified` and token-icon presentation on controller/stage items, while strict player-side concealment remains a later UI/runtime concern.
+The scheduler must not duplicate saving-throw or progression rules already owned by the Affliction Engine.

@@ -6,6 +6,17 @@ function localize(key) {
   return game.i18n.localize(key);
 }
 
+function formatDueAt(timestamp) {
+  if (!Number.isFinite(timestamp)) return localize("PF2E_AFFLICTION_FORGE.Runtime.NoDueTime");
+  const now = Number(game.time?.worldTime ?? 0);
+  const seconds = Math.max(0, timestamp - now);
+  if (seconds <= 0) return localize("PF2E_AFFLICTION_FORGE.Runtime.DueNow");
+  if (seconds < 60) return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.DueSeconds", { value: Math.ceil(seconds) });
+  if (seconds < 3600) return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.DueMinutes", { value: Math.ceil(seconds / 60) });
+  if (seconds < 86400) return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.DueHours", { value: Math.ceil(seconds / 3600) });
+  return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.DueDays", { value: Math.ceil(seconds / 86400) });
+}
+
 const apps = new Map();
 
 export class AfflictionControllerApp extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -17,16 +28,17 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
     window: {
       title: "PF2E_AFFLICTION_FORGE.Runtime.WindowTitle",
       icon: "fa-solid fa-biohazard",
-      resizable: false
+      resizable: true
     },
     position: {
       width: 520,
-      height: 410
+      height: 520
     },
     actions: {
       previousStage: AfflictionControllerApp.#previousStage,
       nextStage: AfflictionControllerApp.#nextStage,
       reapplyStage: AfflictionControllerApp.#reapplyStage,
+      processCheck: AfflictionControllerApp.#processCheck,
       setIdentification: AfflictionControllerApp.#setIdentification,
       endAffliction: AfflictionControllerApp.#endAffliction
     }
@@ -58,6 +70,16 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
     const info = this.#api().instances.inspect(controller);
     const state = info.state;
     const stage = info.currentStage;
+    const engineInfo = await this.#api().engine.inspect(controller);
+    const pending = state.pendingCheck;
+    const totalChecks = pending?.checkIds?.length ?? engineInfo.plan?.checks?.length ?? 0;
+    const resolvedChecks = pending ? Object.values(pending.results ?? {}).filter((entry) => entry?.degree).length : 0;
+    const lastDegree = state.lastCheck?.degree ?? null;
+    const processLabelKey = state.status === "incubating"
+      ? "PF2E_AFFLICTION_FORGE.Runtime.CompleteOnset"
+      : state.status === "pending"
+        ? "PF2E_AFFLICTION_FORGE.Runtime.ProcessInitialSave"
+        : "PF2E_AFFLICTION_FORGE.Runtime.ProcessStageSave";
     return {
       ...info,
       statusLabel: localize(`PF2E_AFFLICTION_FORGE.Runtime.Status.${state.status}`),
@@ -68,6 +90,11 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
       canPrevious: state.currentStage > 0,
       canNext: state.currentStage < info.stageCount,
       canReapply: state.currentStage > 0,
+      canProcess: ["pending", "incubating", "active"].includes(state.status),
+      processLabel: localize(processLabelKey),
+      dueLabel: formatDueAt(state.nextCheckAt),
+      pendingSummary: totalChecks > 0 ? `${resolvedChecks}/${totalChecks}` : null,
+      lastCheckLabel: lastDegree ? localize(`PF2E_AFFLICTION_FORGE.Runtime.Degree.${lastDegree}`) : localize("PF2E_AFFLICTION_FORGE.Runtime.NoCheckResult"),
       identificationStates: IDENTIFICATION_STATES.map((value) => ({
         value,
         label: localize({ hidden: "PF2E_AFFLICTION_FORGE.Identification.Hidden", suspected: "PF2E_AFFLICTION_FORGE.Identification.Suspected", identified: "PF2E_AFFLICTION_FORGE.Identification.Identified" }[value]),
@@ -114,6 +141,21 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
       await this.#rerenderAfter(this.#api().instances.reapplyStage(this.controllerUuid));
     } catch (error) {
       console.error(`${MODULE_ID} | Reapply Affliction stage failed.`, error);
+      ui.notifications.error(String(error?.message ?? error));
+    }
+  }
+
+  static async #processCheck() {
+    try {
+      const result = await this.#api().engine.process(this.controllerUuid, { force: true });
+      if (result?.status === "pending") {
+        ui.notifications.info(localize("PF2E_AFFLICTION_FORGE.Runtime.CheckPending"));
+      } else if (result?.status === "not-due") {
+        ui.notifications.warn(localize("PF2E_AFFLICTION_FORGE.Runtime.NotDue"));
+      }
+      await this.#rerenderAfter(Promise.resolve());
+    } catch (error) {
+      console.error(`${MODULE_ID} | Affliction save processing failed.`, error);
       ui.notifications.error(String(error?.message ?? error));
     }
   }

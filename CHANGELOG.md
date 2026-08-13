@@ -1,19 +1,69 @@
 # Changelog
 
-## 0.1.13 - Controller Application & Manual Stage Transitions
+## 0.1.16
 
-- Adds the first active Affliction runtime layer.
-- Affliction definitions and templates can be applied to controlled or targeted Actors.
-- Applying an affliction creates an inert PF2e effect Item as the Affliction Controller and stores a normalized definition snapshot, source reference, origin metadata, instance ID, identification state, and runtime state.
-- Stage mechanics are compiled through the public Critical Forge Effect Engine API and created as separately tagged stage-effect Items.
-- Stage effects are linked to exactly one controller instance and are cleaned up by instance ID, allowing multiple independent applications of the same affliction on the same Actor. Critical Forge runtime EffectDefinition IDs are also instance-scoped to avoid definition-ID removal collisions.
-- Adds manual stage previous/next/reapply transitions with rollback protection if stage-effect creation fails.
-- Adds a compact GM-only controller manager, reachable from active controller Item sheets and automatically opened after a single-target application.
-- Adds manual identification-state changes for active instances and updates PF2e unidentified/token-icon presentation on controller and stage effects.
-- Adds public `api.instances` methods for application, inspection, stage transitions, identification changes, listing active instances, and ending an affliction.
-- Ending or externally deleting a controller cleans up its generated stage effects.
-- Adds an `Apply to Selection` action to the Affliction Forge toolbar. Controlled tokens are preferred, with targeted tokens as fallback. Multi-target application rolls back already-created instances if a later target fails.
-- Automated saving throws, progression resolution, scheduler processing, onset expiry, and combat-round automation remain intentionally outside this block.
+### Stage Death Effects Integration
+
+- requires PF2E Critical Forge 1.0.1-rc.3 and its Effect API 0.9.6 death component contract
+- accepts Critical Forge `death` components in Affliction stage Effect Definitions without introducing Affliction-specific death logic
+- routes lethal final stages through the same public `api.effects.execute()` instant-execution path used by one-shot damage
+- supports both Critical Forge death categories: `direct` and `death-effect`; immunity handling remains owned by Critical Forge/PF2e
+- keeps death-only stages free of empty persistent PF2e Effect Items
+- preserves the irreversible-instant transition boundary: controller/stage state is committed before lethal instant mechanics execute
+- adds Critical Forge death-component compatibility diagnostics and regression coverage for lethal instant-only stages
+
+## 0.1.15
+
+### Stage Instant Effects Integration
+
+- requires PF2E Critical Forge 1.0.1-rc.2 and consumes its public `api.effects.execute()` instant-execution contract
+- executes instant stage mechanics such as one-shot `damage` when an active stage is entered
+- keeps Critical Forge `toItemSources()` as the persistent-output path, so instant-only stages create no empty PF2e Effect Items
+- executes stage instant mechanics after persistent state and controller state are committed; irreversible damage is never used as a rollback boundary
+- preserves existing persistent stage Items when a save resolves to the same stage and reruns only the instant stage mechanics for the new interval
+- keeps explicit manual `reapplyStage()` as the repair/refresh path that rebuilds persistent output and reruns instant mechanics
+- exposes `api.instances.executeStageInstant()` for explicit retry/diagnostic execution of the current active stage
+- reports failed instant execution without rolling an already committed stage transition back
+- avoids leaking hidden/suspected affliction names through Critical Forge instant-damage breakdown labels
+- adds Critical Forge execution-API compatibility diagnostics, DE/EN runtime error text, and regression coverage for mixed, instant-only, same-stage, reapply, and failure semantics
+
+## 0.1.14
+
+### Affliction Engine Core & Save Resolution
+
+- adds the first authoritative GM-side Affliction Engine for initial exposure and active-stage checks
+- adds canonical `api.engine.apply()`, `applyTemplate()`, and `applyDefinition()` paths that create controllers and immediately process initial saves
+- keeps low-level `api.instances.apply*()` available for integrations that intentionally need controller creation without initial resolution
+- executes PF2e Fortitude, Reflex, and Will saves through actor statistics
+- supports automatic rolls, manual GM rolls, and player-owned chat save requests
+- routes save results as public, GM-only, or blind-player rolls according to the schema-v2 save policy
+- hides affliction identity and DC from rendered player requests while an affliction is hidden or suspected
+- resolves multiple required saves using `single`, `best-degree`, `worst-degree`, `all-success`, and `any-success` combination modes
+- converts degree-of-success outcomes into rejection, recovery, explicit stages, stage deltas, staying in stage, or end-of-affliction transitions
+- starts onset after a successful initial infection/exposure resolution and remembers the eventual target stage
+- stores resumable `pendingCheck` state and a `lastCheck` audit snapshot on active controllers
+- adds controller-manager actions for initial exposure checks, stage saves, and manual onset completion
+- keeps stage transition and last-check persistence in one controller transition update
+- prevents save-policy fallback from mutating normalized definition data
+- aligns low-level controller-state defaults with initial-check/onset semantics
+- adds socket routing for player save results and deterministic GM-side result acceptance
+- exposes core degree normalization/combination/directive helpers through the public API
+- adds DE/EN runtime localization and regression coverage for automatic, GM-manual, onset, multi-save, canonical application, and transition history behavior
+
+## 0.1.13
+
+### Controller Application & Manual Stage Transitions
+
+- adds active Affliction Controller Items with unique `instanceId`, source metadata, definition snapshots, identification state, stage state, and revision tracking
+- adds application of templates/definitions to one or more Actors through the public instance API
+- creates current-stage mechanics through Critical Forge's public Effect source API
+- tags every generated stage effect with controller/instance/stage ownership metadata
+- keeps multiple applications of the same affliction isolated from one another
+- adds manual previous/next/reapply stage transitions with best-effort rollback on stage-effect creation failure
+- adds active identification changes and controller/stage-item presentation updates
+- adds controller cleanup and explicit end/recovery removal
+- calculates and stores onset/stage `nextCheckAt` values for the later scheduler
+- adds the GM controller manager and the official Forge action to apply the current definition to selected/targeted Actors
 
 ## 0.1.12
 

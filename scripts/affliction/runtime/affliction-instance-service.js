@@ -155,13 +155,8 @@ function mechanicalEffectPresent(stage) {
   return Boolean(stage?.effect && Array.isArray(stage.effect.components) && stage.effect.components.length > 0);
 }
 
-async function buildStageEffectSources({ actor, controller, definition, state, stage }) {
-  if (!mechanicalEffectPresent(stage)) return [];
-  const criticalApi = getCriticalForgeApi({ required: true });
-  if (typeof criticalApi.effects?.toItemSources !== "function") {
-    throw new Error("Critical Forge Effect source API is unavailable.");
-  }
-
+function buildRuntimeStageEffectDefinition(stage, state) {
+  if (!mechanicalEffectPresent(stage)) return null;
   const runtimeEffect = deepClone(stage.effect);
   const sourceEffectDefinitionId = runtimeEffect.id;
   // Critical Forge removes effects by EffectDefinition id. Runtime ids must be
@@ -174,6 +169,16 @@ async function buildStageEffectSources({ actor, controller, definition, state, s
     afflictionInstanceId: state.instanceId,
     afflictionStageId: stage.id
   };
+  return runtimeEffect;
+}
+
+async function buildStageEffectSources({ actor, controller, definition, state, stage }) {
+  const runtimeEffect = buildRuntimeStageEffectDefinition(stage, state);
+  if (!runtimeEffect) return [];
+  const criticalApi = getCriticalForgeApi({ required: true });
+  if (typeof criticalApi.effects?.toItemSources !== "function") {
+    throw new Error("Critical Forge Effect source API is unavailable.");
+  }
 
   const sources = await criticalApi.effects.toItemSources(runtimeEffect, {
     actor,
@@ -209,6 +214,56 @@ async function createStageEffects({ actor, controller, definition, state, stage 
     renderSheet: false,
     [MODULE_ID]: { afflictionStageApplication: true }
   });
+}
+
+function stageExecutionLabel(definition, state, stage) {
+  if (state.identification?.state === "identified") {
+    return `${definition.name} · ${stage.name ?? `Stage ${stage.number}`}`;
+  }
+  const key = "PF2E_AFFLICTION_FORGE.Runtime.HiddenStageEffectLabel";
+  return globalThis.game?.i18n?.localize?.(key) ?? "Unidentified affliction";
+}
+
+async function executeStageInstantEffects({ actor, controller, definition, state, stage }) {
+  const runtimeEffect = buildRuntimeStageEffectDefinition(stage, state);
+  if (!runtimeEffect) return [];
+  const criticalApi = getCriticalForgeApi({ required: true });
+  if (typeof criticalApi.effects?.execute !== "function") {
+    throw new Error("Critical Forge Effect execution API is unavailable.");
+  }
+
+  return criticalApi.effects.execute(runtimeEffect, actor, {
+    context: { actor, target: actor, source: controller },
+    item: controller,
+    label: stageExecutionLabel(definition, state, stage)
+  });
+}
+
+function notifyInstantExecutionFailure({ controller, stage, error }) {
+  console.error(`${MODULE_ID} | Affliction stage instant effect execution failed.`, {
+    controllerUuid: controller?.uuid ?? null,
+    stageId: stage?.id ?? null,
+    stageNumber: stage?.number ?? null,
+    error
+  });
+  globalThis.Hooks?.callAll?.("pf2eAfflictionForgeInstantExecutionFailed", {
+    controllerUuid: controller?.uuid ?? null,
+    stageId: stage?.id ?? null,
+    stageNumber: stage?.number ?? null,
+    error
+  });
+  const key = "PF2E_AFFLICTION_FORGE.Runtime.InstantExecutionFailed";
+  const message = globalThis.game?.i18n?.localize?.(key) ?? key;
+  globalThis.ui?.notifications?.error?.(message);
+}
+
+async function executeStageInstantEffectsSafely(context) {
+  try {
+    return await executeStageInstantEffects(context);
+  } catch (error) {
+    notifyInstantExecutionFailure({ ...context, error });
+    return [];
+  }
 }
 
 function stageEffectItems(actor, instanceId) {
@@ -252,6 +307,7 @@ function buildTransitionState(previous, definition, stageNumber, enteredAt, effe
   next.nextCheckAt = dueAt(duration, enteredAt);
   next.activeStageEffectUuids = [...effectUuids];
   next.pendingCheck = null;
+  next.onsetTargetStage = null;
   next.revision = Number(previous.revision ?? 0) + 1;
   return next;
 }
@@ -351,10 +407,22 @@ export class AfflictionInstanceService {
     const controllers = [];
     try {
       for (const actor of actors) {
+        const hasInitialCheck = Boolean(definition.initialCheck);
+        const hasOnset = Boolean(definition.onset);
+        const initialStage = hasInitialCheck || hasOnset ? 0 : 1;
+        const initialStatus = hasInitialCheck ? "pending" : hasOnset ? "incubating" : "active";
         const state = createAfflictionControllerState(definition, {
           instanceId: randomId("affliction-instance"),
           appliedAt,
-          nextCheckAt: definition.onset ? dueAt(definition.onset, appliedAt) : dueAt(definition.stages?.[0]?.duration, appliedAt)
+          currentStage: initialStage,
+          stageEnteredAt: initialStage > 0 ? appliedAt : null,
+          status: initialStatus,
+          onsetTargetStage: hasOnset && !hasInitialCheck ? 1 : null,
+          nextCheckAt: hasInitialCheck
+            ? appliedAt
+            : hasOnset
+              ? dueAt(definition.onset, appliedAt)
+              : dueAt(definition.stages?.[0]?.duration, appliedAt)
         });
         const [controller] = await actor.createEmbeddedDocuments("Item", [controllerItemSource(definition, state, {
           sourceTemplateUuid,
@@ -372,6 +440,11 @@ export class AfflictionInstanceService {
             const createdEffects = await createStageEffects({ actor, controller, definition, state, stage });
             state.activeStageEffectUuids = createdEffects.map((item) => item.uuid);
             await updateController(controller, definition, state);
+            // Stage entry is committed before instant mechanics run. Damage and
+            // other future instant components are irreversible, so a failed
+            // execution must never roll the controller back to a phase whose
+            // persistent effects have already been replaced.
+            await executeStageInstantEffectsSafely({ actor, controller, definition, state, stage });
           }
           controllers.push(controller);
         } catch (error) {
@@ -393,7 +466,61 @@ export class AfflictionInstanceService {
     }
   }
 
-  async setStage(controllerOrUuid, requestedStage, { enteredAt = nowWorldTime() } = {}) {
+  async updateRuntimeState(controllerOrUuid, stateInput) {
+    const { controller } = await resolveController(controllerOrUuid);
+    const flags = getAfflictionFlags(controller);
+    const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
+    const state = deepClone(stateInput);
+    await updateController(controller, definition, state);
+    return controller;
+  }
+
+  async setPendingCheck(controllerOrUuid, pendingCheck, { incrementRevision = true } = {}) {
+    const { controller } = await resolveController(controllerOrUuid);
+    const flags = getAfflictionFlags(controller);
+    const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
+    const state = deepClone(flags.state);
+    state.pendingCheck = pendingCheck == null ? null : deepClone(pendingCheck);
+    if (incrementRevision) state.revision = Number(state.revision ?? 0) + 1;
+    await updateController(controller, definition, state);
+    return controller;
+  }
+
+  async beginOnset(controllerOrUuid, targetStage = 1, { startedAt = nowWorldTime(), lastCheck = null } = {}) {
+    const { controller, actor } = await resolveController(controllerOrUuid);
+    const flags = getAfflictionFlags(controller);
+    const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
+    if (!definition.onset) return this.setStage(controller, targetStage, { enteredAt: startedAt });
+    const state = deepClone(flags.state);
+    await removeStageEffects(actor, state);
+    state.status = "incubating";
+    state.currentStage = 0;
+    state.stageEnteredAt = null;
+    state.nextCheckAt = dueAt(definition.onset, startedAt);
+    state.activeStageEffectUuids = [];
+    state.pendingCheck = null;
+    state.onsetTargetStage = Math.max(1, Math.min(definition.stages.length, Math.trunc(Number(targetStage) || 1)));
+    state.lastCheck = lastCheck == null ? state.lastCheck ?? null : deepClone(lastCheck);
+    state.revision = Number(state.revision ?? 0) + 1;
+    await updateController(controller, definition, state);
+    return controller;
+  }
+
+  async completeOnset(controllerOrUuid, { enteredAt = nowWorldTime() } = {}) {
+    const controller = await this.get(controllerOrUuid);
+    const flags = getAfflictionFlags(controller);
+    const state = flags?.state ?? {};
+    if (state.status !== "incubating") throw new Error("Affliction is not incubating.");
+    const targetStage = Number(state.onsetTargetStage ?? 1);
+    return this.setStage(controller, targetStage, { enteredAt });
+  }
+
+  async setStage(controllerOrUuid, requestedStage, {
+    enteredAt = nowWorldTime(),
+    lastCheck = undefined,
+    refreshPersistent = false,
+    executeInstant = true
+  } = {}) {
     const { controller, actor } = await resolveController(controllerOrUuid);
     const flags = getAfflictionFlags(controller);
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
@@ -403,8 +530,33 @@ export class AfflictionInstanceService {
     if (!Number.isFinite(stageNumber)) throw new TypeError("Stage number must be numeric.");
 
     const stage = stageDescriptor(definition, stageNumber);
-    // Compile the new stage before any destructive operation. If compilation
-    // fails, the currently active phase remains untouched.
+    const sameActiveStage = stageNumber > 0
+      && previous.status === "active"
+      && previous.currentStage === stageNumber;
+
+    // A save can resolve to the same stage. Persistent stage mechanics are
+    // already present and must not flicker through remove/recreate cycles. The
+    // interval is renewed and only instant mechanics (for example damage) run
+    // again. Manual repair/reapply can explicitly request a persistent refresh.
+    if (sameActiveStage && !refreshPersistent) {
+      const next = buildTransitionState(
+        previous,
+        definition,
+        stageNumber,
+        enteredAt,
+        previous.activeStageEffectUuids ?? []
+      );
+      if (lastCheck !== undefined) next.lastCheck = lastCheck == null ? null : deepClone(lastCheck);
+      await updateController(controller, definition, next);
+      if (executeInstant && stage) {
+        await executeStageInstantEffectsSafely({ actor, controller, definition, state: next, stage });
+      }
+      return controller;
+    }
+
+    // Compile the new persistent stage output before any destructive operation.
+    // Critical Forge's toItemSources() intentionally excludes instant
+    // components, so damage can never become a persistent stage Item.
     const preparedSources = stage
       ? await buildStageEffectSources({ actor, controller, definition, state: previous, stage })
       : [];
@@ -429,7 +581,15 @@ export class AfflictionInstanceService {
         });
       }
       const next = buildTransitionState(previous, definition, stageNumber, enteredAt, created.map((item) => item.uuid));
+      if (lastCheck !== undefined) next.lastCheck = lastCheck == null ? null : deepClone(lastCheck);
       await updateController(controller, definition, next);
+
+      // Commit persistent state first. Instant effects such as damage are
+      // irreversible, so execution failures are reported but never cause the
+      // phase transition to roll back.
+      if (executeInstant && stage) {
+        await executeStageInstantEffectsSafely({ actor, controller, definition, state: next, stage });
+      }
       return controller;
     } catch (error) {
       try {
@@ -461,7 +621,21 @@ export class AfflictionInstanceService {
   async reapplyStage(controllerOrUuid, { enteredAt = nowWorldTime() } = {}) {
     const controller = await this.get(controllerOrUuid);
     const flags = getAfflictionFlags(controller);
-    return this.setStage(controller, Number(flags?.state?.currentStage ?? 0), { enteredAt });
+    return this.setStage(controller, Number(flags?.state?.currentStage ?? 0), {
+      enteredAt,
+      refreshPersistent: true,
+      executeInstant: true
+    });
+  }
+
+  async executeStageInstant(controllerOrUuid) {
+    const { controller, actor } = await resolveController(controllerOrUuid);
+    const flags = getAfflictionFlags(controller);
+    const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
+    const state = deepClone(flags.state);
+    const stage = stageDescriptor(definition, state.currentStage);
+    if (!stage || state.status !== "active") return [];
+    return executeStageInstantEffects({ actor, controller, definition, state, stage });
   }
 
   async setIdentification(controllerOrUuid, identificationState, {
@@ -507,6 +681,7 @@ export class AfflictionInstanceService {
     state.nextCheckAt = null;
     state.activeStageEffectUuids = [];
     state.pendingCheck = null;
+    state.onsetTargetStage = null;
     state.revision = Number(state.revision ?? 0) + 1;
 
     await removeStageEffects(actor, flags.state);

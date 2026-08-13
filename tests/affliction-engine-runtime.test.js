@@ -1,0 +1,221 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { installFoundryMock } from "./helpers/foundry-mock.js";
+
+const { modules } = installFoundryMock();
+globalThis.CONFIG = { time: { roundTime: 6 } };
+globalThis.game.user = { id: "gm", isGM: true };
+globalThis.game.time = { worldTime: 1000 };
+globalThis.game.users = [];
+
+const { createAfflictionDefinition, createDefaultStage } = await import("../scripts/affliction/schema/affliction-defaults.js");
+const { createAfflictionEngine } = await import("../scripts/affliction/runtime/affliction-engine.js");
+const { MODULE_ID } = await import("../scripts/constants.js");
+
+function makeController(definition, { state = null, degrees = ["failure"] } = {}) {
+  const queue = [...degrees];
+  const actor = {
+    documentName: "Actor",
+    uuid: "Actor.test",
+    name: "Test Actor",
+    getStatistic() {
+      return {
+        async roll(options) {
+          actor.lastRollOptions = options;
+          const degree = queue.shift() ?? "failure";
+          return { degreeOfSuccess: degree, total: 20, dice: [{ total: 10 }] };
+        }
+      };
+    }
+  };
+  const baseState = state ?? {
+    schemaVersion: 2,
+    instanceId: "instance.test",
+    status: "pending",
+    currentStage: 0,
+    appliedAt: 1000,
+    stageEnteredAt: null,
+    nextCheckAt: 1000,
+    identification: { state: "identified", identifiedAt: 1000, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [],
+    pendingCheck: null,
+    onsetTargetStage: null,
+    lastCheck: null,
+    revision: 1
+  };
+  const controller = {
+    documentName: "Item",
+    id: "controller",
+    uuid: "Actor.test.Item.controller",
+    parent: actor,
+    flags: {
+      [MODULE_ID]: {
+        managed: true,
+        documentKind: "affliction-controller",
+        definitionSnapshot: structuredClone(definition),
+        instanceId: baseState.instanceId,
+        state: structuredClone(baseState)
+      }
+    }
+  };
+  return { actor, controller };
+}
+
+function serviceFor(controller) {
+  return {
+    ended: null,
+    async get() { return controller; },
+    async setPendingCheck(_controller, pending) {
+      controller.flags[MODULE_ID].state.pendingCheck = structuredClone(pending);
+      controller.flags[MODULE_ID].state.revision += 1;
+      return controller;
+    },
+    async setStage(_controller, stage, options = {}) {
+      const state = controller.flags[MODULE_ID].state;
+      state.status = "active";
+      state.currentStage = stage;
+      state.stageEnteredAt = 1000;
+      state.pendingCheck = null;
+      state.onsetTargetStage = null;
+      if (options.lastCheck !== undefined) state.lastCheck = structuredClone(options.lastCheck);
+      state.revision += 1;
+      return controller;
+    },
+    async beginOnset(_controller, targetStage, { lastCheck } = {}) {
+      const state = controller.flags[MODULE_ID].state;
+      state.status = "incubating";
+      state.currentStage = 0;
+      state.onsetTargetStage = targetStage;
+      state.pendingCheck = null;
+      state.lastCheck = structuredClone(lastCheck ?? null);
+      state.revision += 1;
+      return controller;
+    },
+    async completeOnset() {
+      const state = controller.flags[MODULE_ID].state;
+      state.status = "active";
+      state.currentStage = state.onsetTargetStage ?? 1;
+      state.onsetTargetStage = null;
+      state.revision += 1;
+      return controller;
+    },
+    async updateRuntimeState(_controller, nextState) {
+      controller.flags[MODULE_ID].state = structuredClone(nextState);
+      return controller;
+    },
+    async end(_controller, { reason }) {
+      this.ended = reason;
+      return true;
+    }
+  };
+}
+
+function automaticDefinition(extra = {}) {
+  return createAfflictionDefinition({
+    name: "Engine Runtime Test",
+    saveDefaults: { execution: "automatic", visibility: "public" },
+    stages: [
+      createDefaultStage({ number: 1 }),
+      createDefaultStage({ number: 2 })
+    ],
+    ...extra
+  });
+}
+
+test("automatic initial failure resolves into stage 1 without a manual transition", async () => {
+  const definition = automaticDefinition();
+  const { actor, controller } = makeController(definition, { degrees: ["failure"] });
+  const service = serviceFor(controller);
+  const engine = createAfflictionEngine({ instanceService: service });
+  const result = await engine.processInitial(controller);
+  assert.equal(result.status, "stage-changed");
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 1);
+  assert.equal(actor.lastRollOptions.skipDialog, true);
+  assert.equal(controller.flags[MODULE_ID].state.lastCheck.degree, "failure");
+});
+
+test("automatic initial success rejects the affliction", async () => {
+  const definition = automaticDefinition();
+  const { controller } = makeController(definition, { degrees: ["success"] });
+  const service = serviceFor(controller);
+  const engine = createAfflictionEngine({ instanceService: service });
+  const result = await engine.processInitial(controller);
+  assert.equal(result.status, "rejected");
+  assert.equal(service.ended, "rejected");
+});
+
+test("failed initial save starts onset before applying the target stage", async () => {
+  const definition = automaticDefinition({ onset: { value: 1, unit: "hours" } });
+  const { controller } = makeController(definition, { degrees: ["criticalFailure"] });
+  const service = serviceFor(controller);
+  const engine = createAfflictionEngine({ instanceService: service });
+  const result = await engine.processInitial(controller);
+  assert.equal(result.status, "incubating");
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 0);
+  assert.equal(controller.flags[MODULE_ID].state.onsetTargetStage, 2);
+});
+
+test("manual GM policy keeps the PF2e modifier dialog enabled", async () => {
+  const definition = createAfflictionDefinition({
+    name: "GM Save",
+    saveDefaults: { execution: "gm", visibility: "gmOnly" },
+    stages: [createDefaultStage({ number: 1 })]
+  });
+  const { actor, controller } = makeController(definition, { degrees: ["failure"] });
+  const service = serviceFor(controller);
+  const engine = createAfflictionEngine({ instanceService: service });
+  await engine.processInitial(controller);
+  assert.equal(actor.lastRollOptions.skipDialog, false);
+  assert.equal(actor.lastRollOptions.rollMode, "gmroll");
+});
+
+
+test("engine applyDefinition is the canonical application path and immediately resolves initial saves", async () => {
+  const definition = automaticDefinition();
+  const { controller } = makeController(definition, { degrees: ["failure"] });
+  const service = serviceFor(controller);
+  service.applyDefinition = async () => [controller];
+  const engine = createAfflictionEngine({ instanceService: service });
+  const application = await engine.applyDefinition(definition, [controller.parent]);
+  assert.equal(application.created.length, 1);
+  assert.equal(application.controllers.length, 1);
+  assert.equal(application.results.length, 1);
+  assert.equal(application.results[0].status, "stage-changed");
+  assert.equal(application.errors.length, 0);
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 1);
+});
+
+test("stage transition stores lastCheck in the same controller transition", async () => {
+  const definition = automaticDefinition();
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.stage",
+    status: "active",
+    currentStage: 1,
+    appliedAt: 1000,
+    stageEnteredAt: 900,
+    nextCheckAt: 1000,
+    identification: { state: "identified", identifiedAt: 900, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [],
+    pendingCheck: null,
+    onsetTargetStage: null,
+    lastCheck: null,
+    revision: 1
+  };
+  const { controller } = makeController(definition, { state, degrees: ["failure"] });
+  const service = serviceFor(controller);
+  let stageOptions = null;
+  const originalSetStage = service.setStage.bind(service);
+  service.setStage = async (target, stage, options = {}) => {
+    stageOptions = structuredClone(options);
+    return originalSetStage(target, stage, options);
+  };
+  const engine = createAfflictionEngine({ instanceService: service });
+  const result = await engine.process(controller, { force: true });
+  assert.equal(result.status, "stage-changed");
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 2);
+  assert.equal(stageOptions.lastCheck.degree, "failure");
+  assert.equal(controller.flags[MODULE_ID].state.lastCheck.degree, "failure");
+});

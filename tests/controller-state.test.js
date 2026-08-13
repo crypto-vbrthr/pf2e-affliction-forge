@@ -10,23 +10,32 @@ const {
   validateAfflictionControllerState
 } = await import("../scripts/affliction/runtime/controller-state.js");
 
-test("controller starts in stage 1 without onset", () => {
+test("controller starts pending at stage 0 when an initial exposure check exists", () => {
   const definition = createAfflictionDefinition({ name: "Gift" });
   const state = createAfflictionControllerState(definition, { appliedAt: 100 });
-  assert.equal(state.status, "active");
-  assert.equal(state.currentStage, 1);
-  assert.equal(state.stageEnteredAt, 100);
+  assert.equal(state.status, "pending");
+  assert.equal(state.currentStage, 0);
+  assert.equal(state.stageEnteredAt, null);
   assert.equal(state.identification.state, "identified");
   assert.equal(state.identification.identifiedAt, 100);
   assert.equal(validateAfflictionControllerState(state, definition).valid, true);
 });
 
-test("controller starts incubating at stage 0 when onset exists", () => {
-  const definition = createAfflictionDefinition({ name: "Fieber", onset: { value: 1, unit: "days" } });
+test("controller starts in stage 1 when no initial check or onset exists", () => {
+  const definition = createAfflictionDefinition({ name: "Gift", initialCheck: null });
+  const state = createAfflictionControllerState(definition, { appliedAt: 100 });
+  assert.equal(state.status, "active");
+  assert.equal(state.currentStage, 1);
+  assert.equal(state.stageEnteredAt, 100);
+});
+
+test("controller starts incubating at stage 0 when onset exists without an initial check", () => {
+  const definition = createAfflictionDefinition({ name: "Fieber", initialCheck: null, onset: { value: 1, unit: "days" } });
   const state = createAfflictionControllerState(definition, { appliedAt: 100 });
   assert.equal(state.status, "incubating");
   assert.equal(state.currentStage, 0);
   assert.equal(state.stageEnteredAt, null);
+  assert.equal(state.onsetTargetStage, 1);
 });
 
 test("controller copies the template identification start state without changing the definition", () => {
