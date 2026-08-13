@@ -1,0 +1,45 @@
+<div class="affliction-forge-shell">
+  <header class="affliction-forge-toolbar">
+    <div class="affliction-forge-toolbar-main">
+      <button type="button" data-action="newDraft">
+        <i class="fa-solid fa-file-circle-plus"></i>
+        {{localize "PF2E_AFFLICTION_FORGE.Forge.NewDraft"}}
+      </button>
+      <button type="button" data-action="validateDraft">
+        <i class="fa-solid fa-list-check"></i>
+        {{localize "PF2E_AFFLICTION_FORGE.Forge.Validate"}}
+      </button>
+      <button type="button" data-action="copyDefinition">
+        <i class="fa-regular fa-copy"></i>
+        {{localize "PF2E_AFFLICTION_FORGE.Forge.CopyDefinition"}}
+      </button>
+    </div>
+    <button type="button" data-action="closeWindow">
+      <i class="fa-solid fa-xmark"></i>
+      {{localize "PF2E_AFFLICTION_FORGE.Forge.Close"}}
+    </button>
+  </header>
+
+  <div class="affliction-forge-status-line">
+    <div class="affliction-forge-draft-note">
+      <i class="fa-solid fa-flask"></i>
+      <span>{{localize "PF2E_AFFLICTION_FORGE.Forge.DraftNotice"}}</span>
+    </div>
+    <div class="affliction-forge-contract-meta">
+      <span>API {{apiVersion}}</span>
+      <span>Schema {{schemaVersion}}</span>
+      {{#if criticalForgeReady}}
+        <span class="ready"><i class="fa-solid fa-circle-check"></i> Critical Forge {{criticalForgeVersion}}</span>
+      {{else}}
+        <span class="not-ready"><i class="fa-solid fa-triangle-exclamation"></i> {{localize "PF2E_AFFLICTION_FORGE.Forge.CriticalForgeUnavailable"}}</span>
+      {{/if}}
+    </div>
+  </div>
+
+  <main class="affliction-forge-editor-frame" data-affliction-forge-editor-host>
+    <div class="affliction-forge-loading">
+      <i class="fa-solid fa-spinner fa-spin"></i>
+      {{localize "PF2E_AFFLICTION_FORGE.Forge.LoadingEditor"}}
+    </div>
+  </main>
+</div>

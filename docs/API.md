@@ -1,4 +1,4 @@
-# Public API 0.1.0
+# Public API 0.1.1
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -20,6 +20,35 @@ api.definitions.resolveStageCheck(definition, stageOrNumber)
 
 Stage Effect Definitions are validated via `pf2e-critical-forge.api.effects.validate()` when Critical Forge is available.
 
+## Embedded UI API
+
+```js
+api.ui.afflictionEditor.modes
+api.ui.afflictionEditor.template
+api.ui.afflictionEditor.createSession(definition, options)
+api.ui.afflictionEditor.create(options)
+api.ui.afflictionEditor.prepareContext(session, options)
+api.ui.afflictionEditor.render(context, options)
+```
+
+Typical external-container use:
+
+```js
+const editor = api.ui.afflictionEditor.create({
+  definition,
+  mode: "edit",
+  onChange: (definition) => {
+    draft.affliction = definition;
+  }
+});
+
+await editor.mount(htmlElement);
+const edited = editor.value;
+editor.destroy();
+```
+
+The editor contains no persistence or actor-application buttons. The host container owns those actions.
+
 ## Document API
 
 ```js
@@ -32,7 +61,7 @@ api.documents.isTemplate(item)
 api.documents.isController(item)
 ```
 
-`buildTemplateSource()` returns PF2e Item source data. It does not create a world Item. Storage services are intentionally deferred until the editor/template-management block.
+`buildTemplateSource()` returns PF2e Item source data. It does not create a world Item. Storage services remain a separate layer.
 
 ## Controller contract
 
@@ -41,7 +70,7 @@ api.controllers.createState(definition, options)
 api.controllers.validateState(state, definition)
 ```
 
-These functions establish persistence shape only. Version 0.1.0 does not schedule checks or transition stages.
+These functions establish persistence shape only. Version 0.1.1 does not schedule checks or transition stages.
 
 ## Critical Forge integration
 

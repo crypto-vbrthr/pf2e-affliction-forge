@@ -177,6 +177,14 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
       }
 
       if (stage.effect != null) {
+        if (isObject(stage.effect) && stage.effect.duration?.unit !== "unlimited") {
+          report.add({
+            severity: "warning",
+            code: "stage.effect.duration-managed",
+            path: `${path}.effect.duration`,
+            message: "Stage Effect duration should normally be unlimited because the Affliction Engine owns stage lifecycle."
+          });
+        }
         if (!isObject(stage.effect)) {
           report.add({ severity: "error", code: "stage.effect.object", path: `${path}.effect`, message: "Stage effect must be an Effect Definition object or null." });
         } else if (typeof effectValidator === "function") {

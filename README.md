@@ -1,10 +1,12 @@
 # PF2E Affliction Forge
 
-Version **0.1.0** establishes the foundation and public data contract for a staged PF2e affliction framework.
+Current development build: **0.1.6**
 
-This release deliberately does **not** ship the Affliction Editor or automatic runtime yet. It fixes the contracts those later layers will consume, so the editor, Creature Forge integrations, content packs, and Affliction Engine can be built without rewriting the stored format.
+Version **0.1.6** tightens the editing workflow: save-check names propagate immediately to every reference, validation messages are de-duplicated, and stage effects expose only the Critical Forge component editor because identity and lifecycle are owned by the Affliction stage.
 
-## 0.1.0 scope
+The editor is deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. Persistence and actor application remain outside the editor.
+
+## Current 0.1.x scope
 
 - versioned `AfflictionDefinition` schema
 - poison, disease, curse, and custom affliction types
@@ -18,13 +20,18 @@ This release deliberately does **not** ship the Affliction Editor or automatic r
 - explicit module flags distinguishing templates, controllers, and generated stage effects
 - versioned controller-state contract for later runtime work
 - public API foundation
+- Embedded Affliction Editor with create/edit/view modes
+- save-check, exposure, onset, progression, and stage editing
+- stage add/remove/duplicate/reorder controls
+- Critical Forge Embedded Effect Editor mounted per stage in a compact components-only presentation
+- live validation and public `api.ui.afflictionEditor` contract
 - integration/compatibility boundary for PF2E Critical Forge
 
 ## Dependency
 
 PF2E Affliction Forge requires **PF2E Critical Forge 1.0.1-rc.1 or later**. Affliction stage mechanics are stored as Critical Forge Effect Definitions and validated through its public `api.effects.validate()` contract.
 
-The later Embedded Affliction Editor will use Critical Forge's public `api.ui.effectEditor` interface rather than importing Effect Forge internals.
+The Embedded Affliction Editor uses Critical Forge's public `api.ui.effectEditor` interface and does not import Effect Forge internals.
 
 ## Public API
 
@@ -44,7 +51,7 @@ const report = api.definitions.validate(normalized);
 const itemSource = api.documents.buildTemplateSource(normalized);
 ```
 
-A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object.
+A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See `docs/EMBEDDED_EDITOR.md` for the reusable UI contract.
 
 ## Design boundary
 

@@ -96,3 +96,21 @@ test("multiple checks are representable through an explicit combine mode", () =>
   const report = validateAfflictionDefinition(definition);
   assert.equal(report.valid, true, JSON.stringify(report.errors));
 });
+
+test("validator warns when a stage Effect Definition tries to own stage lifetime", () => {
+  const definition = validDefinition();
+  definition.stages[0].effect = {
+    schemaVersion: 2,
+    id: "finite.stage.effect",
+    name: "Finite",
+    duration: { value: 1, unit: "rounds", expiry: "turn-end" },
+    components: [],
+    application: {},
+    metadata: {}
+  };
+  const report = validateAfflictionDefinition(definition, {
+    effectValidator: () => ({ valid: true, issues: [] })
+  });
+  assert.equal(report.valid, true);
+  assert.ok(report.warnings.some((issue) => issue.code === "stage.effect.duration-managed"));
+});

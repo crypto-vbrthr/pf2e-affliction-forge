@@ -1,0 +1,747 @@
+import {
+  AFFLICTION_TYPES,
+  CHECK_COMBINE_MODES,
+  DURATION_UNITS,
+  MODULE_ID,
+  OUTCOME_KEYS,
+  RARITIES,
+  SAVE_STATISTICS,
+  TRANSITION_ACTIONS
+} from "../../constants.js";
+import { getCriticalForgeApi } from "../integration/critical-forge-adapter.js";
+import { createAfflictionEditorSession } from "./affliction-editor-session.js";
+import { deepClone } from "../schema/utils.js";
+
+export const AFFLICTION_EDITOR_TEMPLATE = `modules/${MODULE_ID}/templates/affliction-forge/affliction-editor.hbs`;
+
+const LABELS = Object.freeze({
+  type: {
+    poison: "PF2E_AFFLICTION_FORGE.Types.Poison",
+    disease: "PF2E_AFFLICTION_FORGE.Types.Disease",
+    curse: "PF2E_AFFLICTION_FORGE.Types.Curse",
+    other: "PF2E_AFFLICTION_FORGE.Types.Other"
+  },
+  rarity: {
+    common: "PF2E_AFFLICTION_FORGE.Rarity.Common",
+    uncommon: "PF2E_AFFLICTION_FORGE.Rarity.Uncommon",
+    rare: "PF2E_AFFLICTION_FORGE.Rarity.Rare",
+    unique: "PF2E_AFFLICTION_FORGE.Rarity.Unique"
+  },
+  statistic: {
+    fortitude: "PF2E_AFFLICTION_FORGE.Save.Fortitude",
+    reflex: "PF2E_AFFLICTION_FORGE.Save.Reflex",
+    will: "PF2E_AFFLICTION_FORGE.Save.Will"
+  },
+  duration: {
+    rounds: "PF2E_AFFLICTION_FORGE.Duration.Rounds",
+    minutes: "PF2E_AFFLICTION_FORGE.Duration.Minutes",
+    hours: "PF2E_AFFLICTION_FORGE.Duration.Hours",
+    days: "PF2E_AFFLICTION_FORGE.Duration.Days",
+    unlimited: "PF2E_AFFLICTION_FORGE.Duration.Unlimited"
+  },
+  combine: {
+    single: "PF2E_AFFLICTION_FORGE.Combine.Single",
+    "best-degree": "PF2E_AFFLICTION_FORGE.Combine.BestDegree",
+    "worst-degree": "PF2E_AFFLICTION_FORGE.Combine.WorstDegree",
+    "all-success": "PF2E_AFFLICTION_FORGE.Combine.AllSuccess",
+    "any-success": "PF2E_AFFLICTION_FORGE.Combine.AnySuccess"
+  },
+  action: {
+    none: "PF2E_AFFLICTION_FORGE.Transition.None",
+    reject: "PF2E_AFFLICTION_FORGE.Transition.Reject",
+    recover: "PF2E_AFFLICTION_FORGE.Transition.Recover",
+    stay: "PF2E_AFFLICTION_FORGE.Transition.Stay",
+    "set-stage": "PF2E_AFFLICTION_FORGE.Transition.SetStage",
+    "stage-delta": "PF2E_AFFLICTION_FORGE.Transition.StageDelta"
+  },
+  outcome: {
+    criticalSuccess: "PF2E_AFFLICTION_FORGE.Outcome.CriticalSuccess",
+    success: "PF2E_AFFLICTION_FORGE.Outcome.Success",
+    failure: "PF2E_AFFLICTION_FORGE.Outcome.Failure",
+    criticalFailure: "PF2E_AFFLICTION_FORGE.Outcome.CriticalFailure"
+  }
+});
+
+function localize(key) {
+  return globalThis.game?.i18n?.localize?.(key) ?? key;
+}
+
+function optionList(values, selected, labels) {
+  return values.map((value) => ({
+    value,
+    label: localize(labels[value] ?? value),
+    selected: value === selected
+  }));
+}
+
+function parseStringList(value) {
+  return [...new Set(String(value ?? "")
+    .split(/[\n,;]/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean))];
+}
+
+function integerValue(value, fallback = 0) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function durationFromRegion(region, { nullable = true, allowUnlimited = true } = {}) {
+  if (!(region instanceof HTMLElement)) return nullable ? null : { value: 1, unit: "rounds" };
+  const enabled = region.querySelector('[data-duration-enabled]');
+  if (nullable && enabled && !enabled.checked) return null;
+  const unlimited = allowUnlimited && Boolean(region.querySelector('[data-duration-unlimited]')?.checked);
+  if (unlimited) return { value: -1, unit: "unlimited" };
+  const value = integerValue(region.querySelector('[data-duration-value]')?.value, 1);
+  const unit = String(region.querySelector('[data-duration-unit]')?.value ?? "rounds");
+  return { value, unit };
+}
+
+function directiveFromRegion(region) {
+  const action = String(region.querySelector('[data-directive-action]')?.value ?? "none");
+  const result = { action };
+  if (action === "set-stage") result.stage = integerValue(region.querySelector('[data-directive-value]')?.value, 1);
+  if (action === "stage-delta") result.delta = integerValue(region.querySelector('[data-directive-value]')?.value, 1);
+  return result;
+}
+
+function gateFromRegion(region) {
+  if (!(region instanceof HTMLElement)) return null;
+  const checkIds = [...region.querySelectorAll('[data-gate-check-id]:checked')]
+    .map((input) => String(input.value ?? "").trim())
+    .filter(Boolean);
+  const outcomes = {};
+  for (const outcome of OUTCOME_KEYS) {
+    const outcomeRegion = region.querySelector(`[data-outcome="${outcome}"]`);
+    outcomes[outcome] = directiveFromRegion(outcomeRegion);
+  }
+  return {
+    checkIds,
+    combine: String(region.querySelector('[data-gate-combine]')?.value ?? "single"),
+    outcomes
+  };
+}
+
+function preparedDirective(directive = { action: "none" }) {
+  const action = directive?.action ?? "none";
+  return {
+    ...directive,
+    action,
+    value: action === "set-stage" ? (directive.stage ?? 1) : action === "stage-delta" ? (directive.delta ?? 1) : "",
+    usesValue: action === "set-stage" || action === "stage-delta",
+    valueLabel: localize(action === "set-stage"
+      ? "PF2E_AFFLICTION_FORGE.Editor.TargetStage"
+      : "PF2E_AFFLICTION_FORGE.Editor.StageDelta"),
+    actionOptions: optionList(TRANSITION_ACTIONS, action, LABELS.action)
+  };
+}
+
+function prepareGate(gate, checks) {
+  if (!gate) return null;
+  return {
+    checkOptions: checks.map((check, index) => ({
+      index,
+      value: check.id,
+      label: check.label || check.id,
+      checked: gate.checkIds?.includes(check.id) ?? false
+    })),
+    combineOptions: optionList(CHECK_COMBINE_MODES, gate.combine, LABELS.combine),
+    outcomes: OUTCOME_KEYS.map((outcome) => ({
+      key: outcome,
+      label: localize(LABELS.outcome[outcome]),
+      directive: preparedDirective(gate.outcomes?.[outcome])
+    }))
+  };
+}
+
+function prepareDuration(duration, { nullable = true, allowUnlimited = true } = {}) {
+  const enabled = duration != null;
+  const unlimited = enabled && duration?.unit === "unlimited";
+  return {
+    enabled: nullable ? enabled : true,
+    value: unlimited ? 1 : (duration?.value ?? 1),
+    unit: unlimited ? "rounds" : (duration?.unit ?? "rounds"),
+    unlimited: allowUnlimited && unlimited,
+    unitOptions: optionList(DURATION_UNITS.filter((unit) => unit !== "unlimited"), unlimited ? "rounds" : (duration?.unit ?? "rounds"), LABELS.duration)
+  };
+}
+
+function displayIssue(issue) {
+  const path = String(issue?.path ?? "");
+  const raw = String(issue?.message ?? issue?.code ?? "");
+  const message = path && raw.toLowerCase().startsWith(`${path.toLowerCase()} `)
+    ? raw.slice(path.length).trimStart()
+    : raw;
+  return { ...issue, displayMessage: message };
+}
+
+function issueSummary(report) {
+  const issues = (report?.issues ?? []).map(displayIssue);
+  return {
+    valid: report?.valid !== false,
+    errorCount: issues.filter((issue) => issue.severity === "error").length,
+    warningCount: issues.filter((issue) => issue.severity === "warning").length,
+    issues
+  };
+}
+
+function createDefaultStageEffect(definition, stage, criticalApi) {
+  const effectId = `${definition.id}.${stage.id}.effect`;
+  const stageLabel = stage.name || `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage")} ${stage.number}`;
+  return criticalApi.builders.effect()
+    .setId(effectId)
+    .setName(`${definition.name || localize("PF2E_AFFLICTION_FORGE.Editor.Untitled")} · ${stageLabel}`)
+    .setImage(definition.img)
+    .setDuration(-1, "unlimited", null)
+    .setMetadata({
+      originModule: MODULE_ID,
+      originFeature: "affliction-stage-effect-definition"
+    })
+    .build();
+}
+
+function synchronizeManagedStageEffectMetadata(definition, stage) {
+  const source = stage?.effect;
+  if (!source || typeof source !== "object" || Array.isArray(source)) return source;
+
+  // Critical Forge builders intentionally return deeply frozen Effect Definitions.
+  // The Affliction editor keeps a mutable working model, so never mutate an
+  // Effect Definition received from the public Critical Forge API in place.
+  // Always clone first and replace the stage-owned value with the mutable copy.
+  const effect = deepClone(source);
+  const stageLabel = stage.name || `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage")} ${stage.number}`;
+  effect.id = `${definition.id}.${stage.id}.effect`;
+  effect.name = `${definition.name || localize("PF2E_AFFLICTION_FORGE.Editor.Untitled")} · ${stageLabel}`;
+  effect.img = definition.img;
+  effect.duration = { value: -1, unit: "unlimited", expiry: null };
+  effect.metadata = {
+    ...(effect.metadata ?? {}),
+    originModule: MODULE_ID,
+    originFeature: "affliction-stage-effect-definition"
+  };
+  stage.effect = effect;
+  return effect;
+}
+
+export async function prepareAfflictionEditorContext(session, {
+  api = game.modules.get(MODULE_ID)?.api,
+  validationReport = null
+} = {}) {
+  if (!api) throw new Error("Affliction Forge API is unavailable.");
+  const definition = session.definition;
+  const report = validationReport ?? api.definitions.validate(definition);
+  return {
+    definition,
+    mode: session.mode,
+    readOnly: session.readOnly,
+    dirty: session.dirty,
+    typeOptions: optionList(AFFLICTION_TYPES, definition.afflictionType, LABELS.type),
+    rarityOptions: optionList(RARITIES, definition.rarity, LABELS.rarity),
+    statisticCatalog: SAVE_STATISTICS,
+    checks: definition.checks.map((check, index) => ({
+      ...check,
+      index,
+      number: index + 1,
+      canRemove: definition.checks.length > 1,
+      statisticOptions: optionList(SAVE_STATISTICS, check.statistic, LABELS.statistic)
+    })),
+    initialCheck: prepareGate(definition.initialCheck, definition.checks),
+    hasInitialCheck: Boolean(definition.initialCheck),
+    defaultStageCheck: prepareGate(definition.defaultStageCheck, definition.checks),
+    hasDefaultStageCheck: Boolean(definition.defaultStageCheck),
+    onset: prepareDuration(definition.onset, { nullable: true, allowUnlimited: false }),
+    maximumDuration: prepareDuration(definition.maximumDuration, { nullable: true, allowUnlimited: true }),
+    stages: definition.stages.map((stage, index) => ({
+      ...stage,
+      index,
+      canMoveUp: index > 0,
+      canMoveDown: index < definition.stages.length - 1,
+      canRemove: definition.stages.length > 1,
+      collapsed: session.isStageCollapsed(index),
+      durationView: prepareDuration(stage.duration, { nullable: false, allowUnlimited: true }),
+      usesCustomCheck: Boolean(stage.check),
+      customCheck: prepareGate(stage.check, definition.checks),
+      hasEffect: Boolean(stage.effect),
+      effectComponentCount: Array.isArray(stage.effect?.components) ? stage.effect.components.length : 0
+    })),
+    validation: issueSummary(report)
+  };
+}
+
+export async function renderAfflictionEditor(context, {
+  renderTemplateFn = globalThis.foundry?.applications?.handlebars?.renderTemplate
+} = {}) {
+  if (typeof renderTemplateFn !== "function") throw new Error("Foundry renderTemplate is unavailable.");
+  return renderTemplateFn(AFFLICTION_EDITOR_TEMPLATE, context);
+}
+
+export class EmbeddedAfflictionEditor {
+  constructor({
+    definition = null,
+    session = null,
+    mode = "edit",
+    apiProvider = () => game.modules.get(MODULE_ID)?.api,
+    criticalApiProvider = () => getCriticalForgeApi({ required: true }),
+    onChange = null
+  } = {}) {
+    this.session = session ?? createAfflictionEditorSession(definition, { mode });
+    this.apiProvider = apiProvider;
+    this.criticalApiProvider = criticalApiProvider;
+    this.onChange = typeof onChange === "function" ? onChange : null;
+    this.container = null;
+    this.root = null;
+    this.boundClick = null;
+    this.boundInput = null;
+    this.boundChange = null;
+    this.effectEditors = new Map();
+  }
+
+  get value() {
+    this.#sync();
+    return this.session.value;
+  }
+
+  get dirty() {
+    return this.session.dirty;
+  }
+
+  get mode() {
+    return this.session.mode;
+  }
+
+  #api() {
+    const api = this.apiProvider?.();
+    if (!api) throw new Error("Affliction Forge API is unavailable.");
+    return api;
+  }
+
+  #criticalApi() {
+    const api = this.criticalApiProvider?.();
+    if (!api?.ui?.effectEditor?.create) throw new Error("Critical Forge Embedded Effect Editor API is unavailable.");
+    return api;
+  }
+
+  async renderHtml(options = {}) {
+    const context = await prepareAfflictionEditorContext(this.session, {
+      api: this.#api(),
+      validationReport: options.validationReport ?? null
+    });
+    return renderAfflictionEditor(context, options);
+  }
+
+  async mount(container, options = {}) {
+    if (!(container instanceof HTMLElement)) throw new TypeError("Affliction Editor mount target must be an HTMLElement.");
+    this.unmount();
+    this.container = container;
+    const html = await this.renderHtml(options);
+    container.innerHTML = `<div class="affliction-editor-embedded" data-affliction-editor-root>${html}</div>`;
+    this.root = container.querySelector("[data-affliction-editor-root]");
+    this.#ensureEditableState();
+    this.#bind();
+    this.#activateDynamicControls();
+    await this.#mountStageEffectEditors();
+    if (this.session.readOnly) this.#applyReadOnly();
+    return this;
+  }
+
+  unmount() {
+    for (const editor of this.effectEditors.values()) editor.unmount?.();
+    this.effectEditors.clear();
+    if (this.root && this.boundClick) this.root.removeEventListener("click", this.boundClick);
+    if (this.root && this.boundInput) this.root.removeEventListener("input", this.boundInput);
+    if (this.root && this.boundChange) this.root.removeEventListener("change", this.boundChange);
+    this.root = null;
+    this.boundClick = null;
+    this.boundInput = null;
+    this.boundChange = null;
+  }
+
+  destroy() {
+    this.unmount();
+    if (this.container) this.container.innerHTML = "";
+    this.container = null;
+  }
+
+  setData(definition, { mode = this.session.mode, rerender = true } = {}) {
+    this.session.loadDefinition(definition, { mode });
+    if (rerender && this.container) return this.mount(this.container);
+    return this;
+  }
+
+  markClean() {
+    this.#sync();
+    this.session.markClean();
+    return this;
+  }
+
+  validate() {
+    this.#sync();
+    return this.#api().definitions.validate(this.session.definition);
+  }
+
+  refreshValidation({ scrollIntoView = false } = {}) {
+    this.#sync();
+    const report = this.#refreshValidation();
+    if (scrollIntoView) {
+      this.root?.querySelector?.("[data-validation-root]")?.scrollIntoView?.({
+        behavior: "smooth",
+        block: "nearest"
+      });
+    }
+    return report;
+  }
+
+  focusFirstField() {
+    const field = this.root?.querySelector?.('[data-affliction-field="name"]');
+    if (field instanceof HTMLElement && !field.matches(":disabled")) {
+      field.focus();
+      field.select?.();
+      return true;
+    }
+    return false;
+  }
+
+  #ensureEditableState() {
+    if (!(this.root instanceof HTMLElement)) return;
+    const fieldset = this.root.querySelector("[data-affliction-editor-fieldset]");
+    if (!(fieldset instanceof HTMLElement)) return;
+
+    if (this.session.readOnly) {
+      fieldset.disabled = true;
+      return;
+    }
+
+    // Embedded hosts must never accidentally inherit a disabled fieldset state.
+    // Read-only is applied explicitly by the session instead.
+    fieldset.disabled = false;
+    fieldset.removeAttribute("disabled");
+  }
+
+  #bind() {
+    if (!(this.root instanceof HTMLElement)) return;
+    this.boundClick = async (event) => {
+      const target = event.target?.closest?.("[data-affliction-action]");
+      if (!target || !this.root.contains(target)) return;
+      const action = target.dataset.afflictionAction;
+      if (!action) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.session.readOnly && !["toggleStage"].includes(action)) return;
+      await this.#handleAction(action, target);
+    };
+    const sync = (event) => {
+      if (event?.target?.closest?.("[data-effect-editor-root]")) return;
+      this.#sync();
+      this.#refreshValidation();
+      this.#emitChange();
+    };
+    this.boundInput = sync;
+    this.boundChange = sync;
+    this.root.addEventListener("click", this.boundClick);
+    this.root.addEventListener("input", this.boundInput);
+    this.root.addEventListener("change", this.boundChange);
+  }
+
+  #sync() {
+    const root = this.root;
+    if (!(root instanceof HTMLElement)) return;
+    const definition = this.session.definition;
+
+    const value = (selector, fallback = "") => root.querySelector(selector)?.value ?? fallback;
+    definition.id = String(value('[data-affliction-field="id"]', definition.id)).trim();
+    definition.name = String(value('[data-affliction-field="name"]', definition.name)).trim();
+    definition.description = String(value('[data-affliction-field="description"]', definition.description));
+    definition.img = String(value('[data-affliction-field="img"]', definition.img)).trim();
+    definition.afflictionType = String(value('[data-affliction-field="afflictionType"]', definition.afflictionType));
+    definition.level = integerValue(value('[data-affliction-field="level"]', definition.level), definition.level);
+    definition.rarity = String(value('[data-affliction-field="rarity"]', definition.rarity));
+    definition.traits = parseStringList(value('[data-affliction-field="traits"]', definition.traits.join(", ")));
+    definition.themes = parseStringList(value('[data-affliction-field="themes"]', definition.themes.join(", ")));
+    definition.progression.belowStageOne = String(value('[data-affliction-field="belowStageOne"]', definition.progression.belowStageOne));
+    definition.progression.aboveMaximumStage = String(value('[data-affliction-field="aboveMaximumStage"]', definition.progression.aboveMaximumStage));
+
+    const onsetRegion = root.querySelector('[data-affliction-duration="onset"]');
+    definition.onset = durationFromRegion(onsetRegion, { nullable: true, allowUnlimited: false });
+    const maximumRegion = root.querySelector('[data-affliction-duration="maximumDuration"]');
+    definition.maximumDuration = durationFromRegion(maximumRegion, { nullable: true, allowUnlimited: true });
+
+    for (const checkRegion of root.querySelectorAll("[data-affliction-check-index]")) {
+      const index = Number(checkRegion.dataset.afflictionCheckIndex);
+      const check = definition.checks[index];
+      if (!check) continue;
+      const oldId = check.id;
+      const nextId = String(checkRegion.querySelector('[data-check-field="id"]')?.value ?? oldId).trim();
+      if (nextId && nextId !== oldId) this.session.renameCheck(index, nextId);
+      check.label = String(checkRegion.querySelector('[data-check-field="label"]')?.value ?? check.label);
+      check.statistic = String(checkRegion.querySelector('[data-check-field="statistic"]')?.value ?? check.statistic);
+      check.dc = integerValue(checkRegion.querySelector('[data-check-field="dc"]')?.value, check.dc);
+    }
+
+    this.#refreshRenderedCheckReferences();
+
+    const initialRegion = root.querySelector('[data-check-gate="initialCheck"]');
+    if (definition.initialCheck && initialRegion) definition.initialCheck = gateFromRegion(initialRegion);
+    const defaultRegion = root.querySelector('[data-check-gate="defaultStageCheck"]');
+    if (definition.defaultStageCheck && defaultRegion) definition.defaultStageCheck = gateFromRegion(defaultRegion);
+
+    for (const stageRegion of root.querySelectorAll("[data-affliction-stage-index]")) {
+      const index = Number(stageRegion.dataset.afflictionStageIndex);
+      const stage = definition.stages[index];
+      if (!stage) continue;
+      stage.id = String(stageRegion.querySelector('[data-stage-field="id"]')?.value ?? stage.id).trim();
+      stage.name = String(stageRegion.querySelector('[data-stage-field="name"]')?.value ?? stage.name);
+      stage.description = String(stageRegion.querySelector('[data-stage-field="description"]')?.value ?? stage.description);
+      stage.duration = durationFromRegion(stageRegion.querySelector('[data-stage-duration]'), { nullable: false, allowUnlimited: true });
+      const customGate = stageRegion.querySelector('[data-check-gate="stage"]');
+      if (stage.check && customGate) stage.check = gateFromRegion(customGate);
+      synchronizeManagedStageEffectMetadata(definition, stage);
+    }
+
+    this.session.refreshDirty();
+  }
+
+  #refreshRenderedCheckReferences() {
+    const root = this.root;
+    if (!(root instanceof HTMLElement)) return;
+    const checks = this.session.definition.checks;
+    for (const option of root.querySelectorAll("[data-gate-check-option]")) {
+      const index = Number(option.dataset.checkIndex);
+      const check = checks[index];
+      if (!check) continue;
+      const input = option.querySelector("[data-gate-check-id]");
+      const label = option.querySelector("[data-gate-check-label]");
+      if (input) input.value = check.id;
+      if (label) label.textContent = check.label || check.id;
+    }
+  }
+
+  #updateStageEffectSummary(index, effectDefinition) {
+    const count = Array.isArray(effectDefinition?.components) ? effectDefinition.components.length : 0;
+    const output = this.root?.querySelector?.(`[data-stage-effect-summary="${index}"] [data-effect-component-count]`);
+    if (output) output.textContent = String(count);
+  }
+
+  #emitChange() {
+    this.onChange?.(this.session.value, this.session);
+  }
+
+  async #changed({ rerender = true } = {}) {
+    this.session.markDirty();
+    this.#emitChange();
+    if (rerender && this.container) await this.mount(this.container);
+  }
+
+  async #handleAction(action, target) {
+    this.#sync();
+    const index = Number(target.dataset.index);
+
+    if (action === "addCheck") this.session.addCheck();
+    else if (action === "removeCheck") this.session.removeCheck(index);
+    else if (action === "toggleInitialCheck") this.session.setInitialCheckEnabled(!this.session.definition.initialCheck);
+    else if (action === "toggleDefaultStageCheck") this.session.setDefaultStageCheckEnabled(!this.session.definition.defaultStageCheck);
+    else if (action === "addStage") this.session.addStage();
+    else if (action === "removeStage") this.session.removeStage(index);
+    else if (action === "duplicateStage") this.session.duplicateStage(index);
+    else if (action === "moveStageUp") this.session.moveStage(index, "up");
+    else if (action === "moveStageDown") this.session.moveStage(index, "down");
+    else if (action === "toggleStage") {
+      this.session.toggleStageCollapsed(index);
+      if (this.container) await this.mount(this.container);
+      return;
+    }
+    else if (action === "toggleStageCheck") this.session.setStageCheckOverride(index, !this.session.definition.stages[index]?.check);
+    else if (action === "addStageEffect") {
+      const stage = this.session.definition.stages[index];
+      if (stage && !stage.effect) this.session.setStageEffect(index, createDefaultStageEffect(this.session.definition, stage, this.#criticalApi()));
+    }
+    else if (action === "removeStageEffect") this.session.clearStageEffect(index);
+    else if (action === "browseImage") {
+      const Picker = globalThis.FilePicker ?? foundry.applications?.apps?.FilePicker?.implementation;
+      if (!Picker) {
+        globalThis.ui?.notifications?.warn?.(localize("PF2E_AFFLICTION_FORGE.Editor.ImagePickerUnavailable"));
+        return;
+      }
+      const picker = new Picker({
+        type: "image",
+        current: this.session.definition.img,
+        callback: async (path) => {
+          this.session.definition.img = path;
+          await this.#changed();
+        }
+      });
+      await picker.browse();
+      return;
+    } else return;
+
+    await this.#changed();
+  }
+
+  async #mountStageEffectEditors() {
+    if (!(this.root instanceof HTMLElement)) return;
+    const criticalApi = this.#criticalApi();
+    for (const host of this.root.querySelectorAll("[data-stage-effect-host]")) {
+      const index = Number(host.dataset.stageEffectHost);
+      const stage = this.session.definition.stages[index];
+      if (!stage?.effect) continue;
+      synchronizeManagedStageEffectMetadata(this.session.definition, stage);
+      const editor = criticalApi.ui.effectEditor.create({
+        definition: stage.effect,
+        layout: "embedded",
+        onChange: (effectSession) => {
+          const built = effectSession.buildDefinition({ api: criticalApi });
+          // `built` is deeply frozen by Critical Forge. Route it through the
+          // session clone boundary before applying Affliction-owned metadata.
+          this.session.setStageEffect(index, built);
+          const managed = synchronizeManagedStageEffectMetadata(this.session.definition, stage);
+          this.session.markDirty();
+          this.#updateStageEffectSummary(index, managed);
+          this.#refreshValidation();
+          this.#emitChange();
+        }
+      });
+      this.effectEditors.set(index, editor);
+      await editor.mount(host);
+      host.dataset.afflictionEffectEditor = "components-only";
+      editor.root?.setAttribute?.("data-affliction-stage-effect-editor", "");
+      if (this.session.readOnly) {
+        for (const control of host.querySelectorAll("input, select, textarea, button")) control.disabled = true;
+      }
+    }
+  }
+
+  #refreshValidation() {
+    const root = this.root;
+    if (!(root instanceof HTMLElement)) return this.#api().definitions.validate(this.session.definition);
+    const section = root.querySelector("[data-validation-root]");
+    const report = this.#api().definitions.validate(this.session.definition);
+    if (!(section instanceof HTMLElement)) return report;
+    const errors = report.issues?.filter((issue) => issue.severity === "error") ?? [];
+    const badge = section.querySelector("[data-validation-badge]");
+    if (badge) {
+      badge.classList.toggle("valid", report.valid !== false);
+      badge.classList.toggle("invalid", report.valid === false);
+      badge.innerHTML = report.valid !== false
+        ? `<i class="fa-solid fa-circle-check"></i> ${localize("PF2E_AFFLICTION_FORGE.Editor.Valid")}`
+        : `<i class="fa-solid fa-circle-xmark"></i> ${errors.length} ${localize("PF2E_AFFLICTION_FORGE.Editor.Errors")}`;
+    }
+
+    let issues = section.querySelector("[data-validation-issues]");
+    if (!issues) {
+      issues = document.createElement("div");
+      issues.dataset.validationIssues = "";
+      section.append(issues);
+    }
+    issues.replaceChildren();
+    if (!report.issues?.length) {
+      issues.className = "affliction-editor-empty";
+      issues.textContent = localize("PF2E_AFFLICTION_FORGE.Editor.NoValidationIssues");
+      return report;
+    }
+    issues.className = "affliction-editor-issues";
+    for (const issue of report.issues) {
+      const row = document.createElement("div");
+      row.className = `affliction-editor-issue severity-${issue.severity}`;
+      const icon = document.createElement("i");
+      icon.className = `fa-solid ${issue.severity === "error" ? "fa-circle-xmark" : "fa-triangle-exclamation"}`;
+      const text = document.createElement("span");
+      const path = document.createElement("strong");
+      path.textContent = issue.path ?? "";
+      const display = displayIssue(issue);
+      text.append(path, document.createTextNode(`${issue.path ? " " : ""}${display.displayMessage}`));
+      row.append(icon, text);
+      issues.append(row);
+    }
+    return report;
+  }
+
+  #activateDynamicControls() {
+    const root = this.root;
+    if (!(root instanceof HTMLElement)) return;
+
+    for (const region of root.querySelectorAll("[data-affliction-duration]")) {
+      const enabled = region.querySelector("[data-duration-enabled]");
+      const unlimited = region.querySelector("[data-duration-unlimited]");
+      const controls = region.querySelectorAll("[data-duration-control]");
+      const update = () => {
+        const active = enabled ? enabled.checked : true;
+        const infinite = Boolean(unlimited?.checked);
+        if (unlimited) unlimited.disabled = !active || this.session.readOnly;
+        for (const control of controls) control.disabled = !active || infinite || this.session.readOnly;
+      };
+      enabled?.addEventListener("change", update);
+      unlimited?.addEventListener("change", update);
+      update();
+    }
+
+    for (const region of root.querySelectorAll("[data-stage-duration]")) {
+      const unlimited = region.querySelector("[data-duration-unlimited]");
+      const controls = region.querySelectorAll("[data-duration-control]");
+      const update = () => {
+        const infinite = Boolean(unlimited?.checked);
+        for (const control of controls) control.disabled = infinite || this.session.readOnly;
+      };
+      unlimited?.addEventListener("change", update);
+      update();
+    }
+
+    for (const directive of root.querySelectorAll("[data-outcome]")) {
+      const action = directive.querySelector("[data-directive-action]");
+      const valueWrap = directive.querySelector("[data-directive-value-wrap]");
+      const value = directive.querySelector("[data-directive-value]");
+      const label = directive.querySelector("[data-directive-value-label]");
+      const update = () => {
+        const current = action?.value ?? "none";
+        const visible = current === "set-stage" || current === "stage-delta";
+        if (valueWrap) valueWrap.hidden = !visible;
+        if (value) value.disabled = !visible || this.session.readOnly;
+        if (label) label.textContent = localize(current === "set-stage"
+          ? "PF2E_AFFLICTION_FORGE.Editor.TargetStage"
+          : "PF2E_AFFLICTION_FORGE.Editor.StageDelta");
+      };
+      action?.addEventListener("change", update);
+      update();
+    }
+
+    for (const gate of root.querySelectorAll("[data-check-gate]")) {
+      const combine = gate.querySelector("[data-gate-combine]");
+      const checks = [...gate.querySelectorAll("[data-gate-check-id]")];
+      const update = () => {
+        const single = combine?.value === "single";
+        if (!single) return;
+        const selected = checks.filter((check) => check.checked);
+        if (selected.length <= 1) return;
+        for (const check of selected.slice(1)) check.checked = false;
+      };
+      combine?.addEventListener("change", update);
+      for (const check of checks) check.addEventListener("change", () => {
+        if (combine?.value === "single" && check.checked) {
+          for (const other of checks) if (other !== check) other.checked = false;
+        }
+      });
+      update();
+    }
+  }
+
+  #applyReadOnly() {
+    if (!(this.root instanceof HTMLElement)) return;
+    for (const control of this.root.querySelectorAll("input, select, textarea")) control.disabled = true;
+    for (const button of this.root.querySelectorAll("button[data-affliction-action]")) {
+      if (button.dataset.afflictionAction !== "toggleStage") button.disabled = true;
+    }
+  }
+}
+
+export function createEmbeddedAfflictionEditor(options = {}) {
+  return new EmbeddedAfflictionEditor(options);
+}
+
+export function createAfflictionEditorUiApi() {
+  return Object.freeze({
+    template: AFFLICTION_EDITOR_TEMPLATE,
+    modes: Object.freeze(["create", "edit", "view"]),
+    createSession: (definition = null, options = {}) => createAfflictionEditorSession(definition, options),
+    create: (options = {}) => createEmbeddedAfflictionEditor(options),
+    render: (context, options = {}) => renderAfflictionEditor(context, options),
+    prepareContext: (session, options = {}) => prepareAfflictionEditorContext(session, options)
+  });
+}

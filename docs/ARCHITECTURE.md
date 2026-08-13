@@ -1,29 +1,35 @@
-# Architecture 0.1.0
+# Architecture 0.1.1
 
 ```text
 AfflictionDefinition
         │
         ├── normalizer
         ├── validator ───────► Critical Forge Effect validator
+        ├── Item adapter
         │
-        └── Item adapter
-               │
-               ▼
-       Affliction Template
-       (PF2e effect Item)
+        └── Embedded Affliction Editor
+                 │
+                 └── Critical Forge Embedded Effect Editor per stage
 ```
 
-The runtime/UI layers are deliberately not implemented yet, but their boundaries are fixed:
+The UI is intentionally split into host and editor responsibilities:
 
 ```text
-Future Affliction Forge Container
-        │
-        ▼
-Embedded Affliction Editor
-        │
-        └── embeds Critical Forge Effect Editor per stage
+Affliction Forge Container       Future Creature Forge
+          │                              │
+          └──────────┬───────────────────┘
+                     ▼
+          Embedded Affliction Editor
+                     │
+                     └── Stage Effect Editor
+```
 
-Template
+The shared editor never persists or applies a template. It accepts an `AfflictionDefinition`, edits it, validates it, and returns the current definition to its host.
+
+The later runtime remains separated:
+
+```text
+Affliction Template
    │ apply
    ▼
 Controller Item on Actor
@@ -37,8 +43,10 @@ Affliction Engine
 
 ## Ownership rules
 
-- Affliction Forge owns affliction definitions, stage progression, controller state, and timing semantics.
+- Affliction Forge owns affliction definitions, stage progression, controller state, timing semantics, and the shared Affliction Editor.
+- Host containers own persistence, application, linking, and workflow buttons.
 - Critical Forge Effect Engine owns translation of a stage Effect Definition into PF2e mechanical effects.
+- Critical Forge's public Embedded Effect Editor owns editing the stage Effect Definition.
 - The stage Effect Item is output, never runtime truth.
 - Active controllers keep a definition snapshot.
 - Template items are inert and contain no Rule Elements.

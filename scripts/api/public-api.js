@@ -36,6 +36,7 @@ import {
   createAfflictionControllerState,
   validateAfflictionControllerState
 } from "../affliction/runtime/controller-state.js";
+import { createAfflictionEditorUiApi } from "../affliction/editor/affliction-editor.js";
 import {
   criticalForgeEffectValidator,
   getCriticalForgeApi,
@@ -99,6 +100,16 @@ export function createPublicApi() {
     controllers: Object.freeze({
       createState: (definition, options = {}) => createAfflictionControllerState(definition, options),
       validateState: (state, definition = null) => validateAfflictionControllerState(state, definition)
+    }),
+
+    ui: Object.freeze({
+      afflictionEditor: createAfflictionEditorUiApi(),
+      forge: Object.freeze({
+        open: async (options = {}) => {
+          const { openAfflictionForge } = await import("../affliction/forge/affliction-forge.js");
+          return openAfflictionForge(options);
+        }
+      })
     }),
 
     integration: Object.freeze({

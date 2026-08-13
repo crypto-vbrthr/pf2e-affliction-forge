@@ -1,0 +1,492 @@
+<section class="affliction-editor" data-affliction-editor-surface>
+  <fieldset class="affliction-editor-fieldset" data-affliction-editor-fieldset>
+    <section class="affliction-editor-section">
+      <header class="affliction-editor-section-header">
+        <div>
+          <h2>{{localize "PF2E_AFFLICTION_FORGE.Editor.BasicData"}}</h2>
+          <p>{{localize "PF2E_AFFLICTION_FORGE.Editor.BasicDataHint"}}</p>
+        </div>
+        <span class="affliction-editor-mode">{{mode}}</span>
+      </header>
+
+      <label class="affliction-editor-field full-width">
+        <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Id"}}</span>
+        <input data-affliction-field="id" type="text" value="{{definition.id}}" required>
+      </label>
+
+      <div class="affliction-editor-name-image-row">
+        <label class="affliction-editor-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Name"}}</span>
+          <input data-affliction-field="name" type="text" value="{{definition.name}}" required>
+        </label>
+
+        <div class="affliction-editor-field affliction-editor-image-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Image"}}</span>
+          <div class="affliction-editor-image-picker">
+            <img src="{{definition.img}}" alt="">
+            <input data-affliction-field="img" type="text" value="{{definition.img}}">
+            <button type="button" data-affliction-action="browseImage" title="{{localize 'PF2E_AFFLICTION_FORGE.Editor.SelectImage'}}">
+              <i class="fa-solid fa-ellipsis"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="affliction-editor-grid four-columns">
+        <label class="affliction-editor-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Type"}}</span>
+          <select data-affliction-field="afflictionType">
+            {{#each typeOptions as |option|}}
+              <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+            {{/each}}
+          </select>
+        </label>
+
+        <label class="affliction-editor-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Level"}}</span>
+          <input data-affliction-field="level" type="number" min="0" max="25" step="1" value="{{definition.level}}">
+        </label>
+
+        <label class="affliction-editor-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Rarity"}}</span>
+          <select data-affliction-field="rarity">
+            {{#each rarityOptions as |option|}}
+              <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+            {{/each}}
+          </select>
+        </label>
+
+        <label class="affliction-editor-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Traits"}}</span>
+          <input data-affliction-field="traits" type="text" value="{{definition.traits}}" placeholder="disease, magical">
+        </label>
+      </div>
+
+      <label class="affliction-editor-field full-width">
+        <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Themes"}}</span>
+        <input data-affliction-field="themes" type="text" value="{{definition.themes}}" placeholder="undead, decay">
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.ListHint"}}</small>
+      </label>
+
+      <label class="affliction-editor-field full-width">
+        <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Description"}}</span>
+        <textarea data-affliction-field="description" rows="4">{{definition.description}}</textarea>
+      </label>
+    </section>
+
+    <section class="affliction-editor-section">
+      <header class="affliction-editor-section-header">
+        <div>
+          <h2>{{localize "PF2E_AFFLICTION_FORGE.Editor.SaveChecks"}}</h2>
+          <p>{{localize "PF2E_AFFLICTION_FORGE.Editor.SaveChecksHint"}}</p>
+        </div>
+        <button type="button" class="affliction-editor-primary" data-affliction-action="addCheck">
+          <i class="fa-solid fa-plus"></i>
+          {{localize "PF2E_AFFLICTION_FORGE.Editor.AddCheck"}}
+        </button>
+      </header>
+
+      <div class="affliction-editor-check-list">
+        {{#each checks as |check|}}
+          <article class="affliction-editor-check-card" data-affliction-check-index="{{check.index}}">
+            <header>
+              <strong>{{localize "PF2E_AFFLICTION_FORGE.Editor.Check"}} {{check.number}}</strong>
+              <button type="button" class="icon danger" data-affliction-action="removeCheck" data-index="{{check.index}}" {{#unless check.canRemove}}disabled{{/unless}} title="{{localize 'PF2E_AFFLICTION_FORGE.Editor.RemoveCheck'}}">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </header>
+            <div class="affliction-editor-grid four-columns">
+              <label class="affliction-editor-field">
+                <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.CheckId"}}</span>
+                <input data-check-field="id" type="text" value="{{check.id}}" required>
+              </label>
+              <label class="affliction-editor-field">
+                <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.CheckLabel"}}</span>
+                <input data-check-field="label" type="text" value="{{check.label}}">
+              </label>
+              <label class="affliction-editor-field">
+                <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.SaveStatistic"}}</span>
+                <select data-check-field="statistic">
+                  {{#each check.statisticOptions as |option|}}
+                    <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                  {{/each}}
+                </select>
+              </label>
+              <label class="affliction-editor-field">
+                <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DC"}}</span>
+                <input data-check-field="dc" type="number" min="1" max="100" step="1" value="{{check.dc}}">
+              </label>
+            </div>
+          </article>
+        {{/each}}
+      </div>
+    </section>
+
+    <section class="affliction-editor-section">
+      <header class="affliction-editor-section-header">
+        <div>
+          <h2>{{localize "PF2E_AFFLICTION_FORGE.Editor.Exposure"}}</h2>
+          <p>{{localize "PF2E_AFFLICTION_FORGE.Editor.ExposureHint"}}</p>
+        </div>
+        <button type="button" data-affliction-action="toggleInitialCheck">
+          {{#if hasInitialCheck}}
+            <i class="fa-solid fa-toggle-on"></i> {{localize "PF2E_AFFLICTION_FORGE.Editor.DisableInitialCheck"}}
+          {{else}}
+            <i class="fa-solid fa-toggle-off"></i> {{localize "PF2E_AFFLICTION_FORGE.Editor.EnableInitialCheck"}}
+          {{/if}}
+        </button>
+      </header>
+
+      {{#if hasInitialCheck}}
+        <div class="affliction-editor-gate" data-check-gate="initialCheck">
+          <div class="affliction-editor-gate-head">
+            <div class="affliction-editor-field">
+              <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.UsedChecks"}}</span>
+              <div class="affliction-editor-check-pills">
+                {{#each initialCheck.checkOptions as |option|}}
+                  <label data-gate-check-option data-check-index="{{option.index}}"><input data-gate-check-id type="checkbox" value="{{option.value}}" {{#if option.checked}}checked{{/if}}> <span data-gate-check-label>{{option.label}}</span></label>
+                {{/each}}
+              </div>
+            </div>
+            <label class="affliction-editor-field">
+              <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Combine"}}</span>
+              <select data-gate-combine>
+                {{#each initialCheck.combineOptions as |option|}}
+                  <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                {{/each}}
+              </select>
+            </label>
+          </div>
+          <div class="affliction-editor-outcome-grid">
+            {{#each initialCheck.outcomes as |outcome|}}
+              <div class="affliction-editor-outcome" data-outcome="{{outcome.key}}">
+                <strong>{{outcome.label}}</strong>
+                <select data-directive-action>
+                  {{#each outcome.directive.actionOptions as |option|}}
+                    <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                  {{/each}}
+                </select>
+                <label data-directive-value-wrap {{#unless outcome.directive.usesValue}}hidden{{/unless}}>
+                  <span data-directive-value-label>{{outcome.directive.valueLabel}}</span>
+                  <input data-directive-value type="number" step="1" value="{{outcome.directive.value}}">
+                </label>
+              </div>
+            {{/each}}
+          </div>
+        </div>
+      {{else}}
+        <p class="affliction-editor-empty">{{localize "PF2E_AFFLICTION_FORGE.Editor.NoInitialCheck"}}</p>
+      {{/if}}
+
+      <div class="affliction-editor-grid two-columns affliction-editor-duration-row">
+        <div class="affliction-editor-duration-card" data-affliction-duration="onset">
+          <label class="affliction-editor-checkbox">
+            <input data-duration-enabled type="checkbox" {{#if onset.enabled}}checked{{/if}}>
+            <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Onset"}}</span>
+          </label>
+          <div class="affliction-editor-grid two-columns">
+            <label class="affliction-editor-field">
+              <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationValue"}}</span>
+              <input data-duration-control data-duration-value type="number" min="1" step="1" value="{{onset.value}}">
+            </label>
+            <label class="affliction-editor-field">
+              <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationUnit"}}</span>
+              <select data-duration-control data-duration-unit>
+                {{#each onset.unitOptions as |option|}}
+                  <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                {{/each}}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="affliction-editor-duration-card" data-affliction-duration="maximumDuration">
+          <div class="affliction-editor-duration-title">
+            <label class="affliction-editor-checkbox">
+              <input data-duration-enabled type="checkbox" {{#if maximumDuration.enabled}}checked{{/if}}>
+              <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.MaximumDuration"}}</span>
+            </label>
+            <label class="affliction-editor-checkbox compact">
+              <input data-duration-unlimited type="checkbox" {{#if maximumDuration.unlimited}}checked{{/if}}>
+              <span>{{localize "PF2E_AFFLICTION_FORGE.Duration.Unlimited"}}</span>
+            </label>
+          </div>
+          <div class="affliction-editor-grid two-columns">
+            <label class="affliction-editor-field">
+              <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationValue"}}</span>
+              <input data-duration-control data-duration-value type="number" min="1" step="1" value="{{maximumDuration.value}}">
+            </label>
+            <label class="affliction-editor-field">
+              <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationUnit"}}</span>
+              <select data-duration-control data-duration-unit>
+                {{#each maximumDuration.unitOptions as |option|}}
+                  <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                {{/each}}
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="affliction-editor-section">
+      <header class="affliction-editor-section-header">
+        <div>
+          <h2>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageProgression"}}</h2>
+          <p>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageProgressionHint"}}</p>
+        </div>
+        <button type="button" data-affliction-action="toggleDefaultStageCheck">
+          {{#if hasDefaultStageCheck}}
+            <i class="fa-solid fa-toggle-on"></i> {{localize "PF2E_AFFLICTION_FORGE.Editor.DisableStageCheck"}}
+          {{else}}
+            <i class="fa-solid fa-toggle-off"></i> {{localize "PF2E_AFFLICTION_FORGE.Editor.EnableStageCheck"}}
+          {{/if}}
+        </button>
+      </header>
+
+      {{#if hasDefaultStageCheck}}
+        <div class="affliction-editor-gate" data-check-gate="defaultStageCheck">
+          <div class="affliction-editor-gate-head">
+            <div class="affliction-editor-field">
+              <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.UsedChecks"}}</span>
+              <div class="affliction-editor-check-pills">
+                {{#each defaultStageCheck.checkOptions as |option|}}
+                  <label data-gate-check-option data-check-index="{{option.index}}"><input data-gate-check-id type="checkbox" value="{{option.value}}" {{#if option.checked}}checked{{/if}}> <span data-gate-check-label>{{option.label}}</span></label>
+                {{/each}}
+              </div>
+            </div>
+            <label class="affliction-editor-field">
+              <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Combine"}}</span>
+              <select data-gate-combine>
+                {{#each defaultStageCheck.combineOptions as |option|}}
+                  <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                {{/each}}
+              </select>
+            </label>
+          </div>
+          <div class="affliction-editor-outcome-grid">
+            {{#each defaultStageCheck.outcomes as |outcome|}}
+              <div class="affliction-editor-outcome" data-outcome="{{outcome.key}}">
+                <strong>{{outcome.label}}</strong>
+                <select data-directive-action>
+                  {{#each outcome.directive.actionOptions as |option|}}
+                    <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                  {{/each}}
+                </select>
+                <label data-directive-value-wrap {{#unless outcome.directive.usesValue}}hidden{{/unless}}>
+                  <span data-directive-value-label>{{outcome.directive.valueLabel}}</span>
+                  <input data-directive-value type="number" step="1" value="{{outcome.directive.value}}">
+                </label>
+              </div>
+            {{/each}}
+          </div>
+        </div>
+      {{else}}
+        <p class="affliction-editor-empty">{{localize "PF2E_AFFLICTION_FORGE.Editor.NoDefaultStageCheck"}}</p>
+      {{/if}}
+
+      <div class="affliction-editor-grid two-columns affliction-editor-progression-boundaries">
+        <label class="affliction-editor-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.BelowStageOne"}}</span>
+          <select data-affliction-field="belowStageOne">
+            <option value="recover" {{#if (eq definition.progression.belowStageOne "recover")}}selected{{/if}}>{{localize "PF2E_AFFLICTION_FORGE.Editor.Recover"}}</option>
+            <option value="clamp" {{#if (eq definition.progression.belowStageOne "clamp")}}selected{{/if}}>{{localize "PF2E_AFFLICTION_FORGE.Editor.Clamp"}}</option>
+          </select>
+        </label>
+        <label class="affliction-editor-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.AboveMaximumStage"}}</span>
+          <select data-affliction-field="aboveMaximumStage">
+            <option value="clamp" {{#if (eq definition.progression.aboveMaximumStage "clamp")}}selected{{/if}}>{{localize "PF2E_AFFLICTION_FORGE.Editor.Clamp"}}</option>
+            <option value="end" {{#if (eq definition.progression.aboveMaximumStage "end")}}selected{{/if}}>{{localize "PF2E_AFFLICTION_FORGE.Editor.EndAffliction"}}</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section class="affliction-editor-section affliction-editor-stages-section">
+      <header class="affliction-editor-section-header">
+        <div>
+          <h2>{{localize "PF2E_AFFLICTION_FORGE.Editor.Stages"}}</h2>
+          <p>{{localize "PF2E_AFFLICTION_FORGE.Editor.StagesHint"}}</p>
+        </div>
+        <button type="button" class="affliction-editor-primary" data-affliction-action="addStage">
+          <i class="fa-solid fa-plus"></i>
+          {{localize "PF2E_AFFLICTION_FORGE.Editor.AddStage"}}
+        </button>
+      </header>
+
+      <div class="affliction-editor-stage-list">
+        {{#each stages as |stage|}}
+          <article class="affliction-editor-stage-card {{#if stage.collapsed}}collapsed{{/if}}" data-affliction-stage-index="{{stage.index}}">
+            <header class="affliction-editor-stage-header">
+              <button type="button" class="affliction-editor-stage-toggle" data-affliction-action="toggleStage" data-index="{{stage.index}}">
+                <i class="fa-solid {{#if stage.collapsed}}fa-chevron-right{{else}}fa-chevron-down{{/if}}"></i>
+                <strong>{{localize "PF2E_AFFLICTION_FORGE.Editor.Stage"}} {{stage.number}}{{#if stage.name}}: {{stage.name}}{{/if}}</strong>
+              </button>
+              <div class="affliction-editor-stage-actions">
+                <button type="button" class="icon" data-affliction-action="moveStageUp" data-index="{{stage.index}}" {{#unless stage.canMoveUp}}disabled{{/unless}} title="{{localize 'PF2E_AFFLICTION_FORGE.Editor.MoveUp'}}"><i class="fa-solid fa-arrow-up"></i></button>
+                <button type="button" class="icon" data-affliction-action="moveStageDown" data-index="{{stage.index}}" {{#unless stage.canMoveDown}}disabled{{/unless}} title="{{localize 'PF2E_AFFLICTION_FORGE.Editor.MoveDown'}}"><i class="fa-solid fa-arrow-down"></i></button>
+                <button type="button" class="icon" data-affliction-action="duplicateStage" data-index="{{stage.index}}" title="{{localize 'PF2E_AFFLICTION_FORGE.Editor.DuplicateStage'}}"><i class="fa-regular fa-copy"></i></button>
+                <button type="button" class="icon danger" data-affliction-action="removeStage" data-index="{{stage.index}}" {{#unless stage.canRemove}}disabled{{/unless}} title="{{localize 'PF2E_AFFLICTION_FORGE.Editor.RemoveStage'}}"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </header>
+
+            {{#unless stage.collapsed}}
+              <div class="affliction-editor-stage-body">
+                <div class="affliction-editor-grid two-columns">
+                  <label class="affliction-editor-field">
+                    <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageId"}}</span>
+                    <input data-stage-field="id" type="text" value="{{stage.id}}" required>
+                  </label>
+                  <label class="affliction-editor-field">
+                    <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageName"}}</span>
+                    <input data-stage-field="name" type="text" value="{{stage.name}}">
+                  </label>
+                </div>
+
+                <label class="affliction-editor-field full-width">
+                  <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageDescription"}}</span>
+                  <textarea data-stage-field="description" rows="3">{{stage.description}}</textarea>
+                </label>
+
+                <div class="affliction-editor-duration-card stage-duration" data-stage-duration>
+                  <div class="affliction-editor-duration-title">
+                    <strong>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageDuration"}}</strong>
+                    <label class="affliction-editor-checkbox compact">
+                      <input data-duration-unlimited type="checkbox" {{#if stage.durationView.unlimited}}checked{{/if}}>
+                      <span>{{localize "PF2E_AFFLICTION_FORGE.Duration.Unlimited"}}</span>
+                    </label>
+                  </div>
+                  <div class="affliction-editor-grid two-columns">
+                    <label class="affliction-editor-field">
+                      <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationValue"}}</span>
+                      <input data-duration-control data-duration-value type="number" min="1" step="1" value="{{stage.durationView.value}}">
+                    </label>
+                    <label class="affliction-editor-field">
+                      <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationUnit"}}</span>
+                      <select data-duration-control data-duration-unit>
+                        {{#each stage.durationView.unitOptions as |option|}}
+                          <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                        {{/each}}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                <section class="affliction-editor-stage-check-section">
+                  <header>
+                    <div>
+                      <strong>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageCheck"}}</strong>
+                      <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageCheckHint"}}</small>
+                    </div>
+                    <button type="button" data-affliction-action="toggleStageCheck" data-index="{{stage.index}}">
+                      {{#if stage.usesCustomCheck}}
+                        <i class="fa-solid fa-link-slash"></i> {{localize "PF2E_AFFLICTION_FORGE.Editor.UseDefaultCheck"}}
+                      {{else}}
+                        <i class="fa-solid fa-code-branch"></i> {{localize "PF2E_AFFLICTION_FORGE.Editor.OverrideCheck"}}
+                      {{/if}}
+                    </button>
+                  </header>
+
+                  {{#if stage.usesCustomCheck}}
+                    <div class="affliction-editor-gate" data-check-gate="stage">
+                      <div class="affliction-editor-gate-head">
+                        <div class="affliction-editor-field">
+                          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.UsedChecks"}}</span>
+                          <div class="affliction-editor-check-pills">
+                            {{#each stage.customCheck.checkOptions as |option|}}
+                              <label data-gate-check-option data-check-index="{{option.index}}"><input data-gate-check-id type="checkbox" value="{{option.value}}" {{#if option.checked}}checked{{/if}}> <span data-gate-check-label>{{option.label}}</span></label>
+                            {{/each}}
+                          </div>
+                        </div>
+                        <label class="affliction-editor-field">
+                          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Combine"}}</span>
+                          <select data-gate-combine>
+                            {{#each stage.customCheck.combineOptions as |option|}}
+                              <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                            {{/each}}
+                          </select>
+                        </label>
+                      </div>
+                      <div class="affliction-editor-outcome-grid">
+                        {{#each stage.customCheck.outcomes as |outcome|}}
+                          <div class="affliction-editor-outcome" data-outcome="{{outcome.key}}">
+                            <strong>{{outcome.label}}</strong>
+                            <select data-directive-action>
+                              {{#each outcome.directive.actionOptions as |option|}}
+                                <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                              {{/each}}
+                            </select>
+                            <label data-directive-value-wrap {{#unless outcome.directive.usesValue}}hidden{{/unless}}>
+                              <span data-directive-value-label>{{outcome.directive.valueLabel}}</span>
+                              <input data-directive-value type="number" step="1" value="{{outcome.directive.value}}">
+                            </label>
+                          </div>
+                        {{/each}}
+                      </div>
+                    </div>
+                  {{else}}
+                    <p class="affliction-editor-inherited">{{localize "PF2E_AFFLICTION_FORGE.Editor.InheritsDefaultCheck"}}</p>
+                  {{/if}}
+                </section>
+
+                <section class="affliction-editor-stage-effect-section">
+                  <header>
+                    <div>
+                      <strong>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageEffect"}}</strong>
+                      <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageEffectHint"}}</small>
+                    </div>
+                    {{#if stage.hasEffect}}
+                      <button type="button" class="danger" data-affliction-action="removeStageEffect" data-index="{{stage.index}}">
+                        <i class="fa-solid fa-trash"></i> {{localize "PF2E_AFFLICTION_FORGE.Editor.RemoveEffect"}}
+                      </button>
+                    {{else}}
+                      <button type="button" class="affliction-editor-primary" data-affliction-action="addStageEffect" data-index="{{stage.index}}">
+                        <i class="fa-solid fa-plus"></i> {{localize "PF2E_AFFLICTION_FORGE.Editor.AddEffect"}}
+                      </button>
+                    {{/if}}
+                  </header>
+                  {{#if stage.hasEffect}}
+                    <div class="affliction-editor-stage-effect-summary" data-stage-effect-summary="{{stage.index}}">
+                      <span><i class="fa-solid fa-cubes"></i> <strong data-effect-component-count>{{stage.effectComponentCount}}</strong> {{localize "PF2E_AFFLICTION_FORGE.Editor.EffectComponents"}}</span>
+                      <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageEffectManagedHint"}}</small>
+                    </div>
+                    <div class="affliction-editor-effect-host" data-stage-effect-host="{{stage.index}}"></div>
+                  {{else}}
+                    <p class="affliction-editor-empty">{{localize "PF2E_AFFLICTION_FORGE.Editor.NoStageEffect"}}</p>
+                  {{/if}}
+                </section>
+              </div>
+            {{/unless}}
+          </article>
+        {{/each}}
+      </div>
+    </section>
+
+    <section class="affliction-editor-section affliction-editor-validation-section" data-validation-root>
+      <header class="affliction-editor-section-header">
+        <div>
+          <h2>{{localize "PF2E_AFFLICTION_FORGE.Editor.Validation"}}</h2>
+          <p>{{localize "PF2E_AFFLICTION_FORGE.Editor.ValidationHint"}}</p>
+        </div>
+        {{#if validation.valid}}
+          <span class="affliction-editor-validation-badge valid" data-validation-badge><i class="fa-solid fa-circle-check"></i> {{localize "PF2E_AFFLICTION_FORGE.Editor.Valid"}}</span>
+        {{else}}
+          <span class="affliction-editor-validation-badge invalid" data-validation-badge><i class="fa-solid fa-circle-xmark"></i> {{validation.errorCount}} {{localize "PF2E_AFFLICTION_FORGE.Editor.Errors"}}</span>
+        {{/if}}
+      </header>
+      {{#if validation.issues.length}}
+        <div class="affliction-editor-issues" data-validation-issues>
+          {{#each validation.issues as |issue|}}
+            <div class="affliction-editor-issue severity-{{issue.severity}}">
+              <i class="fa-solid {{#if (eq issue.severity 'error')}}fa-circle-xmark{{else}}fa-triangle-exclamation{{/if}}"></i>
+              <span><strong>{{issue.path}}</strong> {{issue.displayMessage}}</span>
+            </div>
+          {{/each}}
+        </div>
+      {{else}}
+        <p class="affliction-editor-empty" data-validation-issues>{{localize "PF2E_AFFLICTION_FORGE.Editor.NoValidationIssues"}}</p>
+      {{/if}}
+    </section>
+  </fieldset>
+</section>
