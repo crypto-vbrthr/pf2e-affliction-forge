@@ -1,4 +1,4 @@
-# Public API 0.1.16
+# Public API 0.1.18
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -218,6 +218,28 @@ api.templates.writableDestinations()
 
 Templates are inert PF2e `effect` Items with no Rule Elements. Updating a writable template preserves its Item UUID and increments `definitionVersion`.
 
+## World-time scheduler
+
+0.1.18 starts the scheduler automatically on `ready`. The public surface is also available for diagnostics and explicit processing:
+
+```js
+api.scheduler.status();
+api.scheduler.isAuthoritative();
+await api.scheduler.processDue();
+await api.scheduler.processDue({ mode: "next" });
+await api.scheduler.processDue({ worldTime: game.time.worldTime, maxTransitions: 10 });
+```
+
+The scheduler listens to Foundry `updateWorldTime`, processes overdue controllers once at `ready`, and uses the designated `game.users.activeGM` as the sole authority. It delegates each due event to `api.engine.process(controllerUuid, { atTime: nextCheckAt })`.
+
+World settings:
+
+- automatic scheduler enabled/disabled
+- catch-up mode `all` or `next`
+- catch-up safety limit, default 25 transitions per controller per pass
+
+`all` walks historical due timestamps until the controller catches up, becomes pending on a manual/player save, ends, or hits the safety limit. `next` consumes exactly one due event per scheduler pass. `maximumDuration` is enforced automatically.
+
 ## Runtime UI
 
 ```js
@@ -255,15 +277,13 @@ api.integration.criticalForge.compatibility()
 
 The compatibility report includes `effectApiAvailable`, `effectSourceApiAvailable`, `effectExecutionApiAvailable`, `deathComponentAvailable`, and `effectEditorAvailable`. Runtime stage instant effects require Critical Forge 1.0.1-rc.3 or later.
 
-## Not yet automated in 0.1.16
+## Remaining runtime hardening after 0.1.18
 
-- world-time due-event discovery
-- combat-round / turn scheduler
-- automatic catch-up across large world-time jumps
-- maximum-duration enforcement
-- strict non-GM hiding of controller Items on Actor sheets
+- dedicated turn-specific scheduling where a future effect needs start/end-of-turn semantics rather than world-time intervals
+- strict non-GM hiding of hidden controller Items on Actor sheets
+- richer GM-facing transition/death-cause audit presentation
 
-The engine itself is already due-time aware. The later scheduler should discover due controllers and call `api.engine.process(controllerUuid)` rather than reimplementing save/progression logic.
+World-time due-event discovery, historical catch-up, and maximum-duration enforcement are active in 0.1.18.
 
 ## Ready hook
 

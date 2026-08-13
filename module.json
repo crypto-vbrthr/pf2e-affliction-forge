@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.16 integrates Critical Forge instant death components for lethal final stages alongside one-shot stage damage.",
-  "version": "0.1.16",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.19 fixes world-time anchoring for initial saves, onset, and stage intervals and hardens nullable runtime timestamps.",
+  "version": "0.1.19",
   "authors": [
     {
       "name": "crypto-vbrthr"

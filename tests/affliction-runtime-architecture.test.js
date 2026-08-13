@@ -79,3 +79,15 @@ test("player-manual saves use chat requests, blind GM-only routing, and GM-side 
   assert.match(saveRoller, /execution === "player" \? "blindroll" : "gmroll"/);
   assert.match(saveRuntime, /HiddenSaveRequestDetail/);
 });
+
+test("world-time scheduler uses canonical Foundry time hooks and active-GM authority", () => {
+  const scheduler = readFileSync(join(root, "scripts/affliction/runtime/affliction-scheduler.js"), "utf8");
+  const settings = readFileSync(join(root, "scripts/settings.js"), "utf8");
+  assert.match(scheduler, /updateWorldTime/);
+  assert.match(scheduler, /userConnected/);
+  assert.match(scheduler, /game\?\.users\?\.activeGM/);
+  assert.match(scheduler, /engine\.process\(current, \{ atTime: nextDue \}\)/);
+  assert.match(scheduler, /maximum-duration/);
+  assert.match(settings, /schedulerCatchUpMode/);
+  assert.match(settings, /schedulerCatchUpLimit/);
+});

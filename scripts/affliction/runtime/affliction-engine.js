@@ -9,6 +9,7 @@ import {
 } from "./affliction-engine-core.js";
 import { rollPf2eSave } from "./pf2e-save-roller.js";
 import { createPlayerSaveRequestMessage, playerOwnerIds } from "./affliction-save-runtime.js";
+import { scheduledDueAt } from "./affliction-instance-service.js";
 
 function nowWorldTime() {
   const value = Number(globalThis.game?.time?.worldTime);
@@ -39,7 +40,7 @@ function pendingResult(check, result, { execution, visibility, userId = null, re
   };
 }
 
-function createPending(plan, state) {
+function createPending(plan, state, { effectiveAt = nowWorldTime() } = {}) {
   const requestId = randomId("affliction-check");
   return {
     schemaVersion: 1,
@@ -50,6 +51,7 @@ function createPending(plan, state) {
     checkIds: plan.checks.map((check) => check.id),
     outcomes: deepClone(plan.outcomes),
     requestedAt: nowWorldTime(),
+    effectiveAt: effectiveAt != null && Number.isFinite(Number(effectiveAt)) ? Number(effectiveAt) : nowWorldTime(),
     requestedByUserId: currentUserId(),
     baseRevision: state.revision,
     requests: {},
@@ -132,29 +134,41 @@ export class AfflictionEngine {
     return this.process(current.controller, { force: true });
   }
 
-  async process(controllerOrUuid, { force = false } = {}) {
+  async process(controllerOrUuid, { force = false, atTime = null } = {}) {
     assertGm();
     const current = await this.inspect(controllerOrUuid);
     const { controller, state } = current;
+    // `Number(null)` is 0. Treating the default null as a valid timestamp
+    // anchored every initial save and manual process call at world-time zero,
+    // making onset and stage deadlines appear massively overdue. Null means
+    // "use the current Foundry world time"; only explicit finite values are
+    // accepted as historical scheduler anchors.
+    const processAt = atTime != null && Number.isFinite(Number(atTime))
+      ? Number(atTime)
+      : nowWorldTime();
 
     if (state.status === "incubating") {
-      if (!force && Number.isFinite(state.nextCheckAt) && nowWorldTime() < state.nextCheckAt) {
-        return { status: "not-due", controller, dueAt: state.nextCheckAt };
+      const dueAt = scheduledDueAt(current.definition, state);
+      if (!force && Number.isFinite(dueAt) && processAt < dueAt) {
+        return { status: "not-due", controller, dueAt };
       }
-      await this.instanceService.completeOnset(controller, { enteredAt: nowWorldTime() });
+      await this.instanceService.completeOnset(controller, { enteredAt: processAt });
       return { status: "onset-complete", controller: await this.instanceService.get(controller.uuid) };
     }
 
     if (!["pending", "active"].includes(state.status)) {
       return { status: "inactive", controller };
     }
-    if (!force && Number.isFinite(state.nextCheckAt) && nowWorldTime() < state.nextCheckAt) {
-      return { status: "not-due", controller, dueAt: state.nextCheckAt };
+    const dueAt = scheduledDueAt(current.definition, state);
+    if (!force && Number.isFinite(dueAt) && processAt < dueAt) {
+      return { status: "not-due", controller, dueAt };
     }
 
     const plan = current.plan;
     if (!plan || plan.checks.length === 0) return { status: "no-check", controller };
-    let pending = pendingMatches(state.pendingCheck, plan) ? deepClone(state.pendingCheck) : createPending(plan, state);
+    let pending = pendingMatches(state.pendingCheck, plan)
+      ? deepClone(state.pendingCheck)
+      : createPending(plan, state, { effectiveAt: processAt });
     if (!pendingMatches(state.pendingCheck, plan)) {
       await this.instanceService.setPendingCheck(controller, pending);
     }
@@ -281,6 +295,9 @@ export class AfflictionEngine {
       };
     }
 
+    const transitionAt = pending.effectiveAt != null && Number.isFinite(Number(pending.effectiveAt))
+      ? Number(pending.effectiveAt)
+      : nowWorldTime();
     const lastCheck = {
       requestId: pending.requestId,
       kind: pending.kind,
@@ -288,6 +305,7 @@ export class AfflictionEngine {
       degree: resolution.degree,
       directive: deepClone(resolution.directive),
       results: deepClone(pending.results),
+      effectiveAt: transitionAt,
       resolvedAt: nowWorldTime()
     };
     const transition = resolution.transition;
@@ -306,20 +324,39 @@ export class AfflictionEngine {
     }
     if (transition.type === "stage") {
       if (pending.kind === "initial" && current.definition.onset) {
-        await this.instanceService.beginOnset(controller, transition.targetStage, { startedAt: nowWorldTime(), lastCheck });
+        await this.instanceService.beginOnset(controller, transition.targetStage, { startedAt: transitionAt, lastCheck });
         return { status: "incubating", degree: resolution.degree, transition, controller: await this.instanceService.get(controller.uuid) };
       }
       await this.instanceService.setStage(controller, transition.targetStage, {
-        enteredAt: nowWorldTime(),
+        enteredAt: transitionAt,
         lastCheck
       });
       const refreshed = await this.instanceService.get(controller.uuid);
       return { status: "stage-changed", degree: resolution.degree, transition, controller: refreshed };
     }
 
+    // A stage check with an explicit no-op still consumes its interval. Renew
+    // the stage clock without rebuilding persistent output or replaying instant
+    // mechanics, otherwise nextCheckAt would remain in the past forever.
+    if (pending.kind === "stage" && current.state.status === "active" && current.state.currentStage > 0) {
+      await this.instanceService.setStage(controller, current.state.currentStage, {
+        enteredAt: transitionAt,
+        lastCheck,
+        refreshPersistent: false,
+        executeInstant: false
+      });
+      return {
+        status: "resolved-no-transition",
+        degree: resolution.degree,
+        transition,
+        controller: await this.instanceService.get(controller.uuid)
+      };
+    }
+
     const nextState = deepClone(current.state);
     nextState.pendingCheck = null;
     nextState.lastCheck = lastCheck;
+    nextState.nextCheckAt = null;
     nextState.revision = Number(nextState.revision ?? 0) + 1;
     await this.instanceService.updateRuntimeState(controller, nextState);
     return { status: "resolved-no-transition", degree: resolution.degree, transition, controller };

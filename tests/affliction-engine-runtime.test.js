@@ -219,3 +219,94 @@ test("stage transition stores lastCheck in the same controller transition", asyn
   assert.equal(stageOptions.lastCheck.degree, "failure");
   assert.equal(controller.flags[MODULE_ID].state.lastCheck.degree, "failure");
 });
+
+test("scheduler processing can anchor stage transitions to the historical due time", async () => {
+  const definition = automaticDefinition();
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.historical",
+    status: "active",
+    currentStage: 1,
+    appliedAt: 500,
+    stageEnteredAt: 700,
+    nextCheckAt: 800,
+    identification: { state: "identified", identifiedAt: 500, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [],
+    pendingCheck: null,
+    onsetTargetStage: null,
+    lastCheck: null,
+    revision: 1
+  };
+  globalThis.game.time.worldTime = 1000;
+  const { controller } = makeController(definition, { state, degrees: ["failure"] });
+  const service = serviceFor(controller);
+  let enteredAt = null;
+  const original = service.setStage.bind(service);
+  service.setStage = async (target, stage, options = {}) => {
+    enteredAt = options.enteredAt;
+    return original(target, stage, options);
+  };
+  const engine = createAfflictionEngine({ instanceService: service });
+  const result = await engine.process(controller, { atTime: 800 });
+  assert.equal(result.status, "stage-changed");
+  assert.equal(enteredAt, 800);
+  assert.equal(controller.flags[MODULE_ID].state.lastCheck.effectiveAt, 800);
+});
+
+test("engine does not complete a one-minute onset after only one combat round when stored due time is stale", async () => {
+  const definition = automaticDefinition({ onset: { value: 1, unit: "minutes" } });
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.onset-floor",
+    status: "incubating",
+    currentStage: 0,
+    appliedAt: 1000,
+    stageEnteredAt: null,
+    nextCheckAt: 1006,
+    identification: { state: "identified", identifiedAt: 1000, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [],
+    pendingCheck: null,
+    onsetTargetStage: 1,
+    lastCheck: { effectiveAt: 1000, results: { primary: { execution: "gm", degree: "failure" } } },
+    revision: 2
+  };
+  const { controller } = makeController(definition, { state });
+  const engine = createAfflictionEngine({ instanceService: serviceFor(controller) });
+  const result = await engine.process(controller, { atTime: 1006 });
+  assert.equal(result.status, "not-due");
+  assert.equal(result.dueAt, 1060);
+  assert.equal(controller.flags[MODULE_ID].state.status, "incubating");
+});
+
+test("engine does not request a one-minute stage save after only one combat round when stored due time is stale", async () => {
+  const definition = automaticDefinition({
+    stages: [
+      { ...createDefaultStage({ number: 1 }), duration: { value: 1, unit: "minutes" } },
+      createDefaultStage({ number: 2 })
+    ]
+  });
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.stage-floor",
+    status: "active",
+    currentStage: 1,
+    appliedAt: 1000,
+    stageEnteredAt: 1000,
+    nextCheckAt: 1006,
+    identification: { state: "identified", identifiedAt: 1000, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [],
+    pendingCheck: null,
+    onsetTargetStage: null,
+    lastCheck: null,
+    revision: 2
+  };
+  const { controller } = makeController(definition, { state, degrees: ["failure"] });
+  const engine = createAfflictionEngine({ instanceService: serviceFor(controller) });
+  const result = await engine.process(controller, { atTime: 1006 });
+  assert.equal(result.status, "not-due");
+  assert.equal(result.dueAt, 1060);
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 1);
+});

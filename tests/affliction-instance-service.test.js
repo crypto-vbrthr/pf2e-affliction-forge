@@ -60,6 +60,18 @@ class FakeActor {
 
   canUserModify() { return true; }
 
+  getStatistic() {
+    return {
+      roll: async () => {
+        this.rollCount = Number(this.rollCount ?? 0) + 1;
+        const degree = Array.isArray(this.saveDegrees) && this.saveDegrees.length > 0
+          ? this.saveDegrees.shift()
+          : "failure";
+        return { degreeOfSuccess: degree, total: 18, dice: [{ total: 10 }] };
+      }
+    };
+  }
+
   async createEmbeddedDocuments(type, sources) {
     assert.equal(type, "Item");
     if (this.failOnStageId && sources.some((source) => source.flags?.["pf2e-affliction-forge"]?.stageId === this.failOnStageId)) {
@@ -146,7 +158,9 @@ modules.set("pf2e-critical-forge", {
 });
 
 const { createAfflictionDefinition, createDefaultStage } = await import("../scripts/affliction/schema/affliction-defaults.js");
-const { createAfflictionInstanceService } = await import("../scripts/affliction/runtime/affliction-instance-service.js");
+const { createAfflictionInstanceService, scheduledDueAt } = await import("../scripts/affliction/runtime/affliction-instance-service.js");
+const { createAfflictionEngine } = await import("../scripts/affliction/runtime/affliction-engine.js");
+const { createAfflictionScheduler } = await import("../scripts/affliction/runtime/affliction-scheduler.js");
 const { getAfflictionFlags, isAfflictionController, isAfflictionStageEffect } = await import("../scripts/affliction/documents/affliction-flags.js");
 
 function effect(id, name) {
@@ -328,7 +342,7 @@ test("definitions with an initial check create a pending controller before any s
   const flags = getAfflictionFlags(controller);
   assert.equal(flags.state.status, "pending");
   assert.equal(flags.state.currentStage, 0);
-  assert.equal(flags.state.nextCheckAt, 1000);
+  assert.equal(flags.state.nextCheckAt, null);
   assert.equal(actor.items.filter(isAfflictionStageEffect).length, 0);
 });
 
@@ -534,4 +548,75 @@ test("hidden afflictions do not leak their identity through instant-damage label
   await service.applyDefinition(source, actor);
   assert.equal(instantExecutions.length, 1);
   assert.equal(instantExecutions[0].label.includes("Geheimer Grabfluch"), false);
+});
+
+
+test("integrated world-time flow honors one-minute onset and stage durations after an initial save", async () => {
+  globalThis.game.time.worldTime = 1000;
+  const actor = new FakeActor("timelineIntegration", "Timeline Integration Hero");
+  actor.saveDegrees = ["failure", "failure"];
+  actor.rollCount = 0;
+
+  const oneMinuteStage = (number) => ({
+    ...createDefaultStage({ number }),
+    duration: { value: 1, unit: "minutes" }
+  });
+  const source = createAfflictionDefinition({
+    name: "Minutenfieber",
+    saveDefaults: { execution: "automatic", visibility: "public" },
+    onset: { value: 1, unit: "minutes" },
+    stages: [oneMinuteStage(1), oneMinuteStage(2), oneMinuteStage(3)]
+  });
+
+  const service = createAfflictionInstanceService();
+  const engine = createAfflictionEngine({ instanceService: service });
+  const application = await engine.applyDefinition(source, actor);
+  const controller = application.controllers[0];
+  let flags = getAfflictionFlags(controller);
+
+  assert.equal(actor.rollCount, 1, "initial save is rolled immediately");
+  assert.equal(flags.state.status, "incubating");
+  assert.equal(flags.state.currentStage, 0);
+  assert.equal(flags.state.onsetStartedAt, 1000);
+  assert.equal(flags.state.nextCheckAt, 1060);
+  assert.equal(scheduledDueAt(flags.definitionSnapshot, flags.state), 1060);
+
+  const scheduler = createAfflictionScheduler({
+    engine,
+    instanceService: service,
+    controllerProvider: () => [controller],
+    authorityResolver: () => true,
+    settingsProvider: () => ({ enabled: true, catchUpMode: "all", catchUpLimit: 25 })
+  });
+
+  globalThis.game.time.worldTime = 1006;
+  await scheduler.processDue({ worldTime: 1006, reason: "test-one-round" });
+  flags = getAfflictionFlags(controller);
+  assert.equal(actor.rollCount, 1, "one six-second round must not request another save");
+  assert.equal(flags.state.status, "incubating");
+  assert.equal(flags.state.currentStage, 0);
+
+  globalThis.game.time.worldTime = 1060;
+  await scheduler.processDue({ worldTime: 1060, reason: "test-onset-complete" });
+  flags = getAfflictionFlags(controller);
+  assert.equal(actor.rollCount, 1, "onset completion itself does not roll the stage save");
+  assert.equal(flags.state.status, "active");
+  assert.equal(flags.state.currentStage, 1);
+  assert.equal(flags.state.stageEnteredAt, 1060);
+  assert.equal(flags.state.nextCheckAt, 1120);
+  assert.equal(scheduledDueAt(flags.definitionSnapshot, flags.state), 1120);
+
+  globalThis.game.time.worldTime = 1066;
+  await scheduler.processDue({ worldTime: 1066, reason: "test-one-stage-round" });
+  flags = getAfflictionFlags(controller);
+  assert.equal(actor.rollCount, 1, "one round in stage 1 must not request its one-minute save");
+  assert.equal(flags.state.currentStage, 1);
+
+  globalThis.game.time.worldTime = 1120;
+  await scheduler.processDue({ worldTime: 1120, reason: "test-stage-due" });
+  flags = getAfflictionFlags(controller);
+  assert.equal(actor.rollCount, 2, "stage save is rolled only after the full minute");
+  assert.equal(flags.state.currentStage, 2, "a failed stage-1 save progresses to stage 2 only after stage 1 existed for a full minute");
+  assert.equal(flags.state.stageEnteredAt, 1120);
+  assert.equal(flags.state.nextCheckAt, 1180);
 });

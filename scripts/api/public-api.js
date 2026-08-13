@@ -44,6 +44,7 @@ import {
 } from "../affliction/runtime/controller-state.js";
 import { createAfflictionInstanceService } from "../affliction/runtime/affliction-instance-service.js";
 import { createAfflictionEngine } from "../affliction/runtime/affliction-engine.js";
+import { createAfflictionScheduler } from "../affliction/runtime/affliction-scheduler.js";
 import { combineDegrees, normalizeDegreeOfSuccess, resolveDirective } from "../affliction/runtime/affliction-engine-core.js";
 import { createAfflictionEditorUiApi } from "../affliction/editor/affliction-editor.js";
 import {
@@ -65,6 +66,7 @@ export function createPublicApi() {
   const templateService = createAfflictionTemplateService({ effectValidator });
   const instanceService = createAfflictionInstanceService({ effectValidator });
   const afflictionEngine = createAfflictionEngine({ instanceService });
+  const scheduler = createAfflictionScheduler({ engine: afflictionEngine, instanceService });
   return Object.freeze({
     version: API_VERSION,
     moduleVersion: MODULE_VERSION,
@@ -146,10 +148,26 @@ export function createPublicApi() {
       inspect: (controllerOrUuid) => afflictionEngine.inspect(controllerOrUuid),
       process: (controllerOrUuid, options = {}) => afflictionEngine.process(controllerOrUuid, options),
       processInitial: (controllerOrUuid) => afflictionEngine.processInitial(controllerOrUuid),
-      acceptPlayerResult: (payload = {}) => afflictionEngine.acceptPlayerResult(payload),
+      acceptPlayerResult: async (payload = {}) => {
+        const result = await afflictionEngine.acceptPlayerResult(payload);
+        // A historical player save can complete a transition whose next interval
+        // is already due at the current world time. Queue a catch-up pass after
+        // accepting it instead of waiting for the next manual time advance.
+        void scheduler.requestProcess({ reason: "player-result" });
+        return result;
+      },
       normalizeDegree: (value) => normalizeDegreeOfSuccess(value),
       combineDegrees: (values, mode = "single") => combineDegrees(values, mode),
       resolveDirective: (definition, state, directive) => resolveDirective(definition, state, directive)
+    }),
+
+    scheduler: Object.freeze({
+      start: () => scheduler.start(),
+      stop: () => scheduler.stop(),
+      status: () => scheduler.status(),
+      processDue: (options = {}) => scheduler.processDue(options),
+      requestProcess: (options = {}) => scheduler.requestProcess(options),
+      isAuthoritative: () => scheduler.authoritative
     }),
 
     instances: Object.freeze({

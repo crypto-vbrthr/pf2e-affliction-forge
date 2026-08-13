@@ -219,5 +219,15 @@
   "PF2E_AFFLICTION_FORGE.Runtime.SaveSubmitted": "Ergebnis übermittelt",
   "PF2E_AFFLICTION_FORGE.Runtime.ActorUnavailable": "Der betroffene Actor ist nicht verfügbar.",
   "PF2E_AFFLICTION_FORGE.Runtime.InstantExecutionFailed": "Die Phase wurde aktiviert, aber eine einmalige Phasenwirkung konnte nicht ausgeführt werden. Prüfe die Konsole und führe die Wirkung bei Bedarf erneut aus.",
-  "PF2E_AFFLICTION_FORGE.Runtime.HiddenStageEffectLabel": "Unerkanntes Leiden"
+  "PF2E_AFFLICTION_FORGE.Runtime.HiddenStageEffectLabel": "Unerkanntes Leiden",
+  "PF2E_AFFLICTION_FORGE.Settings.SchedulerEnabled.Name": "Automatische Leiden-Zeitsteuerung",
+  "PF2E_AFFLICTION_FORGE.Settings.SchedulerEnabled.Hint": "Verarbeitet fällige Inkubationszeiten und Phasen automatisch, wenn sich die Foundry-Weltzeit ändert.",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpMode.Name": "Nachholen bei Zeitsprüngen",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpMode.Hint": "Legt fest, wie bereits überfällige Phasen nach größeren Zeitsprüngen verarbeitet werden.",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpMode.All": "Alle fälligen Intervalle nachholen",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpMode.Next": "Nur den nächsten fälligen Schritt verarbeiten",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpLimit.Name": "Maximale Nachholschritte pro Leiden",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpLimit.Hint": "Sicherheitsgrenze für die Zahl automatisch nachgeholter Phasenintervalle pro Scheduler-Durchlauf.",
+  "PF2E_AFFLICTION_FORGE.Scheduler.CatchUpLimitReached": "Für „{name}“ wurde die Nachholgrenze von {limit} Schritten erreicht. Weitere überfällige Intervalle bleiben bestehen.",
+  "PF2E_AFFLICTION_FORGE.Scheduler.ProcessingFailed": "Die automatische Verarbeitung von „{name}“ ist fehlgeschlagen. Details stehen in der Konsole."
 }

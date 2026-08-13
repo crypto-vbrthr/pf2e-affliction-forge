@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.16**
+Current development build: **0.1.19**
 
-Version **0.1.16** extends the instant-stage integration to lethal final stages. Affliction stages can combine persistent mechanics with one-shot damage and Critical Forge `death` components; the Affliction runtime only decides when the stage fires while Critical Forge owns the actual death semantics.
+Version **0.1.19** hardens the world-time anchor used by initial saves, onset, and stage intervals. A null runtime timestamp now correctly means “current Foundry world time” instead of accidentally coercing to world-time zero, and onset stores its own explicit start timestamp.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -32,6 +32,10 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - hidden/suspected save requests that do not reveal the affliction identity or DC in the request text
 - searchable world/compendium template library with Save, Save As, clone/copy, and live deletion synchronization
 - Embedded Affliction Editor and public UI API for future hosts such as Creature Forge
+- GM-authoritative world-time scheduler using `game.time.worldTime` / `updateWorldTime`
+- automatic onset completion and due stage-save processing
+- configurable catch-up (`all` or `next`) with a safety limit
+- maximum-duration enforcement
 
 ## Dependency
 
@@ -66,6 +70,8 @@ A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See
 
 ## Runtime boundary
 
-0.1.16 deliberately does **not** include the world-time/combat scheduler yet. `nextCheckAt` is already maintained, and `api.engine.process(controllerUuid)` respects due times unless called with `{ force: true }`. The later scheduler only needs to discover due controllers and hand them to this tested engine.
+0.1.19 includes the hardened world-time scheduler and runtime clock anchoring. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
 
-Strict player-sheet concealment of hidden controllers is also a later hardening block. Hidden/suspected save prompts already avoid exposing the affliction name and DC in their rendered request text.
+Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
+
+Strict player-sheet concealment of hidden controllers is still a later hardening block. Hidden/suspected save prompts already avoid exposing the affliction name and DC in their rendered request text.

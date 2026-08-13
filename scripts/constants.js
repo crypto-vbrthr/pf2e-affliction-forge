@@ -1,6 +1,6 @@
 export const MODULE_ID = "pf2e-affliction-forge";
-export const MODULE_VERSION = "0.1.16";
-export const API_VERSION = "0.1.16";
+export const MODULE_VERSION = "0.1.19";
+export const API_VERSION = "0.1.19";
 export const AFFLICTION_SCHEMA_VERSION = 2;
 export const CONTROLLER_SCHEMA_VERSION = 2;
 export const CRITICAL_FORGE_MODULE_ID = "pf2e-critical-forge";

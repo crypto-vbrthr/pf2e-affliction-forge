@@ -1,4 +1,4 @@
-# Architecture 0.1.16
+# Architecture 0.1.18
 
 ```text
 Affliction Template / Definition
@@ -204,16 +204,26 @@ Strict removal of the controller from non-GM Actor-sheet presentation remains a 
 
 ## Time boundary
 
-0.1.16 maintains `nextCheckAt` and the engine refuses future checks unless forced. It does **not** yet discover due controllers automatically.
-
-The later scheduler should be deliberately thin:
+0.1.18 hardens the deliberately thin scheduler around the existing engine:
 
 ```text
-Foundry world/combat time changes
+Foundry game.time.worldTime
         ↓
-discover due controller(s)
+updateWorldTime
         ↓
-api.engine.process(controllerUuid)
+designated active GM only
+        ↓
+discover due Affliction controllers
+        ↓
+api.engine.process(controller, { atTime: nextCheckAt })
+        ↓
+existing save policy / progression / stage transition logic
 ```
 
-The scheduler must not duplicate saving-throw or progression rules already owned by the Affliction Engine.
+`nextCheckAt` remains the controller's due-event source of truth. Catch-up processing uses the historical due timestamp as the logical transition time, so a jump from hour 1 to hour 10 can process hour 2, hour 3, and so on without moving all later intervals to hour 10.
+
+The scheduler scans world Actors plus synthetic token Actors from loaded Scenes. Only Foundry's designated `game.users.activeGM` commits automatic transitions, preventing multiple connected GM clients from processing the same due event independently. Outstanding player/GM manual requests block re-issuance until they are resolved or manually retried.
+
+World settings control automatic scheduling, catch-up mode (`all` or `next`), and a catch-up safety limit. `maximumDuration` is enforced as a runtime deadline. Backwards world-time updates do not replay past events.
+
+Foundry's configured combat round time advances world time during combat, so round-based stage durations participate in the same clock. Dedicated turn-specific/event scheduling can be added later without changing the engine contract.

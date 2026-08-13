@@ -3,8 +3,10 @@ import { initializePublicApi } from "./api/public-api.js";
 import { getCriticalForgeCompatibility } from "./affliction/integration/critical-forge-adapter.js";
 import { initializeAfflictionForgeUi } from "./affliction/forge/affliction-forge.js";
 import { initializeAfflictionSaveRuntime } from "./affliction/runtime/affliction-save-runtime.js";
+import { registerAfflictionForgeSettings } from "./settings.js";
 
 Hooks.once("init", () => {
+  registerAfflictionForgeSettings();
   initializePublicApi();
 });
 
@@ -30,6 +32,7 @@ Hooks.once("ready", () => {
 
   initializeAfflictionForgeUi();
   initializeAfflictionSaveRuntime();
+  api?.scheduler?.start?.();
 
   Hooks.callAll("pf2eAfflictionForgeReady", api);
   console.info(`${MODULE_ID} | Ready`, {
@@ -40,6 +43,8 @@ Hooks.once("ready", () => {
     afflictionEditorAvailable: typeof api?.ui?.afflictionEditor?.create === "function",
     instanceRuntimeAvailable: typeof api?.instances?.apply === "function",
     afflictionEngineAvailable: typeof api?.engine?.process === "function",
+    schedulerAvailable: typeof api?.scheduler?.processDue === "function",
+    scheduler: api?.scheduler?.status?.(),
     criticalForge: compatibility
   });
 });

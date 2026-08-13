@@ -1,16 +1,48 @@
 # Changelog
 
-## 0.1.16
+## 0.1.19
 
-### Stage Death Effects Integration
+- Fixes a runtime timestamp coercion bug where the default `atTime: null` became numeric `0` through `Number(null)`. Initial saves could therefore anchor onset at world-time zero, making a one-minute onset immediately overdue in established worlds.
+- Persists `onsetStartedAt` when incubation actually begins. Initial exposure checks no longer imply that onset started when the controller was created.
+- Keeps definition-derived onset and stage durations as the minimum timing floor while retaining later explicit `nextCheckAt` schedule overrides.
+- Adds an integrated regression covering: initial save at t=1000, one-minute onset, one combat round (6 s) with no progression, phase 1 at t=1060, no stage save after another round, and the first stage save only at t=1120.
+- Hardens nullable time handling in pending-check timestamps and manual scheduler calls.
 
-- requires PF2E Critical Forge 1.0.1-rc.3 and its Effect API 0.9.6 death component contract
-- accepts Critical Forge `death` components in Affliction stage Effect Definitions without introducing Affliction-specific death logic
-- routes lethal final stages through the same public `api.effects.execute()` instant-execution path used by one-shot damage
-- supports both Critical Forge death categories: `direct` and `death-effect`; immunity handling remains owned by Critical Forge/PF2e
-- keeps death-only stages free of empty persistent PF2e Effect Items
-- preserves the irreversible-instant transition boundary: controller/stage state is committed before lethal instant mechanics execute
-- adds Critical Forge death-component compatibility diagnostics and regression coverage for lethal instant-only stages
+## 0.1.18
+
+### World-Time Timing & Save-Loop Hardening
+
+- keeps the PF2e initial exposure save immediate, but removes pending initial checks from world-time scheduling entirely
+- creates initial-check controllers with `nextCheckAt: null`, preventing the scheduler from racing the application-time save dialog
+- adds a shared canonical due-time calculation used by both the scheduler and Affliction Engine
+- treats persisted `nextCheckAt` as a cache/override that may delay, but can never shorten, the onset or current-stage duration defined by the affliction
+- prevents a stale 1-round due timestamp from completing a 1-minute onset or requesting a 1-minute stage save after only one round
+- treats any incomplete `pendingCheck` as in-flight, including the brief period while a PF2e GM roll dialog is open before an `awaiting-gm` marker exists
+- limits interactive GM save resolution to one overdue interval per scheduler pass so catch-up cannot cascade through multiple roll dialogs without another explicit scheduling action
+- ignores zero-delta `updateWorldTime` events used by calendar/time synchronization
+- preserves automatic catch-up across multiple overdue intervals
+- adds regression coverage for one-minute onset/stage timing, pending initial checks, in-progress GM checks, and manual-dialog cascade prevention
+
+## 0.1.17
+
+### World-Time Scheduler & Automatic Stage Processing
+
+- adds a GM-authoritative world-time scheduler driven by Foundry's canonical `game.time.worldTime` and `updateWorldTime` hook
+- uses Foundry's designated `game.users.activeGM` as the single scheduler authority and re-evaluates authority on `userConnected`
+- discovers Affliction controllers on world Actors and synthetic token Actors from loaded Scenes
+- automatically completes due onset periods and hands due stage checks to the existing Affliction Engine without duplicating save/progression rules
+- anchors historical catch-up transitions to each controller's original `nextCheckAt`, preventing large time jumps from shifting every later interval to the final world time
+- preserves asynchronous player/GM save requests and never reissues an already outstanding manual request on each world-time tick
+- queues a fresh scheduler pass after a player save result is accepted so additional historical intervals can continue catching up immediately
+- adds configurable catch-up modes: process all due intervals or only the next due step
+- adds a per-controller catch-up safety limit, default 25, to prevent runaway processing after extreme time jumps
+- enforces `maximumDuration` as a runtime deadline and ends the affliction when that deadline is reached
+- processes overdue controllers once on `ready`, covering time advanced before or while the world was offline
+- ignores backwards world-time changes; rewinding time never replays already processed affliction events
+- exposes `api.scheduler` for status, manual due processing, and diagnostics
+- fixes stage-check `none` outcomes so they consume/renew the interval instead of leaving `nextCheckAt` permanently overdue
+- aligns player-result GM routing with Foundry's designated `activeGM`
+- adds scheduler settings, DE/EN localization, public API coverage, and historical catch-up regression tests
 
 ## 0.1.15
 

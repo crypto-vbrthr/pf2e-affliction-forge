@@ -219,5 +219,15 @@
   "PF2E_AFFLICTION_FORGE.Runtime.SaveSubmitted": "Result submitted",
   "PF2E_AFFLICTION_FORGE.Runtime.ActorUnavailable": "The affected Actor is unavailable.",
   "PF2E_AFFLICTION_FORGE.Runtime.InstantExecutionFailed": "The stage was activated, but an instant stage effect could not be executed. Check the console and retry the effect if needed.",
-  "PF2E_AFFLICTION_FORGE.Runtime.HiddenStageEffectLabel": "Unidentified affliction"
+  "PF2E_AFFLICTION_FORGE.Runtime.HiddenStageEffectLabel": "Unidentified affliction",
+  "PF2E_AFFLICTION_FORGE.Settings.SchedulerEnabled.Name": "Automatic affliction time processing",
+  "PF2E_AFFLICTION_FORGE.Settings.SchedulerEnabled.Hint": "Automatically processes due onset and stage events when Foundry world time changes.",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpMode.Name": "Catch-up after time jumps",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpMode.Hint": "Controls how overdue stage intervals are processed after larger world-time jumps.",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpMode.All": "Process all due intervals",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpMode.Next": "Process only the next due step",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpLimit.Name": "Maximum catch-up steps per affliction",
+  "PF2E_AFFLICTION_FORGE.Settings.CatchUpLimit.Hint": "Safety limit for automatically processed overdue stage intervals per scheduler pass.",
+  "PF2E_AFFLICTION_FORGE.Scheduler.CatchUpLimitReached": "“{name}” reached the catch-up limit of {limit} steps. Additional overdue intervals remain pending.",
+  "PF2E_AFFLICTION_FORGE.Scheduler.ProcessingFailed": "Automatic processing of “{name}” failed. See the console for details."
 }

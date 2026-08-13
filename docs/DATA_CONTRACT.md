@@ -124,7 +124,7 @@ api.definitions.resolveSavePolicy(definition, "primary")
 
 to obtain the effective policy without duplicating inheritance logic in consumer modules.
 
-Version 0.1.16 executes this contract. `automatic` uses a PF2e roll without the modifier dialog, `gm` keeps the GM roll dialog, and `player` creates a player-owner request with a GM fallback when no active player owner is available. `gmOnly` maps to GM-only execution for GM rolls and blind execution for player rolls.
+Version 0.1.18 executes this contract. `automatic` uses a PF2e roll without the modifier dialog, `gm` keeps the GM roll dialog, and `player` creates a player-owner request with a GM fallback when no active player owner is available. `gmOnly` maps to GM-only execution for GM rolls and blind execution for player rolls.
 
 ## Identification
 
@@ -136,7 +136,7 @@ Version 0.1.16 executes this contract. `automatic` uses a PF2e roll without the 
 
 The template stores the start state. The controller stores the current runtime state, so identifying an affliction later does not require rewriting its template.
 
-Version 0.1.16 uses this as live controller state. PF2e `unidentified` / token-icon presentation is updated on controller/stage Items, and hidden/suspected player save requests omit the affliction identity and DC. Strict removal of hidden controller Items from non-GM Actor-sheet presentation remains a later hardening block.
+Version 0.1.18 uses this as live controller state. PF2e `unidentified` / token-icon presentation is updated on controller/stage Items, and hidden/suspected player save requests omit the affliction identity and DC. Strict removal of hidden controller Items from non-GM Actor-sheet presentation remains a later hardening block.
 
 ## Check gates and multiple saves
 
@@ -249,7 +249,7 @@ flags["pf2e-affliction-forge"] = {
 
 Generated stage-effect Item(s) use `documentKind: "affliction-stage-effect"` and carry the same `instanceId`, `controllerUuid`, `stageId`, and `stageNumber`. This source tagging is the authoritative cleanup boundary.
 
-Automatic and manual save checks plus progression and instant stage mechanics, including lethal final stages, are live in 0.1.16. World/combat-time discovery, maximum-duration enforcement, and strict non-GM controller concealment remain later runtime work.
+Automatic and manual save checks, progression, instant stage mechanics, world-time due-event discovery, historical catch-up, and maximum-duration enforcement are live in 0.1.18. Dedicated turn-specific scheduling and strict non-GM controller concealment remain later runtime work.
 
 
 ## Pending-check runtime shape

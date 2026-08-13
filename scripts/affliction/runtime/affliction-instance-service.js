@@ -51,6 +51,51 @@ function dueAt(duration, enteredAt) {
   return seconds == null || !Number.isFinite(enteredAt) ? null : enteredAt + seconds;
 }
 
+function finiteTime(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+/**
+ * Derive the earliest valid due time from the Affliction definition and runtime
+ * state. `nextCheckAt` is treated as a persisted schedule override/cache, but it
+ * can never shorten the definition's onset or stage duration.
+ */
+export function scheduledDueAt(definitionInput, state = {}) {
+  const definition = normalizeAfflictionDefinition(definitionInput);
+  const stored = finiteTime(state.nextCheckAt);
+
+  if (state.status === "incubating") {
+    const seconds = durationToWorldSeconds(definition.onset);
+    if (seconds == null) return null;
+    // Onset owns an explicit clock. Older 0.1.x controllers did not persist
+    // onsetStartedAt, so lastCheck/appliedAt remain migration fallbacks only.
+    // Once a start is known, the definition-derived duration is authoritative:
+    // a stale nextCheckAt can neither shorten nor otherwise redefine it.
+    const startedAt = finiteTime(state.onsetStartedAt)
+      ?? finiteTime(state.lastCheck?.effectiveAt)
+      ?? finiteTime(state.appliedAt);
+    if (startedAt == null) return stored;
+    const canonical = startedAt + seconds;
+    return stored == null ? canonical : Math.max(stored, canonical);
+  }
+
+  if (state.status === "active" && Number(state.currentStage) > 0) {
+    const stage = definition.stages?.[Number(state.currentStage) - 1] ?? null;
+    const seconds = durationToWorldSeconds(stage?.duration);
+    if (seconds == null) return null;
+    const startedAt = finiteTime(state.stageEnteredAt);
+    if (startedAt == null) return stored;
+    const canonical = startedAt + seconds;
+    // A persisted schedule may intentionally delay processing, but may never
+    // shorten the definition-owned stage duration.
+    return stored == null ? canonical : Math.max(stored, canonical);
+  }
+
+  // Initial exposure checks are not clock-driven.
+  return null;
+}
+
 function itemCollection(actor) {
   if (!actor?.items) return [];
   if (Array.isArray(actor.items)) return actor.items;
@@ -301,6 +346,7 @@ function buildTransitionState(previous, definition, stageNumber, enteredAt, effe
   next.status = stageNumber > 0 ? "active" : (definition.onset ? "incubating" : "pending");
   next.currentStage = stageNumber;
   next.stageEnteredAt = stageNumber > 0 ? enteredAt : null;
+  next.onsetStartedAt = stageNumber > 0 ? null : next.onsetStartedAt ?? null;
   const duration = stageNumber > 0
     ? stageDescriptor(definition, stageNumber)?.duration
     : definition.onset;
@@ -416,10 +462,15 @@ export class AfflictionInstanceService {
           appliedAt,
           currentStage: initialStage,
           stageEnteredAt: initialStage > 0 ? appliedAt : null,
+          onsetStartedAt: hasOnset && !hasInitialCheck ? appliedAt : null,
           status: initialStatus,
           onsetTargetStage: hasOnset && !hasInitialCheck ? 1 : null,
+          // The initial exposure save is not a timed event. It is resolved by
+          // AfflictionEngine.apply*() immediately after controller creation.
+          // Keeping nextCheckAt null prevents the world-time scheduler from
+          // racing that interactive save if time advances while its dialog is open.
           nextCheckAt: hasInitialCheck
-            ? appliedAt
+            ? null
             : hasOnset
               ? dueAt(definition.onset, appliedAt)
               : dueAt(definition.stages?.[0]?.duration, appliedAt)
@@ -496,6 +547,7 @@ export class AfflictionInstanceService {
     state.status = "incubating";
     state.currentStage = 0;
     state.stageEnteredAt = null;
+    state.onsetStartedAt = startedAt;
     state.nextCheckAt = dueAt(definition.onset, startedAt);
     state.activeStageEffectUuids = [];
     state.pendingCheck = null;
@@ -678,6 +730,7 @@ export class AfflictionInstanceService {
     state.status = reason === "recovered" ? "recovered" : "ended";
     state.currentStage = 0;
     state.stageEnteredAt = null;
+    state.onsetStartedAt = null;
     state.nextCheckAt = null;
     state.activeStageEffectUuids = [];
     state.pendingCheck = null;

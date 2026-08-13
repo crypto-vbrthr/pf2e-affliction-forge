@@ -32,6 +32,8 @@ function gmIds() {
 }
 
 function primaryActiveGmId() {
+  const designated = globalThis.game?.users?.activeGM;
+  if (designated?.id) return designated.id;
   return usersArray()
     .filter((user) => user.isGM && user.active !== false)
     .map((user) => user.id)
