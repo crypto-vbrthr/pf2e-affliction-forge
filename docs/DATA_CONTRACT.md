@@ -1,10 +1,12 @@
-# Affliction Data Contract v1
+# Affliction Data Contract v2
+
+Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the normalizer and upgraded in memory to v2. Unknown future schema versions remain rejected.
 
 ## Root definition
 
 ```js
 {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: "example.ashen-fever",
   name: "Aschenfieber",
   description: "<p>...</p>",
@@ -15,13 +17,36 @@
   traits: ["disease"],
   themes: ["ash", "fever"],
 
+  saveDefaults: {
+    execution: "player",   // automatic | player | gm
+    visibility: "public"   // public | gmOnly
+  },
+
+  identification: {
+    initialState: "identified" // hidden | suspected | identified
+  },
+
   checks: [
     {
       id: "primary",
       label: "",
       kind: "save",
       statistic: "fortitude",
-      dc: 27
+      dc: 27,
+
+      // null inherits saveDefaults
+      policy: null
+    },
+    {
+      id: "secret",
+      label: "Verdeckter Verlauf",
+      kind: "save",
+      statistic: "will",
+      dc: 25,
+      policy: {
+        execution: "gm",
+        visibility: "gmOnly"
+      }
     }
   ],
 
@@ -74,11 +99,50 @@
 }
 ```
 
-## Checks
+## Saving-throw policy
 
-Version 1 supports saving throws using `fortitude`, `reflex`, or `will`. Checks have stable IDs so the same save can be referenced by the initial exposure and by any number of stages.
+`saveDefaults` defines how saving throws are intended to be executed later by the Affliction Engine.
 
-Multiple checks are represented by multiple `checkIds`. The combination mode is explicit:
+Execution modes:
+
+- `automatic`: the engine performs the check
+- `player`: the affected player's user is prompted to roll
+- `gm`: a GM is prompted to roll
+
+Visibility modes:
+
+- `public`: the resulting check is public
+- `gmOnly`: the result is restricted to the GM side of the workflow
+
+Every save definition has `policy: null` by default. `null` means the check inherits `saveDefaults`. A non-null policy overrides both execution and visibility for that check.
+
+Use:
+
+```js
+api.definitions.resolveSavePolicy(definition, "primary")
+```
+
+to obtain the effective policy without duplicating inheritance logic in consumer modules.
+
+Version 0.1.11 defines and edits this contract only. It does not yet execute rolls or control chat visibility.
+
+## Identification
+
+`identification.initialState` defines how a newly applied instance is intended to begin:
+
+- `hidden`: the affliction itself is not presented to the affected player
+- `suspected`: the player may be told that something is wrong without receiving the full affliction identity
+- `identified`: the affliction can be presented with its full identity
+
+The template stores the start state. The controller stores the current runtime state, so identifying an affliction later does not require rewriting its template.
+
+The exact player-sheet/chat visibility behavior is reserved for the controller/runtime implementation.
+
+## Check gates and multiple saves
+
+Saving throws use stable IDs so the same save can be referenced by initial exposure and any number of stages.
+
+Multiple checks are represented by multiple `checkIds`. Supported combination modes are:
 
 - `single`
 - `best-degree`
@@ -86,11 +150,7 @@ Multiple checks are represented by multiple `checkIds`. The combination mode is 
 - `all-success`
 - `any-success`
 
-This is intentionally a data contract only in 0.1.0. Runtime execution of those modes belongs to the later Affliction Engine.
-
-## Stage progression
-
-Every check gate stores explicit transition directives. Supported v1 actions are:
+Check gates store explicit transition directives:
 
 - `none`
 - `reject`
@@ -99,54 +159,56 @@ Every check gate stores explicit transition directives. Supported v1 actions are
 - `set-stage`
 - `stage-delta`
 
-A stage with `check: null` inherits `defaultStageCheck`. This keeps normal PF2e-style progressions concise while allowing a stage to override the recovery rule completely.
+A stage with `check: null` inherits `defaultStageCheck`.
 
 ## Stage Effect Definition
 
-`stage.effect` is either `null` or a normal PF2E Critical Forge Effect Definition. Affliction Forge treats it as semantic stage mechanics and validates it through the Critical Forge public Effect API.
+`stage.effect` is either `null` or a PF2E Critical Forge Effect Definition. Affliction Forge treats it as semantic stage mechanics and validates it through the Critical Forge public Effect API.
 
-The **Affliction Engine owns the stage lifetime**. A stage effect must therefore not be treated as the source of truth for when a stage ends. Later runtime code may rewrite/override the stored Effect Definition duration when generating an active stage Effect Item.
+The **Affliction Engine owns the stage lifetime**. Stage effects are therefore normalized by the editor to an unlimited lifetime and later replaced/removed by the Affliction runtime.
 
 ## Template persistence
 
-Affliction Templates use PF2e Item type `effect`, but intentionally contain no Rule Elements. The actual affliction definition is stored below:
+Affliction Templates use PF2e Item type `effect`, contain no Rule Elements, and store the definition in module flags:
 
 ```js
 flags["pf2e-affliction-forge"] = {
   managed: true,
   documentKind: "affliction-template",
-  schemaVersion: 1,
+  schemaVersion: 2,
   definitionId: "...",
-  definition: { /* snapshot */ }
+  definitionVersion: 1,
+  definition: { /* schema-v2 snapshot */ }
 }
 ```
 
-This means a template can live in the Items Directory or an Item compendium without accidentally applying stage mechanics.
+Schema-v1 templates remain discoverable. Opening them normalizes their definition to schema v2; saving them writes the current schema.
 
-## Active instances
+## Reserved active-controller state
 
-The runtime contract is already reserved. An applied template will become an embedded controller with:
+The controller contract is now schema v2:
 
 ```js
 {
-  managed: true,
-  documentKind: "affliction-controller",
-  definitionSnapshot: { /* stable snapshot */ },
+  schemaVersion: 2,
   instanceId: "...",
-  sourceTemplateUuid: "...",
-  state: {
-    schemaVersion: 1,
-    status: "active",
-    currentStage: 1,
-    appliedAt: 100000,
-    stageEnteredAt: 100000,
-    nextCheckAt: null,
-    recoverySuccesses: 0,
-    activeStageEffectUuids: [],
-    pendingCheck: null,
-    revision: 1
-  }
+  status: "active",
+  currentStage: 1,
+  appliedAt: 100000,
+  stageEnteredAt: 100000,
+  nextCheckAt: null,
+
+  identification: {
+    state: "hidden",
+    identifiedAt: null,
+    identifiedBy: null
+  },
+
+  recoverySuccesses: 0,
+  activeStageEffectUuids: [],
+  pendingCheck: null,
+  revision: 1
 }
 ```
 
-The controller snapshot prevents later template edits from silently mutating afflictions already running on Actors.
+This remains a persistence contract in 0.1.11. Controller application, checks, stage transitions, and player visibility are implemented in later runtime blocks.

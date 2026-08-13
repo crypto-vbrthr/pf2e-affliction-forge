@@ -113,3 +113,14 @@ test("stage effect assignment thaws deeply frozen Critical Forge definitions", (
   });
   assert.equal(session.definition.stages[0].effect.id, "affliction.mutable");
 });
+
+test("editor session preserves save-policy overrides and identification state", () => {
+  const source = sourceDefinition();
+  source.saveDefaults = { execution: "automatic", visibility: "gmOnly" };
+  source.identification = { initialState: "hidden" };
+  source.checks[0].policy = { execution: "gm", visibility: "public" };
+  const session = createAfflictionEditorSession(source);
+  assert.deepEqual(session.definition.saveDefaults, { execution: "automatic", visibility: "gmOnly" });
+  assert.deepEqual(session.definition.checks[0].policy, { execution: "gm", visibility: "public" });
+  assert.deepEqual(session.definition.identification, { initialState: "hidden" });
+});

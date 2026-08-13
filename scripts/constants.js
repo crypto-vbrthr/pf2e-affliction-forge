@@ -1,8 +1,8 @@
 export const MODULE_ID = "pf2e-affliction-forge";
-export const MODULE_VERSION = "0.1.10";
-export const API_VERSION = "0.1.10";
-export const AFFLICTION_SCHEMA_VERSION = 1;
-export const CONTROLLER_SCHEMA_VERSION = 1;
+export const MODULE_VERSION = "0.1.12";
+export const API_VERSION = "0.1.12";
+export const AFFLICTION_SCHEMA_VERSION = 2;
+export const CONTROLLER_SCHEMA_VERSION = 2;
 export const CRITICAL_FORGE_MODULE_ID = "pf2e-critical-forge";
 
 export const DOCUMENT_KINDS = Object.freeze({
@@ -30,6 +30,23 @@ export const SAVE_STATISTICS = Object.freeze([
   "fortitude",
   "reflex",
   "will"
+]);
+
+export const SAVE_EXECUTION_MODES = Object.freeze([
+  "automatic",
+  "player",
+  "gm"
+]);
+
+export const SAVE_VISIBILITY_MODES = Object.freeze([
+  "public",
+  "gmOnly"
+]);
+
+export const IDENTIFICATION_STATES = Object.freeze([
+  "hidden",
+  "suspected",
+  "identified"
 ]);
 
 export const DURATION_UNITS = Object.freeze([

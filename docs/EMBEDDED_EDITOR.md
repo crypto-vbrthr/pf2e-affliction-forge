@@ -64,3 +64,22 @@ await game.modules.get("pf2e-affliction-forge").api.ui.forge.open();
 ```
 
 The host owns window-level actions. The embedded editor still contains no Item persistence or actor-application behavior.
+
+
+## Save policy and identification controls (0.1.11)
+
+The shared editor now exposes root saving-throw defaults plus optional per-check overrides. The UI edits only the data contract:
+
+```js
+definition.saveDefaults = {
+  execution: "player",
+  visibility: "public"
+};
+
+definition.checks[0].policy = null; // inherit defaults
+definition.identification = {
+  initialState: "hidden"
+};
+```
+
+Execution of rolls, blind/public chat behavior, and actual player visibility remain runtime responsibilities and are intentionally not implemented by the embedded editor.

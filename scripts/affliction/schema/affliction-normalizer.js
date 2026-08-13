@@ -2,12 +2,16 @@ import {
   AFFLICTION_SCHEMA_VERSION,
   CHECK_COMBINE_MODES,
   DURATION_UNITS,
-  OUTCOME_KEYS
+  IDENTIFICATION_STATES,
+  OUTCOME_KEYS,
+  SAVE_EXECUTION_MODES,
+  SAVE_VISIBILITY_MODES
 } from "../../constants.js";
 import {
   createAfflictionDefinition,
   createDefaultInitialCheck,
   createDefaultSaveCheck,
+  createDefaultSavePolicy,
   createDefaultStage,
   createDefaultStageCheck
 } from "./affliction-defaults.js";
@@ -46,13 +50,30 @@ function normalizeDirective(value) {
 function normalizeCheckGate(value, fallback = null) {
   if (value == null) return fallback == null ? null : deepClone(fallback);
   const outcomes = {};
-  for (const key of OUTCOME_KEYS) {
-    outcomes[key] = normalizeDirective(value.outcomes?.[key]);
-  }
+  for (const key of OUTCOME_KEYS) outcomes[key] = normalizeDirective(value.outcomes?.[key]);
   return {
     checkIds: uniqueStrings(value.checkIds),
     combine: CHECK_COMBINE_MODES.includes(value.combine) ? value.combine : "single",
     outcomes
+  };
+}
+
+export function normalizeSavePolicy(value, fallback = createDefaultSavePolicy()) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const base = fallback && typeof fallback === "object" ? fallback : createDefaultSavePolicy();
+  const execution = cleanString(source.execution, base.execution ?? "player");
+  const visibility = cleanString(source.visibility, base.visibility ?? "public");
+  return {
+    execution: SAVE_EXECUTION_MODES.includes(execution) ? execution : "player",
+    visibility: SAVE_VISIBILITY_MODES.includes(visibility) ? visibility : "public"
+  };
+}
+
+function normalizeIdentification(value, fallback = { initialState: "identified" }) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const state = cleanString(source.initialState, fallback.initialState ?? "identified");
+  return {
+    initialState: IDENTIFICATION_STATES.includes(state) ? state : "identified"
   };
 }
 
@@ -63,7 +84,8 @@ function normalizeCheck(check, index) {
     label: String(check?.label ?? "").trim(),
     kind: "save",
     statistic: cleanString(check?.statistic, fallback.statistic).toLowerCase(),
-    dc: finiteNumber(check?.dc, fallback.dc)
+    dc: finiteNumber(check?.dc, fallback.dc),
+    policy: check?.policy == null ? null : normalizeSavePolicy(check.policy)
   };
 }
 
@@ -83,9 +105,11 @@ function normalizeStage(stage, index) {
 export function normalizeAfflictionDefinition(value = {}, { createDefaults = true } = {}) {
   const base = createDefaults ? createAfflictionDefinition() : {};
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  if (source.schemaVersion != null && source.schemaVersion !== AFFLICTION_SCHEMA_VERSION) {
+  const sourceVersion = source.schemaVersion ?? AFFLICTION_SCHEMA_VERSION;
+  if (![1, AFFLICTION_SCHEMA_VERSION].includes(sourceVersion)) {
     throw new RangeError(`Unsupported affliction schema version: ${source.schemaVersion}.`);
   }
+
   const checksSource = Array.isArray(source.checks) && source.checks.length > 0
     ? source.checks
     : (base.checks ?? []);
@@ -104,6 +128,8 @@ export function normalizeAfflictionDefinition(value = {}, { createDefaults = tru
     rarity: cleanString(source.rarity, base.rarity ?? "common").toLowerCase(),
     traits: uniqueStrings(source.traits ?? base.traits),
     themes: uniqueStrings(source.themes ?? base.themes),
+    saveDefaults: normalizeSavePolicy(source.saveDefaults, base.saveDefaults ?? createDefaultSavePolicy()),
+    identification: normalizeIdentification(source.identification, base.identification ?? { initialState: "identified" }),
     checks: checksSource.map(normalizeCheck),
     initialCheck: source.initialCheck === null
       ? null
@@ -131,4 +157,12 @@ export function resolveStageCheck(definition, stageOrNumber) {
     : stageOrNumber;
   if (!stage) return null;
   return deepClone(stage.check ?? definition?.defaultStageCheck ?? null);
+}
+
+export function resolveSavePolicy(definition, checkOrId) {
+  const check = typeof checkOrId === "string"
+    ? definition?.checks?.find((entry) => entry.id === checkOrId)
+    : checkOrId;
+  if (!check) return null;
+  return normalizeSavePolicy(check.policy, definition?.saveDefaults ?? createDefaultSavePolicy());
 }

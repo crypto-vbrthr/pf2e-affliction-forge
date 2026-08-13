@@ -19,10 +19,16 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 
 test("public API exposes the versioned data contract and embedded editor contract without runtime promises", () => {
   const api = createPublicApi();
-  assert.equal(api.version, "0.1.10");
-  assert.equal(api.schemaVersion, 1);
+  assert.equal(api.version, "0.1.12");
+  assert.equal(api.schemaVersion, 2);
+  assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
   assert.equal(typeof api.definitions.validate, "function");
+  assert.equal(typeof api.definitions.createSavePolicy, "function");
+  assert.equal(typeof api.definitions.resolveSavePolicy, "function");
+  assert.deepEqual(api.catalogs.saveExecutionModes(), ["automatic", "player", "gm"]);
+  assert.deepEqual(api.catalogs.saveVisibilityModes(), ["public", "gmOnly"]);
+  assert.deepEqual(api.catalogs.identificationStates(), ["hidden", "suspected", "identified"]);
   assert.equal(typeof api.documents.buildTemplateSource, "function");
   assert.equal(typeof api.templates.create, "function");
   assert.equal(typeof api.templates.update, "function");

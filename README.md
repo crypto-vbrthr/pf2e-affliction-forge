@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.10**
+Current development build: **0.1.12**
 
-Version **0.1.10** keeps the live template library synchronized with Foundry Item deletions. Deleted Affliction Templates disappear immediately without requiring a Foundry reload; if the currently edited template is deleted externally, its editor contents are retained as an unsaved draft.
+Version **0.1.12** hardens live template deletion: deleting an Affliction Template now removes stale library state and resets any editor that was bound to the deleted Item to a fresh clean draft. The schema-v2 save-policy and identification contracts introduced in 0.1.11 remain unchanged.
 
 The editor is deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. Persistence and actor application remain outside the editor.
 
@@ -11,6 +11,8 @@ The editor is deliberately host-agnostic: it edits an `AfflictionDefinition`, em
 - versioned `AfflictionDefinition` schema
 - poison, disease, curse, and custom affliction types
 - reusable save-check definitions
+- root saving-throw defaults plus per-check execution/visibility overrides (`automatic | player | gm`, `public | gmOnly`)
+- identification start state (`hidden | suspected | identified`) reserved for controller/player visibility behavior
 - initial exposure resolution and per-stage progression resolution
 - support for multiple saves through explicit combination modes
 - onset, maximum duration, stage duration, narrative stage description

@@ -6,20 +6,24 @@ import {
   CONTROLLER_SCHEMA_VERSION,
   DOCUMENT_KINDS,
   DURATION_UNITS,
+  IDENTIFICATION_STATES,
   MODULE_ID,
   MODULE_VERSION,
   RARITIES,
-  SAVE_STATISTICS
+  SAVE_EXECUTION_MODES,
+  SAVE_STATISTICS,
+  SAVE_VISIBILITY_MODES
 } from "../constants.js";
 import {
-  AFFLICTION_DATA_CONTRACT_V1,
+  AFFLICTION_DATA_CONTRACT_V2,
   createAfflictionDefinition,
   createDefaultInitialCheck,
   createDefaultSaveCheck,
+  createDefaultSavePolicy,
   createDefaultStage,
   createDefaultStageCheck
 } from "../affliction/schema/affliction-defaults.js";
-import { normalizeAfflictionDefinition, resolveStageCheck } from "../affliction/schema/affliction-normalizer.js";
+import { normalizeAfflictionDefinition, resolveSavePolicy, resolveStageCheck } from "../affliction/schema/affliction-normalizer.js";
 import { assertValidAfflictionDefinition, validateAfflictionDefinition } from "../affliction/schema/affliction-validator.js";
 import {
   buildAfflictionTemplateItemSource,
@@ -60,12 +64,15 @@ export function createPublicApi() {
     schemaVersion: AFFLICTION_SCHEMA_VERSION,
     controllerSchemaVersion: CONTROLLER_SCHEMA_VERSION,
 
-    contract: AFFLICTION_DATA_CONTRACT_V1,
+    contract: AFFLICTION_DATA_CONTRACT_V2,
 
     catalogs: Object.freeze({
       afflictionTypes: () => [...AFFLICTION_TYPES],
       rarities: () => [...RARITIES],
       saveStatistics: () => [...SAVE_STATISTICS],
+      saveExecutionModes: () => [...SAVE_EXECUTION_MODES],
+      saveVisibilityModes: () => [...SAVE_VISIBILITY_MODES],
+      identificationStates: () => [...IDENTIFICATION_STATES],
       durationUnits: () => [...DURATION_UNITS],
       checkCombineModes: () => [...CHECK_COMBINE_MODES],
       documentKinds: () => ({ ...DOCUMENT_KINDS })
@@ -74,6 +81,7 @@ export function createPublicApi() {
     definitions: Object.freeze({
       create: (options = {}) => createAfflictionDefinition(options),
       createCheck: (options = {}) => createDefaultSaveCheck(options),
+      createSavePolicy: (options = {}) => createDefaultSavePolicy(options),
       createInitialCheck: () => createDefaultInitialCheck(),
       createStageCheck: () => createDefaultStageCheck(),
       createStage: (options = {}) => createDefaultStage(options),
@@ -84,7 +92,8 @@ export function createPublicApi() {
       assertValid: (definition, options = {}) => assertValidAfflictionDefinition(definition, {
         effectValidator: options.effectValidator ?? effectValidatorOrNull()
       }),
-      resolveStageCheck: (definition, stageOrNumber) => resolveStageCheck(definition, stageOrNumber)
+      resolveStageCheck: (definition, stageOrNumber) => resolveStageCheck(definition, stageOrNumber),
+      resolveSavePolicy: (definition, checkOrId) => resolveSavePolicy(definition, checkOrId)
     }),
 
     documents: Object.freeze({

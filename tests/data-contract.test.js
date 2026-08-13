@@ -11,6 +11,7 @@ const {
 } = await import("../scripts/affliction/schema/affliction-defaults.js");
 const {
   normalizeAfflictionDefinition,
+  resolveSavePolicy,
   resolveStageCheck
 } = await import("../scripts/affliction/schema/affliction-normalizer.js");
 const { validateAfflictionDefinition } = await import("../scripts/affliction/schema/affliction-validator.js");
@@ -31,7 +32,9 @@ function validDefinition() {
 test("default contract creates a stable staged definition", () => {
   const definition = validDefinition();
   const report = validateAfflictionDefinition(definition);
-  assert.equal(definition.schemaVersion, 1);
+  assert.equal(definition.schemaVersion, 2);
+  assert.deepEqual(definition.saveDefaults, { execution: "player", visibility: "public" });
+  assert.deepEqual(definition.identification, { initialState: "identified" });
   assert.equal(definition.initialCheck.outcomes.failure.stage, 1);
   assert.equal(definition.defaultStageCheck.outcomes.criticalFailure.delta, 2);
   assert.equal(report.valid, true, JSON.stringify(report.errors));
@@ -60,6 +63,42 @@ test("normalizer refuses unknown schema versions instead of silently migrating t
     () => normalizeAfflictionDefinition({ schemaVersion: 99, id: "future", name: "Future" }),
     /Unsupported affliction schema version/
   );
+});
+
+test("schema 1 templates migrate to save-policy and identification defaults", () => {
+  const migrated = normalizeAfflictionDefinition({
+    schemaVersion: 1,
+    id: "legacy.affliction",
+    name: "Legacy",
+    checks: [{ id: "primary", label: "", kind: "save", statistic: "fortitude", dc: 20 }],
+    stages: [{ id: "stage-1", number: 1, name: "", description: "", duration: { value: 1, unit: "rounds" }, check: null, effect: null }]
+  });
+  assert.equal(migrated.schemaVersion, 2);
+  assert.deepEqual(migrated.saveDefaults, { execution: "player", visibility: "public" });
+  assert.equal(migrated.checks[0].policy, null);
+  assert.deepEqual(migrated.identification, { initialState: "identified" });
+});
+
+test("saving throw policies inherit root defaults and support per-check overrides", () => {
+  const definition = validDefinition();
+  definition.saveDefaults = { execution: "gm", visibility: "gmOnly" };
+  assert.deepEqual(resolveSavePolicy(definition, "primary"), { execution: "gm", visibility: "gmOnly" });
+
+  definition.checks[0].policy = { execution: "automatic", visibility: "public" };
+  assert.deepEqual(resolveSavePolicy(definition, definition.checks[0]), { execution: "automatic", visibility: "public" });
+  assert.equal(validateAfflictionDefinition(definition).valid, true);
+});
+
+test("validator rejects unsupported save policies and identification states", () => {
+  const definition = validDefinition();
+  definition.saveDefaults.execution = "telepathy";
+  definition.identification.initialState = "mysterious";
+  definition.checks[0].policy = { execution: "player", visibility: "everyone-but-the-gm" };
+  const report = validateAfflictionDefinition(definition);
+  assert.equal(report.valid, false);
+  assert.ok(report.errors.some((issue) => issue.code === "save-policy.execution"));
+  assert.ok(report.errors.some((issue) => issue.code === "save-policy.visibility"));
+  assert.ok(report.errors.some((issue) => issue.code === "identification.initial-state"));
 });
 
 test("stage check falls back to the root default and can be overridden", () => {

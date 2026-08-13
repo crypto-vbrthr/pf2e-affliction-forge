@@ -118,3 +118,24 @@ test("embedded stage effects inherit the Critical Forge visual theme without a n
   assert.match(css, /\.effect-forge-component-list\s*\{[\s\S]*max-height:\s*none/);
   assert.match(css, /\.effect-forge-component-list\s*\{[\s\S]*overflow:\s*visible/);
 });
+
+test("embedded editor exposes saving throw execution, visibility, and identification controls", async () => {
+  const definition = createAfflictionDefinition({ name: "Policy Probe" });
+  const session = createAfflictionEditorSession(definition);
+  const api = {
+    definitions: {
+      validate: () => ({ valid: true, issues: [], errors: [], warnings: [] })
+    }
+  };
+  const context = await prepareAfflictionEditorContext(session, { api });
+  assert.equal(context.saveDefaults.executionOptions.length, 3);
+  assert.equal(context.saveDefaults.visibilityOptions.length, 2);
+  assert.equal(context.identificationOptions.length, 3);
+  assert.equal(context.checks[0].policyView.inherited, true);
+
+  assert.match(template, /data-affliction-field="saveDefaultExecution"/);
+  assert.match(template, /data-affliction-field="saveDefaultVisibility"/);
+  assert.match(template, /data-check-policy-override/);
+  assert.match(template, /data-affliction-field="identificationInitialState"/);
+  assert.match(source, /#refreshRenderedInheritedSavePolicies/);
+});

@@ -137,20 +137,25 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     const uuid = String(document?.uuid ?? "").trim();
     if (!uuid) return false;
 
+    // Remove the descriptor immediately so even an already-rendered library can
+    // never keep a dead entry around while the asynchronous refresh is pending.
+    this.library = this.library.filter((entry) => entry.uuid !== uuid);
     this.#invalidateLibrary();
 
     if (this.currentTemplate?.uuid === uuid) {
-      // The backing Item has vanished, but the GM may still want the definition
-      // they were looking at. Keep that data in the editor as a new unsaved
-      // draft instead of leaving a dangling UUID or discarding their work.
-      const preservedDefinition = this.editor?.value ?? createDraftDefinition();
+      // Deleting the backing Item is an explicit destructive action. Do not
+      // resurrect that deleted template as a dirty local draft: that causes the
+      // deleted affliction to reappear on the next Forge open and triggers a
+      // misleading unsaved-changes prompt when switching templates. Reset to a
+      // fresh, clean draft instead.
       this.currentTemplate = null;
-      this.editor?.setData?.(preservedDefinition, { mode: "create", rerender: false });
-      this.editor?.session?.markDirty?.();
+      this.editor?.setData?.(createDraftDefinition(), { mode: "create", rerender: false });
+      this.editor?.markClean?.();
     }
 
-    // A closed ApplicationV2 instance can remain cached by the module. In that
-    // case only invalidate the library; the next open will reload it.
+    // A closed ApplicationV2 instance can remain cached by the module. Its
+    // in-memory editor has already been reset above, while the invalidated
+    // library will be re-indexed on the next open.
     if (!(this.element instanceof HTMLElement) || !this.element.isConnected) return true;
 
     await this.render({ force: true });

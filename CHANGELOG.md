@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.1.12
+
+### Deleted Template Lifecycle Hardening
+
+- fixes a deleted Affliction Template being resurrected as a dirty local draft when it had been the Forge's current template
+- resets the editor to a fresh clean draft when its backing Item is deleted, whether the Forge is open or currently closed/cached
+- prevents the misleading unsaved-changes prompt when switching away after deleting the previously opened template
+- removes the deleted descriptor from the in-memory library immediately before invalidating/re-indexing the full template cache
+- preserves normal live deletion refresh for non-current templates without disturbing the template currently being edited
+- updates regression coverage for deletion while open and for the cached closed-Forge lifecycle
+
+
+## 0.1.11
+
+### Save Policy & Affliction Identification Contract
+
+- bumps the Affliction Definition schema to v2 and the reserved controller-state schema to v2
+- migrates schema-v1 Affliction Definitions to v2 during normalization without altering stored source documents until they are saved
+- adds root saving-throw defaults for execution (`automatic`, `player`, `gm`) and result visibility (`public`, `gmOnly`)
+- adds optional per-save overrides while preserving inherited defaults as the compact common case
+- adds public `resolveSavePolicy()` semantics and API catalogs for execution/visibility modes
+- adds initial affliction identification state (`hidden`, `suspected`, `identified`) to templates
+- reserves current identification state, identification timestamp, and identifying user in the controller-state contract
+- extends the Embedded Affliction Editor with saving-throw defaults, per-check overrides, and identification controls
+- keeps inherited per-check policy displays synchronized immediately when root defaults change
+- adds DE/EN localization, migration/validation coverage, controller-state tests, and public API tests
+
 ## 0.1.10
 
 ### Live Template Deletion Synchronization

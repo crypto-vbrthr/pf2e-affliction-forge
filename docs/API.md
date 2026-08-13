@@ -1,4 +1,4 @@
-# Public API 0.1.9
+# Public API 0.1.12
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -9,6 +9,7 @@ const api = game.modules.get("pf2e-affliction-forge").api;
 ```js
 api.definitions.create(options)
 api.definitions.createCheck(options)
+api.definitions.createSavePolicy(options)
 api.definitions.createInitialCheck()
 api.definitions.createStageCheck()
 api.definitions.createStage(options)
@@ -16,9 +17,21 @@ api.definitions.normalize(definition)
 api.definitions.validate(definition)
 api.definitions.assertValid(definition)
 api.definitions.resolveStageCheck(definition, stageOrNumber)
+api.definitions.resolveSavePolicy(definition, checkOrId)
 ```
 
 Stage Effect Definitions are validated via `pf2e-critical-forge.api.effects.validate()` when Critical Forge is available.
+
+
+## Save-policy and identification catalogs
+
+```js
+api.catalogs.saveExecutionModes()   // ["automatic", "player", "gm"]
+api.catalogs.saveVisibilityModes()  // ["public", "gmOnly"]
+api.catalogs.identificationStates() // ["hidden", "suspected", "identified"]
+```
+
+`api.definitions.resolveSavePolicy()` resolves per-check overrides against the root `saveDefaults` policy.
 
 ## Embedded UI API
 
@@ -88,7 +101,7 @@ api.controllers.createState(definition, options)
 api.controllers.validateState(state, definition)
 ```
 
-These functions establish persistence shape only. Version 0.1.9 does not schedule checks or transition stages.
+These functions establish persistence shape only. Version 0.1.12 does not schedule checks, execute saving throws, transition stages, or enforce player visibility.
 
 ## Critical Forge integration
 

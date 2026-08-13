@@ -51,3 +51,10 @@ Affliction Engine
 - Active controllers keep a definition snapshot.
 - Template items are inert and contain no Rule Elements.
 - External modules should consume only the public API and the ready hook.
+
+
+## Saving-throw policies and identification
+
+Affliction Definitions own semantic save policies (`automatic | player | gm` and `public | gmOnly`). Individual checks may override root defaults. The Affliction Engine will later translate those semantics into PF2e/Foundry roll workflows.
+
+Templates own only the initial identification state. Active controllers own the current identification state, allowing a hidden affliction to become suspected or identified without mutating its source template.

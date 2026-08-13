@@ -2,10 +2,13 @@ import {
   AFFLICTION_TYPES,
   CHECK_COMBINE_MODES,
   DURATION_UNITS,
+  IDENTIFICATION_STATES,
   MODULE_ID,
   OUTCOME_KEYS,
   RARITIES,
+  SAVE_EXECUTION_MODES,
   SAVE_STATISTICS,
+  SAVE_VISIBILITY_MODES,
   TRANSITION_ACTIONS
 } from "../../constants.js";
 import { getCriticalForgeApi } from "../integration/critical-forge-adapter.js";
@@ -45,6 +48,20 @@ const LABELS = Object.freeze({
     "worst-degree": "PF2E_AFFLICTION_FORGE.Combine.WorstDegree",
     "all-success": "PF2E_AFFLICTION_FORGE.Combine.AllSuccess",
     "any-success": "PF2E_AFFLICTION_FORGE.Combine.AnySuccess"
+  },
+  execution: {
+    automatic: "PF2E_AFFLICTION_FORGE.SaveExecution.Automatic",
+    player: "PF2E_AFFLICTION_FORGE.SaveExecution.Player",
+    gm: "PF2E_AFFLICTION_FORGE.SaveExecution.GM"
+  },
+  visibility: {
+    public: "PF2E_AFFLICTION_FORGE.SaveVisibility.Public",
+    gmOnly: "PF2E_AFFLICTION_FORGE.SaveVisibility.GMOnly"
+  },
+  identification: {
+    hidden: "PF2E_AFFLICTION_FORGE.Identification.Hidden",
+    suspected: "PF2E_AFFLICTION_FORGE.Identification.Suspected",
+    identified: "PF2E_AFFLICTION_FORGE.Identification.Identified"
   },
   action: {
     none: "PF2E_AFFLICTION_FORGE.Transition.None",
@@ -166,6 +183,19 @@ function prepareDuration(duration, { nullable = true, allowUnlimited = true } = 
   };
 }
 
+
+function prepareSavePolicy(policy, defaults) {
+  const inherited = policy == null;
+  const effective = inherited ? defaults : policy;
+  return {
+    inherited,
+    execution: effective?.execution ?? "player",
+    visibility: effective?.visibility ?? "public",
+    executionOptions: optionList(SAVE_EXECUTION_MODES, effective?.execution ?? "player", LABELS.execution),
+    visibilityOptions: optionList(SAVE_VISIBILITY_MODES, effective?.visibility ?? "public", LABELS.visibility)
+  };
+}
+
 function displayIssue(issue) {
   const path = String(issue?.path ?? "");
   const raw = String(issue?.message ?? issue?.code ?? "");
@@ -251,12 +281,18 @@ export async function prepareAfflictionEditorContext(session, {
     typeOptions: optionList(AFFLICTION_TYPES, definition.afflictionType, LABELS.type),
     rarityOptions: optionList(RARITIES, definition.rarity, LABELS.rarity),
     statisticCatalog: SAVE_STATISTICS,
+    saveDefaults: {
+      executionOptions: optionList(SAVE_EXECUTION_MODES, definition.saveDefaults.execution, LABELS.execution),
+      visibilityOptions: optionList(SAVE_VISIBILITY_MODES, definition.saveDefaults.visibility, LABELS.visibility)
+    },
+    identificationOptions: optionList(IDENTIFICATION_STATES, definition.identification.initialState, LABELS.identification),
     checks: definition.checks.map((check, index) => ({
       ...check,
       index,
       number: index + 1,
       canRemove: definition.checks.length > 1,
-      statisticOptions: optionList(SAVE_STATISTICS, check.statistic, LABELS.statistic)
+      statisticOptions: optionList(SAVE_STATISTICS, check.statistic, LABELS.statistic),
+      policyView: prepareSavePolicy(check.policy, definition.saveDefaults)
     })),
     initialCheck: prepareGate(definition.initialCheck, definition.checks),
     hasInitialCheck: Boolean(definition.initialCheck),
@@ -472,6 +508,11 @@ export class EmbeddedAfflictionEditor {
     definition.themes = parseStringList(value('[data-affliction-field="themes"]', definition.themes.join(", ")));
     definition.progression.belowStageOne = String(value('[data-affliction-field="belowStageOne"]', definition.progression.belowStageOne));
     definition.progression.aboveMaximumStage = String(value('[data-affliction-field="aboveMaximumStage"]', definition.progression.aboveMaximumStage));
+    definition.saveDefaults.execution = String(value('[data-affliction-field="saveDefaultExecution"]', definition.saveDefaults.execution));
+    definition.saveDefaults.visibility = String(value('[data-affliction-field="saveDefaultVisibility"]', definition.saveDefaults.visibility));
+    definition.identification.initialState = String(value('[data-affliction-field="identificationInitialState"]', definition.identification.initialState));
+
+    this.#refreshRenderedInheritedSavePolicies();
 
     const onsetRegion = root.querySelector('[data-affliction-duration="onset"]');
     definition.onset = durationFromRegion(onsetRegion, { nullable: true, allowUnlimited: false });
@@ -488,6 +529,11 @@ export class EmbeddedAfflictionEditor {
       check.label = String(checkRegion.querySelector('[data-check-field="label"]')?.value ?? check.label);
       check.statistic = String(checkRegion.querySelector('[data-check-field="statistic"]')?.value ?? check.statistic);
       check.dc = integerValue(checkRegion.querySelector('[data-check-field="dc"]')?.value, check.dc);
+      const policyOverride = Boolean(checkRegion.querySelector('[data-check-policy-override]')?.checked);
+      check.policy = policyOverride ? {
+        execution: String(checkRegion.querySelector('[data-check-policy-execution]')?.value ?? definition.saveDefaults.execution),
+        visibility: String(checkRegion.querySelector('[data-check-policy-visibility]')?.value ?? definition.saveDefaults.visibility)
+      } : null;
     }
 
     this.#refreshRenderedCheckReferences();
@@ -511,6 +557,20 @@ export class EmbeddedAfflictionEditor {
     }
 
     this.session.refreshDirty();
+  }
+
+  #refreshRenderedInheritedSavePolicies() {
+    const root = this.root;
+    if (!(root instanceof HTMLElement)) return;
+    const defaults = this.session.definition.saveDefaults;
+    for (const region of root.querySelectorAll("[data-check-policy]")) {
+      const override = region.querySelector("[data-check-policy-override]");
+      if (override?.checked) continue;
+      const execution = region.querySelector("[data-check-policy-execution]");
+      const visibility = region.querySelector("[data-check-policy-visibility]");
+      if (execution) execution.value = defaults.execution;
+      if (visibility) visibility.value = defaults.visibility;
+    }
   }
 
   #refreshRenderedCheckReferences() {
@@ -712,6 +772,18 @@ export class EmbeddedAfflictionEditor {
           : "PF2E_AFFLICTION_FORGE.Editor.StageDelta");
       };
       action?.addEventListener("change", update);
+      update();
+    }
+
+
+    for (const region of root.querySelectorAll("[data-check-policy]")) {
+      const override = region.querySelector("[data-check-policy-override]");
+      const controls = region.querySelectorAll("[data-check-policy-control]");
+      const update = () => {
+        const enabled = Boolean(override?.checked);
+        for (const control of controls) control.disabled = !enabled || this.session.readOnly;
+      };
+      override?.addEventListener("change", update);
       update();
     }
 

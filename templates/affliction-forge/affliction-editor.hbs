@@ -74,6 +74,29 @@
       </label>
     </section>
 
+    <section class="affliction-editor-section affliction-editor-identification-section">
+      <header class="affliction-editor-section-header">
+        <div>
+          <h2>{{localize "PF2E_AFFLICTION_FORGE.Editor.Identification"}}</h2>
+          <p>{{localize "PF2E_AFFLICTION_FORGE.Editor.IdentificationHint"}}</p>
+        </div>
+      </header>
+      <div class="affliction-editor-grid two-columns">
+        <label class="affliction-editor-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.InitialIdentificationState"}}</span>
+          <select data-affliction-field="identificationInitialState">
+            {{#each identificationOptions as |option|}}
+              <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+            {{/each}}
+          </select>
+        </label>
+        <div class="affliction-editor-identification-summary">
+          <strong>{{localize "PF2E_AFFLICTION_FORGE.Editor.IdentificationRuntimeHintTitle"}}</strong>
+          <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.IdentificationRuntimeHint"}}</small>
+        </div>
+      </div>
+    </section>
+
     <section class="affliction-editor-section">
       <header class="affliction-editor-section-header">
         <div>
@@ -85,6 +108,31 @@
           {{localize "PF2E_AFFLICTION_FORGE.Editor.AddCheck"}}
         </button>
       </header>
+
+      <div class="affliction-editor-policy-defaults">
+        <div>
+          <strong>{{localize "PF2E_AFFLICTION_FORGE.Editor.SavePolicyDefaults"}}</strong>
+          <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.SavePolicyDefaultsHint"}}</small>
+        </div>
+        <div class="affliction-editor-grid two-columns">
+          <label class="affliction-editor-field">
+            <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.SaveExecution"}}</span>
+            <select data-affliction-field="saveDefaultExecution">
+              {{#each saveDefaults.executionOptions as |option|}}
+                <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+              {{/each}}
+            </select>
+          </label>
+          <label class="affliction-editor-field">
+            <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.SaveVisibility"}}</span>
+            <select data-affliction-field="saveDefaultVisibility">
+              {{#each saveDefaults.visibilityOptions as |option|}}
+                <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+              {{/each}}
+            </select>
+          </label>
+        </div>
+      </div>
 
       <div class="affliction-editor-check-list">
         {{#each checks as |check|}}
@@ -116,6 +164,32 @@
                 <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DC"}}</span>
                 <input data-check-field="dc" type="number" min="1" max="100" step="1" value="{{check.dc}}">
               </label>
+            </div>
+
+            <div class="affliction-editor-check-policy" data-check-policy>
+              <label class="affliction-editor-checkbox">
+                <input data-check-policy-override type="checkbox" {{#unless check.policyView.inherited}}checked{{/unless}}>
+                <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.OverrideSavePolicy"}}</span>
+              </label>
+              <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.OverrideSavePolicyHint"}}</small>
+              <div class="affliction-editor-grid two-columns affliction-editor-policy-grid">
+                <label class="affliction-editor-field">
+                  <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.SaveExecution"}}</span>
+                  <select data-check-policy-control data-check-policy-execution>
+                    {{#each check.policyView.executionOptions as |option|}}
+                      <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                    {{/each}}
+                  </select>
+                </label>
+                <label class="affliction-editor-field">
+                  <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.SaveVisibility"}}</span>
+                  <select data-check-policy-control data-check-policy-visibility>
+                    {{#each check.policyView.visibilityOptions as |option|}}
+                      <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                    {{/each}}
+                  </select>
+                </label>
+              </div>
             </div>
           </article>
         {{/each}}

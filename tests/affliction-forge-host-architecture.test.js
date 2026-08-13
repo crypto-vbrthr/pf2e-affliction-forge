@@ -74,15 +74,18 @@ test("Save As DialogV2 content uses a plain outer div and a styled inner wrapper
 });
 
 
-test("template library invalidates immediately when a Foundry Affliction Item is deleted", () => {
+test("template deletion removes stale library state and never resurrects the deleted template as a dirty draft", () => {
   assert.match(integrationSource, /Hooks\.on\("deleteItem", handleAfflictionTemplateDeleted\)/);
   assert.match(integrationSource, /api\?\.documents\?\.isTemplate\?\.\(item\)/);
   assert.match(integrationSource, /app\.handleTemplateDeleted\(item\)/);
   assert.match(hostSource, /async handleTemplateDeleted\(document\)/);
+  assert.match(hostSource, /this\.library = this\.library\.filter\(\(entry\) => entry\.uuid !== uuid\)/);
   assert.match(hostSource, /this\.#invalidateLibrary\(\)/);
   assert.match(hostSource, /this\.currentTemplate\?\.uuid === uuid/);
-  assert.match(hostSource, /mode: "create"/);
-  assert.match(hostSource, /session\?\.markDirty\?\.\(\)/);
+  assert.match(hostSource, /setData\?\.\(createDraftDefinition\(\), \{ mode: "create", rerender: false \}\)/);
+  assert.match(hostSource, /this\.editor\?\.markClean\?\.\(\)/);
+  assert.doesNotMatch(hostSource, /preservedDefinition/);
+  assert.doesNotMatch(hostSource, /session\?\.markDirty/);
   assert.match(hostSource, /this\.element\.isConnected/);
   assert.match(hostSource, /await this\.render\(\{ force: true \}\)/);
 });

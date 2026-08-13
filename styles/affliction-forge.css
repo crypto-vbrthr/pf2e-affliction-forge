@@ -314,7 +314,53 @@
   font-weight: 600;
 }
 
+
+.affliction-editor-policy-defaults,
+.affliction-editor-check-policy,
+.affliction-editor-identification-summary {
+  border: 1px solid var(--affliction-border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.affliction-editor-policy-defaults {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.4fr);
+  gap: 0.75rem;
+  align-items: end;
+  padding: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+.affliction-editor-policy-defaults small,
+.affliction-editor-check-policy small,
+.affliction-editor-identification-summary small {
+  display: block;
+  margin-top: 0.2rem;
+  opacity: 0.72;
+}
+
+.affliction-editor-check-policy {
+  margin-top: 0.65rem;
+  padding: 0.55rem 0.65rem;
+}
+
+.affliction-editor-policy-grid {
+  margin-top: 0.5rem;
+}
+
+.affliction-editor-identification-summary {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.55rem 0.65rem;
+}
+
 @media (max-width: 900px) {
+  .affliction-editor-policy-defaults {
+    grid-template-columns: 1fr;
+  }
+
   .affliction-editor-grid.four-columns,
   .affliction-editor-outcome-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -328,6 +374,10 @@
 
 @media (max-width: 620px) {
   .affliction-editor-grid.two-columns,
+  .affliction-editor-policy-defaults {
+    grid-template-columns: 1fr;
+  }
+
   .affliction-editor-grid.four-columns,
   .affliction-editor-outcome-grid {
     grid-template-columns: 1fr;
@@ -1022,6 +1072,48 @@
 .affliction-forge-save-as-dialog input,
 .affliction-forge-save-as-dialog select {
   width: 100%;
+}
+
+
+.affliction-editor-policy-defaults,
+.affliction-editor-check-policy,
+.affliction-editor-identification-summary {
+  border: 1px solid var(--affliction-border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.affliction-editor-policy-defaults {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.4fr);
+  gap: 0.75rem;
+  align-items: end;
+  padding: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+.affliction-editor-policy-defaults small,
+.affliction-editor-check-policy small,
+.affliction-editor-identification-summary small {
+  display: block;
+  margin-top: 0.2rem;
+  opacity: 0.72;
+}
+
+.affliction-editor-check-policy {
+  margin-top: 0.65rem;
+  padding: 0.55rem 0.65rem;
+}
+
+.affliction-editor-policy-grid {
+  margin-top: 0.5rem;
+}
+
+.affliction-editor-identification-summary {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.55rem 0.65rem;
 }
 
 @media (max-width: 900px) {

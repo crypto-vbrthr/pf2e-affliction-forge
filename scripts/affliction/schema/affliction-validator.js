@@ -4,8 +4,11 @@ import {
   CHECK_COMBINE_MODES,
   DURATION_UNITS,
   OUTCOME_KEYS,
+  IDENTIFICATION_STATES,
   RARITIES,
+  SAVE_EXECUTION_MODES,
   SAVE_STATISTICS,
+  SAVE_VISIBILITY_MODES,
   TRANSITION_ACTIONS
 } from "../../constants.js";
 import { AfflictionValidationError, AfflictionValidationReport } from "./validation-report.js";
@@ -94,6 +97,39 @@ function validateCheckGate(report, gate, path, checkIds, stageCount) {
   }
 }
 
+
+function validateSavePolicy(report, policy, path, { nullable = false } = {}) {
+  if (policy == null) {
+    if (!nullable) report.add({ severity: "error", code: "save-policy.required", path, message: `${path} is required.` });
+    return;
+  }
+  if (!isObject(policy)) {
+    report.add({ severity: "error", code: "save-policy.object", path, message: `${path} must be an object.` });
+    return;
+  }
+  if (!SAVE_EXECUTION_MODES.includes(policy.execution)) {
+    report.add({ severity: "error", code: "save-policy.execution", path: `${path}.execution`, message: `Unsupported save execution mode: ${policy.execution}.` });
+  }
+  if (!SAVE_VISIBILITY_MODES.includes(policy.visibility)) {
+    report.add({ severity: "error", code: "save-policy.visibility", path: `${path}.visibility`, message: `Unsupported save visibility mode: ${policy.visibility}.` });
+  }
+}
+
+function validateIdentification(report, identification) {
+  if (!isObject(identification)) {
+    report.add({ severity: "error", code: "identification.object", path: "identification", message: "Identification settings are required." });
+    return;
+  }
+  if (!IDENTIFICATION_STATES.includes(identification.initialState)) {
+    report.add({
+      severity: "error",
+      code: "identification.initial-state",
+      path: "identification.initialState",
+      message: `Unsupported initial identification state: ${identification.initialState}.`
+    });
+  }
+}
+
 function validateChecks(report, checks) {
   if (!Array.isArray(checks) || checks.length === 0) {
     report.add({ severity: "error", code: "checks.required", path: "checks", message: "At least one check definition is required." });
@@ -110,9 +146,10 @@ function validateChecks(report, checks) {
       if (ids.has(check.id)) report.add({ severity: "error", code: "check.id.duplicate", path: `${path}.id`, message: `Duplicate check id: ${check.id}.` });
       ids.add(check.id);
     }
-    if (check.kind !== "save") report.add({ severity: "error", code: "check.kind", path: `${path}.kind`, message: "Version 1 supports save checks only." });
+    if (check.kind !== "save") report.add({ severity: "error", code: "check.kind", path: `${path}.kind`, message: "Affliction Forge supports save checks only." });
     if (!SAVE_STATISTICS.includes(check.statistic)) report.add({ severity: "error", code: "check.statistic", path: `${path}.statistic`, message: `Unsupported save statistic: ${check.statistic}.` });
     if (!Number.isInteger(check.dc) || check.dc < 1 || check.dc > 100) report.add({ severity: "error", code: "check.dc", path: `${path}.dc`, message: "Save DC must be an integer from 1 to 100." });
+    validateSavePolicy(report, check.policy, `${path}.policy`, { nullable: true });
   }
   return ids;
 }
@@ -166,6 +203,9 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
   if (!RARITIES.includes(definition.rarity)) report.add({ severity: "error", code: "affliction.rarity", path: "rarity", message: `Unsupported rarity: ${definition.rarity}.` });
   if (!Array.isArray(definition.traits)) report.add({ severity: "error", code: "affliction.traits", path: "traits", message: "Traits must be an array." });
   if (!Array.isArray(definition.themes)) report.add({ severity: "error", code: "affliction.themes", path: "themes", message: "Themes must be an array." });
+
+  validateSavePolicy(report, definition.saveDefaults, "saveDefaults");
+  validateIdentification(report, definition.identification);
 
   const checkIds = validateChecks(report, definition.checks);
   const stageCount = Array.isArray(definition.stages) ? definition.stages.length : 0;

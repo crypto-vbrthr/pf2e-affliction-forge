@@ -1,18 +1,27 @@
 import { AFFLICTION_SCHEMA_VERSION } from "../../constants.js";
 import { deepFreeze, randomId } from "./utils.js";
 
+export function createDefaultSavePolicy({
+  execution = "player",
+  visibility = "public"
+} = {}) {
+  return { execution, visibility };
+}
+
 export function createDefaultSaveCheck({
   id = "primary",
   label = "",
   statistic = "fortitude",
-  dc = 15
+  dc = 15,
+  policy = null
 } = {}) {
   return {
     id,
     label,
     kind: "save",
     statistic,
-    dc
+    dc,
+    policy
   };
 }
 
@@ -64,6 +73,8 @@ export function createAfflictionDefinition({
   rarity = "common",
   traits = [],
   themes = [],
+  saveDefaults = createDefaultSavePolicy(),
+  identification = { initialState: "identified" },
   checks = [createDefaultSaveCheck()],
   initialCheck = createDefaultInitialCheck(),
   onset = null,
@@ -73,7 +84,7 @@ export function createAfflictionDefinition({
   progression = null,
   metadata = {}
 } = {}) {
-  const definition = {
+  return {
     schemaVersion: AFFLICTION_SCHEMA_VERSION,
     id,
     name,
@@ -84,6 +95,8 @@ export function createAfflictionDefinition({
     rarity,
     traits,
     themes,
+    saveDefaults,
+    identification,
     checks,
     initialCheck,
     onset,
@@ -100,18 +113,26 @@ export function createAfflictionDefinition({
       ...metadata
     }
   };
-
-  return definition;
 }
 
-export const AFFLICTION_DATA_CONTRACT_V1 = deepFreeze({
+export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
   schemaVersion: AFFLICTION_SCHEMA_VERSION,
   requiredRootFields: [
     "schemaVersion", "id", "name", "afflictionType", "level", "rarity",
-    "traits", "themes", "checks", "stages"
+    "traits", "themes", "saveDefaults", "identification", "checks", "stages"
   ],
+  savePolicy: {
+    defaultsAtRoot: true,
+    perCheckOverride: true,
+    executionModes: ["automatic", "player", "gm"],
+    visibilityModes: ["public", "gmOnly"]
+  },
+  identificationStates: ["hidden", "suspected", "identified"],
   stageEffectOwnership: "affliction-engine",
   templateItemType: "effect",
   templateRuleElements: "none",
   activeDefinitionPolicy: "snapshot-on-application"
 });
+
+// Kept as an import compatibility alias during the 0.1.x line.
+export const AFFLICTION_DATA_CONTRACT_V1 = AFFLICTION_DATA_CONTRACT_V2;
