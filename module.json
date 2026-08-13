@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.7 restores the Critical Forge visual theme inside embedded stage-effect editing, with clear component cards, recognizable fields, and a single outer scroll context.",
-  "version": "0.1.7",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.9 fixes Save As on Foundry V14 and renders Critical Forge validation warnings as localized, human-readable messages.",
+  "version": "0.1.9",
   "authors": [
     {
       "name": "crypto-vbrthr"

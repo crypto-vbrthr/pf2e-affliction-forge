@@ -1,11 +1,39 @@
 # Changelog
 
+## 0.1.9
+
+### Validation Localization & Save-As Dialog Hardening
+
+- fixes Foundry V14 `DialogV2.input` Save As failure by keeping the supplied outer content DIV attribute-free and moving styling to an inner wrapper
+- resolves Critical Forge `messageKey` validation issues through the Critical Forge localization namespace and formats their data placeholders
+- shows nested Effect validation locations as human-readable phase/component labels instead of raw zero-based object paths
+- preserves provider message keys for diagnostics while presenting localized messages to the GM
+- adds regression coverage for the DialogV2 content contract and nested Effect warning adaptation
+
+## 0.1.8
+
+### Template Service & Item Library Persistence
+
+- adds public `api.templates` persistence service for create, read, update, clone, list, and destination discovery
+- saves Affliction Templates as inert PF2e `effect` Items in the world Item Library or writable Item compendia
+- preserves the Item UUID when an existing writable template is updated
+- tracks a monotonic `definitionVersion` in Affliction Forge flags
+- clones templates with a new Affliction definition identity and records `copiedFromUuid`
+- adds a searchable template library pane to the official Affliction Forge container
+- adds Save and Save As workflows with destination selection
+- opens protected compendium templates read-only and supports copying them into the world Item Library
+- adds unsaved-change protection when opening another template, starting a new draft, or closing the Forge
+- adds "Edit in Affliction Forge" integration for Affliction Template Item sheets in ApplicationV2 and legacy header hooks
+- expands automated coverage for persistence, UUID stability, cloning, library discovery, and host architecture
+
 ## 0.1.7
 
-- Restores the Critical Forge `--ef-*` visual theme inside embedded stage-effect editors so inputs, selects, text areas, cards, and panel surfaces render exactly as recognizable controls instead of flat text.
-- Keeps the public Critical Forge Embedded Effect Editor as the sole component editor; Affliction Forge only supplies the missing host theme context.
-- Removes the nested component-list scrollbar in Affliction stages so the outer Affliction editor owns scrolling and component boundaries remain visible.
-- Adds clearer spacing and a subtle card shadow while preserving Critical Forge type-specific component border accents.
+### Embedded Effect Visual Integration
+
+- restores the Critical Forge `--ef-*` visual theme inside embedded stage-effect editors so inputs, selects, text areas, cards, and panel surfaces render as recognizable controls instead of flat text
+- keeps the public Critical Forge Embedded Effect Editor as the sole component editor; Affliction Forge only supplies the missing host theme context
+- removes the nested component-list scrollbar in Affliction stages so the outer Affliction editor owns scrolling and component boundaries remain visible
+- adds clearer spacing and a subtle card shadow while preserving Critical Forge type-specific component border accents
 
 ## 0.1.6
 

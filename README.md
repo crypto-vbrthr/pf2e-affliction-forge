@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.7**
+Current development build: **0.1.9**
 
-Version **0.1.7** hardens the visual integration of the Critical Forge component editor inside Affliction stages. Embedded component cards now inherit the same Critical Forge field, panel, border, focus, and type-accent styling as the standalone Effect Editor, while the Affliction editor remains the single scroll owner.
+Version **0.1.9** hardens the template workflow: Save As now follows Foundry V14's DialogV2 content contract, and nested Critical Forge validation warnings are localized and shown with readable phase/component locations.
 
 The editor is deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. Persistence and actor application remain outside the editor.
 
@@ -16,16 +16,19 @@ The editor is deliberately host-agnostic: it edits an `AfflictionDefinition`, em
 - onset, maximum duration, stage duration, narrative stage description
 - optional Critical Forge `EffectDefinition` per stage
 - normalization and structured validation
-- inert PF2e `effect` Item source for Affliction Templates
+- persistent inert PF2e `effect` Items for Affliction Templates in the world Item Library or writable Item compendia
 - explicit module flags distinguishing templates, controllers, and generated stage effects
 - versioned controller-state contract for later runtime work
-- public API foundation
+- public API foundation plus `api.templates` persistence service
 - Embedded Affliction Editor with create/edit/view modes
 - save-check, exposure, onset, progression, and stage editing
 - stage add/remove/duplicate/reorder controls
 - Critical Forge Embedded Effect Editor mounted per stage in a compact components-only presentation
 - live validation and public `api.ui.afflictionEditor` contract
 - integration/compatibility boundary for PF2E Critical Forge
+- searchable world/compendium template library in the official Forge container
+- Save, Save As, protected-compendium copy, and in-place update while preserving template UUIDs
+- direct "Edit in Affliction Forge" entry from Affliction Template Item sheets
 
 ## Dependency
 
@@ -49,6 +52,8 @@ const definition = api.definitions.create({
 const normalized = api.definitions.normalize(definition);
 const report = api.definitions.validate(normalized);
 const itemSource = api.documents.buildTemplateSource(normalized);
+const item = await api.templates.create(normalized);
+await api.templates.update(item, { ...normalized, name: "Aschenfieber, überarbeitet" });
 ```
 
 A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See `docs/EMBEDDED_EDITOR.md` for the reusable UI contract.

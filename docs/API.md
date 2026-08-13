@@ -1,4 +1,4 @@
-# Public API 0.1.1
+# Public API 0.1.9
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -49,6 +49,24 @@ editor.destroy();
 
 The editor contains no persistence or actor-application buttons. The host container owns those actions.
 
+
+## Template persistence API
+
+```js
+api.templates.create(definition, { pack, folder })
+api.templates.get(itemOrUuid)
+api.templates.read(itemOrUuid)
+api.templates.update(itemOrUuid, definition)
+api.templates.clone(itemOrUuid, { definition, name, pack, folder })
+api.templates.copyDefinition(definition, { name, pack, newIdentity })
+api.templates.list({ includeWorld, includeCompendia })
+api.templates.inspect(item)
+api.templates.canUpdate(item)
+api.templates.writableDestinations()
+```
+
+Creating a template produces an inert PF2e `effect` Item with no Rule Elements. Updating a writable template preserves its Item UUID and increments `flags.pf2e-affliction-forge.definitionVersion`. Cloning creates a new Affliction definition identity and records the source template UUID. Locked compendium templates are intended to be opened read-only and copied before editing.
+
 ## Document API
 
 ```js
@@ -61,7 +79,7 @@ api.documents.isTemplate(item)
 api.documents.isController(item)
 ```
 
-`buildTemplateSource()` returns PF2e Item source data. It does not create a world Item. Storage services remain a separate layer.
+`buildTemplateSource()` remains the low-level source adapter. Use `api.templates` for persistent Foundry documents.
 
 ## Controller contract
 
@@ -70,7 +88,7 @@ api.controllers.createState(definition, options)
 api.controllers.validateState(state, definition)
 ```
 
-These functions establish persistence shape only. Version 0.1.1 does not schedule checks or transition stages.
+These functions establish persistence shape only. Version 0.1.9 does not schedule checks or transition stages.
 
 ## Critical Forge integration
 

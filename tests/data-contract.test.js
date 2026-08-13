@@ -114,3 +114,46 @@ test("validator warns when a stage Effect Definition tries to own stage lifetime
   assert.equal(report.valid, true);
   assert.ok(report.warnings.some((issue) => issue.code === "stage.effect.duration-managed"));
 });
+
+
+test("nested Critical Forge warning keys are localized when Foundry i18n is available", () => {
+  const previousGame = globalThis.game;
+  globalThis.game = {
+    ...(previousGame ?? {}),
+    i18n: {
+      format: (key, data) => key === "PF2E_CRITICAL_FORGE.Validation.Rules.FrightenedStatus"
+        ? `Localized frightened ${data.frightenedValue}/${data.modifierValue}`
+        : key,
+      localize: (key) => key
+    }
+  };
+  try {
+    const definition = validDefinition();
+    definition.stages[0].effect = {
+      schemaVersion: 2,
+      id: "warning.effect",
+      name: "Warning",
+      duration: { value: -1, unit: "unlimited", expiry: null },
+      components: [{ type: "condition", slug: "frightened", value: 2 }],
+      application: {},
+      metadata: {}
+    };
+    const report = validateAfflictionDefinition(definition, {
+      effectValidator: () => ({
+        valid: true,
+        issues: [{
+          severity: "warning",
+          code: "STACKING_FRIGHTENED_STATUS",
+          messageKey: "Validation.Rules.FrightenedStatus",
+          data: { frightenedValue: 2, modifierValue: -1 },
+          componentIndex: 0
+        }]
+      })
+    });
+    assert.equal(report.valid, true);
+    assert.equal(report.warnings[0].message, "Localized frightened 2/-1");
+    assert.equal(report.warnings[0].data.providerMessageKey, "Validation.Rules.FrightenedStatus");
+  } finally {
+    globalThis.game = previousGame;
+  }
+});

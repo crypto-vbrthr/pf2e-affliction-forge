@@ -123,6 +123,32 @@ function adaptEffectReport(effectReport) {
   return [];
 }
 
+function resolveEffectIssueMessage(issue) {
+  const explicit = String(issue?.message ?? "").trim();
+  if (explicit) return explicit;
+
+  const messageKey = String(issue?.messageKey ?? "").trim();
+  if (!messageKey) return String(issue?.code ?? "Invalid Effect Definition.");
+
+  const i18n = globalThis.game?.i18n;
+  const candidates = messageKey.startsWith("PF2E_CRITICAL_FORGE.")
+    ? [messageKey]
+    : [`PF2E_CRITICAL_FORGE.${messageKey}`, messageKey];
+
+  for (const key of candidates) {
+    try {
+      const formatted = i18n?.format?.(key, issue?.data ?? {});
+      if (formatted && formatted !== key) return formatted;
+      const localized = i18n?.localize?.(key);
+      if (localized && localized !== key) return localized;
+    } catch {
+      // Validation remains usable in headless tests or if the provider has no locale entry.
+    }
+  }
+
+  return messageKey;
+}
+
 export function validateAfflictionDefinition(definition, { effectValidator = null } = {}) {
   const report = new AfflictionValidationReport();
   if (!isObject(definition)) {
@@ -195,8 +221,11 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
                 severity: issue.severity === "info" ? "info" : issue.severity,
                 code: `effect.${issue.code ?? "invalid"}`,
                 path: `${path}.effect${Number.isInteger(issue.componentIndex) ? `.components.${issue.componentIndex}` : ""}`,
-                message: issue.message ?? issue.messageKey ?? issue.code ?? "Invalid Effect Definition.",
-                data: issue.data ?? {}
+                message: resolveEffectIssueMessage(issue),
+                data: {
+                  ...(issue.data ?? {}),
+                  providerMessageKey: issue.messageKey ?? null
+                }
               });
             }
             if (effectReport?.valid === false && adaptEffectReport(effectReport).length === 0) {

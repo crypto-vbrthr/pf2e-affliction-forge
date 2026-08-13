@@ -35,6 +35,7 @@ export function buildTemplateFlags(definition) {
       documentKind: DOCUMENT_KINDS.TEMPLATE,
       schemaVersion: AFFLICTION_SCHEMA_VERSION,
       definitionId: definition.id,
+      definitionVersion: 1,
       definition: deepClone(definition),
       originModule: definition.metadata?.originModule ?? MODULE_ID,
       originFeature: definition.metadata?.originFeature ?? "affliction-template"

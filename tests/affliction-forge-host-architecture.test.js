@@ -9,28 +9,41 @@ const hostTemplate = readFileSync(join(root, "templates/affliction-forge/afflict
 const hostSource = readFileSync(join(root, "scripts/affliction/forge/affliction-forge-app.js"), "utf8");
 const integrationSource = readFileSync(join(root, "scripts/affliction/forge/affliction-forge.js"), "utf8");
 const mainSource = readFileSync(join(root, "scripts/main.js"), "utf8");
+const css = readFileSync(join(root, "styles/affliction-forge.css"), "utf8");
 
 test("official Affliction Forge host mounts the public Embedded Affliction Editor", () => {
   assert.match(hostTemplate, /data-affliction-forge-editor-host/);
   assert.match(hostSource, /api\.ui\.afflictionEditor\.create/);
   assert.match(hostSource, /this\.editor\.mount\(host\)/);
-  assert.doesNotMatch(hostSource, /buildAfflictionTemplateItemSource|createEmbeddedDocuments|game\.items\.create/);
+  assert.doesNotMatch(hostSource, /createEmbeddedDocuments|applyActor/);
 });
 
-test("host owns window actions while embedded editor remains persistence-neutral", () => {
-  for (const action of ["newDraft", "validateDraft", "copyDefinition", "closeWindow"]) {
+test("host owns template persistence while embedded editor remains persistence-neutral", () => {
+  for (const action of ["newDraft", "saveTemplate", "saveAsTemplate", "validateDraft", "copyDefinition", "closeWindow"]) {
     assert.match(hostTemplate, new RegExp(`data-action="${action}"`));
   }
-  for (const action of ["saveTemplate", "updateTemplate", "applyActor"]) {
-    assert.doesNotMatch(hostTemplate, new RegExp(`data-action="${action}"`));
-  }
+  assert.match(hostSource, /this\.#api\(\)\.templates\.create/);
+  assert.match(hostSource, /this\.#api\(\)\.templates\.update/);
+  assert.match(hostSource, /this\.#api\(\)\.templates\.clone/);
 });
 
-test("Items sidebar integration covers legacy and ApplicationV2 render hooks", () => {
+test("host exposes a searchable template library beside the embedded editor", () => {
+  assert.match(hostTemplate, /affliction-forge-library/);
+  assert.match(hostTemplate, /data-affliction-library-filter/);
+  assert.match(hostTemplate, /data-action="openTemplate"/);
+  assert.match(hostTemplate, /data-action="copyTemplateToWorld"/);
+  assert.match(hostSource, /templates\.list\(\)/);
+  assert.match(css, /\.affliction-forge-workspace[\s\S]*grid-template-columns/);
+});
+
+test("Items sidebar integration covers legacy and ApplicationV2 render hooks plus template sheet editing", () => {
   assert.match(integrationSource, /Hooks\.on\("renderItemDirectory"/);
   assert.match(integrationSource, /Hooks\.on\("renderSidebarTab"/);
+  assert.match(integrationSource, /Hooks\.on\("getHeaderControlsApplicationV2"/);
+  assert.match(integrationSource, /Hooks\.on\("getItemSheetHeaderButtons"/);
   assert.match(integrationSource, /data-\$\{MODULE_ID\}-button/);
   assert.match(integrationSource, /openAfflictionForge/);
+  assert.match(integrationSource, /templateUuid: item\.uuid/);
   assert.match(mainSource, /initializeAfflictionForgeUi\(\)/);
 });
 
@@ -43,12 +56,19 @@ test("host force-loads a cache-busted module stylesheet and applies a runtime sc
   assert.match(hostSource, /host\.scrollTop = 0/);
 });
 
-test("host constrains the ApplicationV2 height chain and owns a scrollable editor frame", () => {
-  const css = readFileSync(join(root, "styles/affliction-forge.css"), "utf8");
+test("host constrains the ApplicationV2 height chain and gives library/editor separate scroll contexts", () => {
   assert.match(css, /\.pf2e-affliction-forge\.affliction-forge-app \.window-content[\s\S]*height:\s*100%/);
   assert.match(css, /\.affliction-forge-editor-frame[\s\S]*overflow-y:\s*auto/);
+  assert.match(css, /\.affliction-forge-library-list[\s\S]*overflow-y:\s*auto/);
   assert.match(css, /scrollbar-gutter:\s*stable/);
   assert.match(hostSource, /tag:\s*"form"/);
   assert.match(hostSource, /refreshValidation\?\.\(\{ scrollIntoView: false \}\)/);
-  assert.match(hostSource, /focusFirstField\?\.\(\)/);
+});
+
+
+test("Save As DialogV2 content uses a plain outer div and a styled inner wrapper", () => {
+  assert.match(hostSource, /const root = document\.createElement\("div"\);[\s\S]*const wrapper = document\.createElement\("div"\);/);
+  assert.match(hostSource, /wrapper\.className = "affliction-forge-save-as-dialog"/);
+  assert.match(hostSource, /wrapper\.append\(nameLabel, destinationLabel\);[\s\S]*root\.append\(wrapper\);/);
+  assert.doesNotMatch(hostSource, /root\.className = "affliction-forge-save-as-dialog"/);
 });

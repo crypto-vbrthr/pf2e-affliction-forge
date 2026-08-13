@@ -26,6 +26,7 @@ import {
   extractAfflictionDefinitionFromItem,
   inspectAfflictionItem
 } from "../affliction/documents/affliction-item-adapter.js";
+import { createAfflictionTemplateService } from "../affliction/documents/affliction-template-service.js";
 import {
   getDocumentKind,
   isAfflictionController,
@@ -52,6 +53,7 @@ function effectValidatorOrNull() {
 }
 
 export function createPublicApi() {
+  const templateService = createAfflictionTemplateService({ effectValidator: effectValidatorOrNull() });
   return Object.freeze({
     version: API_VERSION,
     moduleVersion: MODULE_VERSION,
@@ -95,6 +97,19 @@ export function createPublicApi() {
       isManaged: (item) => isManagedAfflictionDocument(item),
       isTemplate: (item) => isAfflictionTemplate(item),
       isController: (item) => isAfflictionController(item)
+    }),
+
+    templates: Object.freeze({
+      create: (definition, options = {}) => templateService.create(definition, options),
+      get: (itemOrUuid) => templateService.get(itemOrUuid),
+      read: (itemOrUuid) => templateService.read(itemOrUuid),
+      update: (itemOrUuid, definition) => templateService.update(itemOrUuid, definition),
+      clone: (itemOrUuid, options = {}) => templateService.clone(itemOrUuid, options),
+      copyDefinition: (definition, options = {}) => templateService.copyDefinition(definition, options),
+      list: (options = {}) => templateService.list(options),
+      inspect: (item) => templateService.inspect(item),
+      canUpdate: (item) => templateService.canUpdate(item),
+      writableDestinations: () => templateService.writableDestinations()
     }),
 
     controllers: Object.freeze({

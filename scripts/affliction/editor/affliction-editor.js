@@ -175,6 +175,19 @@ function displayIssue(issue) {
   return { ...issue, displayMessage: message };
 }
 
+function displayIssuePath(path) {
+  const value = String(path ?? "");
+  const effectComponent = /^stages\.(\d+)\.effect\.components\.(\d+)(?:\.|$)/.exec(value);
+  if (effectComponent) {
+    const stageNumber = Number(effectComponent[1]) + 1;
+    const componentNumber = Number(effectComponent[2]) + 1;
+    return `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage")} ${stageNumber} · ${localize("PF2E_AFFLICTION_FORGE.Editor.Component")} ${componentNumber}`;
+  }
+  const stageOnly = /^stages\.(\d+)(?:\.|$)/.exec(value);
+  if (stageOnly) return `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage")} ${Number(stageOnly[1]) + 1}`;
+  return value;
+}
+
 function issueSummary(report) {
   const issues = (report?.issues ?? []).map(displayIssue);
   return {
@@ -645,7 +658,7 @@ export class EmbeddedAfflictionEditor {
       icon.className = `fa-solid ${issue.severity === "error" ? "fa-circle-xmark" : "fa-triangle-exclamation"}`;
       const text = document.createElement("span");
       const path = document.createElement("strong");
-      path.textContent = issue.path ?? "";
+      path.textContent = displayIssuePath(issue.path);
       const display = displayIssue(issue);
       text.append(path, document.createTextNode(`${issue.path ? " " : ""}${display.displayMessage}`));
       row.append(icon, text);
