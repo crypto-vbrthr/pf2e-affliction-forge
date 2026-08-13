@@ -746,3 +746,53 @@
     text-align: left;
   }
 }
+
+/* 0.1.7: Critical Forge theme bridge for the public Embedded Effect Editor.
+   Critical Forge scopes its --ef-* palette to its standalone application root.
+   An embedded consumer does not inherit that root, so without this bridge the
+   reusable component editor loses field backgrounds, panel fills and soft
+   borders. Keep the palette aligned with Critical Forge 1.0.1-rc.1 while the
+   public editor remains responsible for the actual component markup/behavior. */
+.affliction-editor-effect-host[data-affliction-effect-editor="components-only"] {
+  --ef-bg: #090910;
+  --ef-panel: #14141d;
+  --ef-panel-alt: #191923;
+  --ef-field: #242431;
+  --ef-field-hover: #2b2b39;
+  --ef-border: #30303d;
+  --ef-border-soft: #262632;
+  --ef-text: #f0e8df;
+  --ef-muted: #aaa4ac;
+  --ef-orange: #f6a23a;
+  --ef-purple: #7542b2;
+  --ef-purple-bright: #915bd0;
+  --ef-blue: #5aa2f2;
+  --ef-green: #67bf72;
+  --ef-teal: #55c6b0;
+  --ef-red: #dc6767;
+  color: var(--ef-text);
+}
+
+/* Let the Affliction editor own scrolling. The Critical Forge standalone editor
+   normally constrains the component list, but inside a phase this produced a
+   second scrollbar and visually cut one component from the next. */
+.affliction-editor-effect-host[data-affliction-effect-editor="components-only"]
+  .effect-forge-component-list {
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+  gap: 0.85rem;
+}
+
+/* Preserve the Critical Forge card language while giving embedded cards enough
+   breathing room to read as separate mechanical components. */
+.affliction-editor-effect-host[data-affliction-effect-editor="components-only"]
+  .effect-forge-component-card {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+}
+
+.affliction-editor-effect-host[data-affliction-effect-editor="components-only"]
+  .effect-forge-component-card + .effect-forge-component-card {
+  margin-top: 0.1rem;
+}

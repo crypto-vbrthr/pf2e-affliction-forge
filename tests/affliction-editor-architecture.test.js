@@ -108,3 +108,13 @@ test("Critical Forge Effect Definitions cross a clone boundary before Affliction
   assert.match(source, /this\.session\.setStageEffect\(index, built\)/);
   assert.doesNotMatch(source, /stage\.effect\s*=\s*built/);
 });
+
+
+test("embedded stage effects inherit the Critical Forge visual theme without a nested component scrollbar", () => {
+  const css = readFileSync(join(root, "styles/affliction-forge.css"), "utf8");
+  assert.match(css, /affliction-editor-effect-host\[data-affliction-effect-editor="components-only"\][\s\S]*--ef-field:\s*#242431/);
+  assert.match(css, /--ef-panel-alt:\s*#191923/);
+  assert.match(css, /--ef-purple-bright:\s*#915bd0/);
+  assert.match(css, /\.effect-forge-component-list\s*\{[\s\S]*max-height:\s*none/);
+  assert.match(css, /\.effect-forge-component-list\s*\{[\s\S]*overflow:\s*visible/);
+});

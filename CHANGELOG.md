@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7
+
+- Restores the Critical Forge `--ef-*` visual theme inside embedded stage-effect editors so inputs, selects, text areas, cards, and panel surfaces render exactly as recognizable controls instead of flat text.
+- Keeps the public Critical Forge Embedded Effect Editor as the sole component editor; Affliction Forge only supplies the missing host theme context.
+- Removes the nested component-list scrollbar in Affliction stages so the outer Affliction editor owns scrolling and component boundaries remain visible.
+- Adds clearer spacing and a subtle card shadow while preserving Critical Forge type-specific component border accents.
+
 ## 0.1.6
 
 ### Frozen Effect Ownership Hardening

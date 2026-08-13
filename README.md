@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.6**
+Current development build: **0.1.7**
 
-Version **0.1.6** tightens the editing workflow: save-check names propagate immediately to every reference, validation messages are de-duplicated, and stage effects expose only the Critical Forge component editor because identity and lifecycle are owned by the Affliction stage.
+Version **0.1.7** hardens the visual integration of the Critical Forge component editor inside Affliction stages. Embedded component cards now inherit the same Critical Forge field, panel, border, focus, and type-accent styling as the standalone Effect Editor, while the Affliction editor remains the single scroll owner.
 
 The editor is deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. Persistence and actor application remain outside the editor.
 
