@@ -72,3 +72,17 @@ test("Save As DialogV2 content uses a plain outer div and a styled inner wrapper
   assert.match(hostSource, /wrapper\.append\(nameLabel, destinationLabel\);[\s\S]*root\.append\(wrapper\);/);
   assert.doesNotMatch(hostSource, /root\.className = "affliction-forge-save-as-dialog"/);
 });
+
+
+test("template library invalidates immediately when a Foundry Affliction Item is deleted", () => {
+  assert.match(integrationSource, /Hooks\.on\("deleteItem", handleAfflictionTemplateDeleted\)/);
+  assert.match(integrationSource, /api\?\.documents\?\.isTemplate\?\.\(item\)/);
+  assert.match(integrationSource, /app\.handleTemplateDeleted\(item\)/);
+  assert.match(hostSource, /async handleTemplateDeleted\(document\)/);
+  assert.match(hostSource, /this\.#invalidateLibrary\(\)/);
+  assert.match(hostSource, /this\.currentTemplate\?\.uuid === uuid/);
+  assert.match(hostSource, /mode: "create"/);
+  assert.match(hostSource, /session\?\.markDirty\?\.\(\)/);
+  assert.match(hostSource, /this\.element\.isConnected/);
+  assert.match(hostSource, /await this\.render\(\{ force: true \}\)/);
+});

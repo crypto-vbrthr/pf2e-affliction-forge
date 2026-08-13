@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.10
+
+### Live Template Deletion Synchronization
+
+- listens to Foundry's post-delete `deleteItem` document hook and invalidates the Affliction Template library immediately
+- removes deleted world or compendium Affliction Templates from the open Forge without requiring a Foundry restart
+- preserves the editor contents as an unsaved draft if the template currently being edited is deleted externally
+- avoids rerendering a closed Forge while still invalidating its cached library for the next open
+- adds regression coverage for the delete hook and host-side deletion handling contract
+
 ## 0.1.9
 
 ### Validation Localization & Save-As Dialog Hardening

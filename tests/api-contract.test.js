@@ -19,7 +19,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 
 test("public API exposes the versioned data contract and embedded editor contract without runtime promises", () => {
   const api = createPublicApi();
-  assert.equal(api.version, "0.1.9");
+  assert.equal(api.version, "0.1.10");
   assert.equal(api.schemaVersion, 1);
   assert.equal(typeof api.definitions.create, "function");
   assert.equal(typeof api.definitions.validate, "function");

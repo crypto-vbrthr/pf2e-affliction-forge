@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.9 fixes Save As on Foundry V14 and renders Critical Forge validation warnings as localized, human-readable messages.",
-  "version": "0.1.9",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.10 keeps the Forge template library synchronized when Affliction Items are deleted during a running Foundry session.",
+  "version": "0.1.10",
   "authors": [
     {
       "name": "crypto-vbrthr"

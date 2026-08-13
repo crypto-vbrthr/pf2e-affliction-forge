@@ -133,6 +133,30 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     this.libraryLoaded = false;
   }
 
+  async handleTemplateDeleted(document) {
+    const uuid = String(document?.uuid ?? "").trim();
+    if (!uuid) return false;
+
+    this.#invalidateLibrary();
+
+    if (this.currentTemplate?.uuid === uuid) {
+      // The backing Item has vanished, but the GM may still want the definition
+      // they were looking at. Keep that data in the editor as a new unsaved
+      // draft instead of leaving a dangling UUID or discarding their work.
+      const preservedDefinition = this.editor?.value ?? createDraftDefinition();
+      this.currentTemplate = null;
+      this.editor?.setData?.(preservedDefinition, { mode: "create", rerender: false });
+      this.editor?.session?.markDirty?.();
+    }
+
+    // A closed ApplicationV2 instance can remain cached by the module. In that
+    // case only invalidate the library; the next open will reload it.
+    if (!(this.element instanceof HTMLElement) || !this.element.isConnected) return true;
+
+    await this.render({ force: true });
+    return true;
+  }
+
   async _prepareContext() {
     await this.#ensureLibrary();
     const compatibility = this.#api().integration.criticalForge.compatibility();

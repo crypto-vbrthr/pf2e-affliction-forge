@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.9**
+Current development build: **0.1.10**
 
-Version **0.1.9** hardens the template workflow: Save As now follows Foundry V14's DialogV2 content contract, and nested Critical Forge validation warnings are localized and shown with readable phase/component locations.
+Version **0.1.10** keeps the live template library synchronized with Foundry Item deletions. Deleted Affliction Templates disappear immediately without requiring a Foundry reload; if the currently edited template is deleted externally, its editor contents are retained as an unsaved draft.
 
 The editor is deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. Persistence and actor application remain outside the editor.
 

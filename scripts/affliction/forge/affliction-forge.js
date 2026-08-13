@@ -117,6 +117,17 @@ export function injectAfflictionTemplateHeaderControl(application, controls) {
   });
 }
 
+export function handleAfflictionTemplateDeleted(item) {
+  const api = game.modules.get(MODULE_ID)?.api;
+  if (!api?.documents?.isTemplate?.(item)) return false;
+  if (!app) return true;
+
+  void app.handleTemplateDeleted(item).catch((error) => {
+    console.error(`${MODULE_ID} | Failed to synchronize deleted Affliction template.`, error);
+  });
+  return true;
+}
+
 export function injectLegacyAfflictionTemplateHeaderButton(sheet, buttons) {
   if (!game.user?.isGM || !Array.isArray(buttons)) return;
   const item = itemFromSheetApplication(sheet);
@@ -140,6 +151,7 @@ export function initializeAfflictionForgeUi() {
   Hooks.on("renderSidebarTab", injectAfflictionForgeButton);
   Hooks.on("getHeaderControlsApplicationV2", injectAfflictionTemplateHeaderControl);
   Hooks.on("getItemSheetHeaderButtons", injectLegacyAfflictionTemplateHeaderButton);
+  Hooks.on("deleteItem", handleAfflictionTemplateDeleted);
 
   const current = document.querySelector("#items, .items-directory");
   if (current) injectAfflictionForgeButton({ tabName: "items" }, current);
