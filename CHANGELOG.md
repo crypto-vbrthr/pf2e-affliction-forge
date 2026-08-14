@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.33 - Direct Actor Directory Drop
+
+- Affliction templates can now be dropped directly onto Actor entries in Foundry's Actors sidebar directory.
+- Actor Directory drops route through the same public Application Service and Affliction Engine as Actor-sheet and Canvas-token drops.
+- Added a dedicated Affliction drag MIME marker so Actor-directory rows can advertise a copy drop target without hijacking unrelated directory drag operations.
+- Actor rows receive a temporary visual highlight while a valid Affliction payload is dragged over them.
+- Existing Actor-sheet, Canvas-token, `@Affliction[...]`, ability-reference, and external application workflows remain unchanged.
+
 ## 0.1.32
 
 ### Drag & Drop, Ability References & External Application API

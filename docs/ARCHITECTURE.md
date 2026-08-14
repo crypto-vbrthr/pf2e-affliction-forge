@@ -1,4 +1,4 @@
-# Architecture 0.1.32
+# Architecture 0.1.33
 
 ```text
 Affliction Template / Definition
@@ -268,7 +268,7 @@ The main Forge has two host views: `Templates` for authoring/library work and `A
 
 ## External reference and application layer
 
-Version 0.1.32 adds a consumer-facing layer above the Affliction Engine. Host modules store machine-readable template references on their own Items or generated Item sources and call `api.application` only when the host-specific trigger is satisfied. The application facade records origin metadata and then delegates immediately to the existing high-level Affliction Engine.
+Version 0.1.33 adds a consumer-facing layer above the Affliction Engine. Host modules store machine-readable template references on their own Items or generated Item sources and call `api.application` only when the host-specific trigger is satisfied. The application facade records origin metadata and then delegates immediately to the existing high-level Affliction Engine.
 
 ```text
 Attack / Ability / Spell / Creature Forge
@@ -285,3 +285,8 @@ Critical Forge Effect Engine
 Drag & Drop is only another frontend to this same application boundary. Template Item drops on Actor sheets are converted into controller applications rather than embedded as inert template Items. Canvas drops resolve the token under the drop point and use the same application facade.
 
 The host Item is not marked as an Affliction Forge managed document merely because it carries references. Managed-document flags remain exclusive to the Affliction runtime/persistence document kinds.
+
+
+### Actor Directory drop integration (0.1.33)
+
+The external integration layer binds only to rendered Actor Directory roots and consumes the module-specific Affliction drag MIME payload in capture phase. Valid drops resolve the target Actor by directory entry id and route through the public Application Service. Unrelated Actor-directory drag operations are left untouched.

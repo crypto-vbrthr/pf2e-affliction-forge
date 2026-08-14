@@ -1,4 +1,4 @@
-# Public API 0.1.32
+# Public API 0.1.33
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;

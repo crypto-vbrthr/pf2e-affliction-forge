@@ -154,3 +154,7 @@ await api.application.applyReference(reference, targets, {
 ```
 
 The facade delegates to the high-level Affliction Engine, so initial exposure saves are processed immediately and all later progression belongs to the normal Controller/Scheduler runtime.
+
+## Actor Directory drops
+
+Affliction Forge drag payloads can be dropped directly onto Actor entries in Foundry's Actors sidebar. The directory row is highlighted while the Affliction is over a valid Actor target. The drop is consumed by Affliction Forge and routed through `api.application.applyDropData(..., { application: "drag-drop-actor-directory" })`; it never embeds the template Item on the Actor. Actor-sheet and Canvas-token drops remain supported in parallel.

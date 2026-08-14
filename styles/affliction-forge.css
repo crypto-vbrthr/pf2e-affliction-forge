@@ -1739,3 +1739,12 @@
 .pf2e-affliction-reference-link {
   white-space: nowrap;
 }
+
+
+/* 0.1.33: direct Actor Directory Affliction drop target */
+.pf2e-affliction-actor-drop-target {
+  outline: 2px solid var(--color-border-highlight, #ff6400) !important;
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--color-bg-option, #782e22) 24%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-border-highlight, #ff6400) 55%, transparent);
+}

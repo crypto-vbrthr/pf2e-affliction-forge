@@ -1,4 +1,4 @@
-import { MODULE_ID } from "../../constants.js";
+import { AFFLICTION_DRAG_MIME, MODULE_ID } from "../../constants.js";
 import { extractAfflictionDefinitionFromItem } from "../documents/affliction-item-adapter.js";
 import { getAfflictionFlags, isAfflictionTemplate } from "../documents/affliction-flags.js";
 
@@ -34,7 +34,142 @@ function writeDragData(event, payload) {
   const json = JSON.stringify(payload);
   transfer.setData("text/plain", json);
   try { transfer.setData("application/json", json); } catch { /* Browser-dependent */ }
+  try { transfer.setData(AFFLICTION_DRAG_MIME, json); } catch { /* Browser-dependent */ }
   transfer.effectAllowed = "copy";
+  return true;
+}
+
+
+function rootElement(html) {
+  if (typeof HTMLElement !== "undefined" && html instanceof HTMLElement) return html;
+  if (typeof HTMLElement !== "undefined" && html?.[0] instanceof HTMLElement) return html[0];
+  if (typeof HTMLElement !== "undefined" && html?.element instanceof HTMLElement) return html.element;
+  return html?.querySelectorAll ? html : null;
+}
+
+function isActorDirectory(application, root) {
+  const documentName = application?.documentName
+    ?? application?.collection?.documentName
+    ?? application?.options?.documentName
+    ?? "";
+  if (String(documentName).toLowerCase() === "actor") return true;
+  const tabName = application?.tabName ?? application?.options?.tabName ?? application?.id ?? "";
+  if (String(tabName).toLowerCase().includes("actor")) return true;
+  return Boolean(root?.matches?.("#actors, .actors-directory") || root?.querySelector?.("#actors, .actors-directory"));
+}
+
+function parseTransferJson(transfer) {
+  if (!transfer?.getData) return null;
+  for (const type of [AFFLICTION_DRAG_MIME, "text/plain", "application/json"]) {
+    try {
+      const raw = transfer.getData(type);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {
+      // Ignore unavailable MIME types and non-JSON drag data.
+    }
+  }
+  return null;
+}
+
+export function readAfflictionDragEventData(event) {
+  const data = parseTransferJson(event?.dataTransfer);
+  return api()?.application?.parseDropData?.(data) ?? null;
+}
+
+function eventAdvertisesAffliction(event) {
+  const types = [...(event?.dataTransfer?.types ?? [])].map((value) => String(value));
+  if (types.includes(AFFLICTION_DRAG_MIME)) return true;
+  return Boolean(readAfflictionDragEventData(event));
+}
+
+export function actorIdFromDirectoryRow(row) {
+  const dataset = row?.dataset ?? {};
+  return String(dataset.entryId ?? dataset.documentId ?? dataset.actorId ?? "").trim() || null;
+}
+
+function directoryActorRow(target, root) {
+  const row = target?.closest?.("[data-entry-id], [data-document-id], [data-actor-id], .directory-item.actor");
+  if (!row) return null;
+  if (root?.contains && !root.contains(row)) return null;
+  return row;
+}
+
+function clearDirectoryDropHighlight(root) {
+  for (const row of root?.querySelectorAll?.(".pf2e-affliction-actor-drop-target") ?? []) {
+    row.classList.remove("pf2e-affliction-actor-drop-target");
+  }
+}
+
+async function applyDirectoryDrop(actor, parsed) {
+  if (!actor || !parsed) return false;
+  try {
+    await api()?.application?.applyDropData?.({
+      type: "Affliction",
+      source: MODULE_ID,
+      templateUuid: parsed.templateUuid,
+      uuid: parsed.templateUuid,
+      label: parsed.label,
+      sourceUuid: parsed.sourceUuid,
+      referenceId: parsed.referenceId
+    }, actor, {
+      application: "drag-drop-actor-directory"
+    });
+    notify("info", "PF2E_AFFLICTION_FORGE.Reference.DropApplied", {
+      name: parsed.label ?? localize("PF2E_AFFLICTION_FORGE.Reference.Affliction")
+    });
+    return true;
+  } catch (error) {
+    console.error(`${MODULE_ID} | Affliction drop on Actor Directory entry failed.`, error);
+    notify("error", "PF2E_AFFLICTION_FORGE.Reference.DropFailed");
+    return false;
+  }
+}
+
+export function installAfflictionActorDirectoryDropTargets(application, html) {
+  if (!globalThis.game?.user?.isGM) return false;
+  const root = rootElement(html);
+  if (!root || !isActorDirectory(application, root)) return false;
+  if (root.dataset?.afflictionForgeActorDirectoryDrop === "true") return true;
+  if (root.dataset) root.dataset.afflictionForgeActorDirectoryDrop = "true";
+
+  root.addEventListener?.("dragover", (event) => {
+    if (!eventAdvertisesAffliction(event)) return;
+    const row = directoryActorRow(event.target, root);
+    if (!row || !actorIdFromDirectoryRow(row)) return;
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    clearDirectoryDropHighlight(root);
+    row.classList?.add?.("pf2e-affliction-actor-drop-target");
+  }, true);
+
+  root.addEventListener?.("dragleave", (event) => {
+    const row = directoryActorRow(event.target, root);
+    if (!row) return;
+    const related = event.relatedTarget;
+    if (related && row.contains?.(related)) return;
+    row.classList?.remove?.("pf2e-affliction-actor-drop-target");
+  }, true);
+
+  root.addEventListener?.("dragend", () => clearDirectoryDropHighlight(root), true);
+
+  root.addEventListener?.("drop", (event) => {
+    const parsed = readAfflictionDragEventData(event);
+    if (!parsed) return;
+    const row = directoryActorRow(event.target, root);
+    const actorId = actorIdFromDirectoryRow(row);
+    const actor = actorId ? globalThis.game?.actors?.get?.(actorId) : null;
+    if (!actor) return;
+
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    event.stopImmediatePropagation?.();
+    clearDirectoryDropHighlight(root);
+    void applyDirectoryDrop(actor, parsed);
+  }, true);
+
   return true;
 }
 
@@ -269,6 +404,11 @@ export function initializeAfflictionExternalRuntimeIntegration() {
   globalThis.Hooks?.on?.("preCreateItem", interceptEmbeddedAfflictionTemplateCreation);
   globalThis.Hooks?.on?.("dropActorSheetData", handleAfflictionActorSheetDrop);
   globalThis.Hooks?.on?.("dropCanvasData", handleAfflictionCanvasDrop);
+  globalThis.Hooks?.on?.("renderActorDirectory", installAfflictionActorDirectoryDropTargets);
+  globalThis.Hooks?.on?.("renderSidebarTab", installAfflictionActorDirectoryDropTargets);
+
+  const currentActors = globalThis.document?.querySelector?.("#actors, .actors-directory");
+  if (currentActors) installAfflictionActorDirectoryDropTargets({ tabName: "actors", documentName: "Actor" }, currentActors);
 }
 
 export { writeDragData };

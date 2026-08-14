@@ -1,9 +1,10 @@
 export const MODULE_ID = "pf2e-affliction-forge";
-export const MODULE_VERSION = "0.1.32";
-export const API_VERSION = "0.1.32";
+export const MODULE_VERSION = "0.1.33";
+export const API_VERSION = "0.1.33";
 export const AFFLICTION_SCHEMA_VERSION = 2;
 export const CONTROLLER_SCHEMA_VERSION = 2;
 export const CRITICAL_FORGE_MODULE_ID = "pf2e-critical-forge";
+export const AFFLICTION_DRAG_MIME = "application/x-pf2e-affliction-forge";
 
 export const DOCUMENT_KINDS = Object.freeze({
   TEMPLATE: "affliction-template",

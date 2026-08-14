@@ -42,3 +42,12 @@ test("Affliction Forge library templates themselves are draggable", () => {
   assert.match(host, /#bindTemplateDrag/);
   assert.match(host, /application\.createDragData/);
 });
+
+
+test("Actor Directory entries are explicit Affliction drop targets", () => {
+  assert.match(integration, /renderActorDirectory/);
+  assert.match(integration, /drag-drop-actor-directory/);
+  assert.match(integration, /pf2e-affliction-actor-drop-target/);
+  assert.match(integration, /AFFLICTION_DRAG_MIME/);
+  assert.match(host, /AFFLICTION_DRAG_MIME/);
+});

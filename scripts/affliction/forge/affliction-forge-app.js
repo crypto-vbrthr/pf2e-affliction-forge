@@ -1,4 +1,4 @@
-import { MODULE_ID } from "../../constants.js";
+import { AFFLICTION_DRAG_MIME, MODULE_ID } from "../../constants.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
 
@@ -392,6 +392,7 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
           const json = JSON.stringify(payload);
           event.dataTransfer.setData("text/plain", json);
           try { event.dataTransfer.setData("application/json", json); } catch { /* Browser-dependent */ }
+          try { event.dataTransfer.setData(AFFLICTION_DRAG_MIME, json); } catch { /* Browser-dependent */ }
           event.dataTransfer.effectAllowed = "copy";
         } catch (error) {
           console.warn(`${MODULE_ID} | Affliction template drag could not be initialized.`, error);

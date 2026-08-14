@@ -95,3 +95,69 @@ test("canvas Item drop resolves an Affliction Template and applies it to the tok
   assert.equal(applications[0].targets, token);
   assert.equal(applications[0].application, "drag-drop-canvas");
 });
+
+test("custom Affliction drag payload can be dropped directly on an Actor Directory entry", async () => {
+  const calls = [];
+  const { AFFLICTION_DRAG_MIME } = await import("../scripts/constants.js");
+  const { installAfflictionActorDirectoryDropTargets } = await import("../scripts/affliction/integration/affliction-external-integration.js");
+  modules.set("pf2e-affliction-forge", {
+    api: {
+      application: {
+        parseDropData: (data) => data?.type === "Affliction" && data?.source === "pf2e-affliction-forge"
+          ? { templateUuid: data.templateUuid, label: data.label ?? null, sourceUuid: null, referenceId: null }
+          : null,
+        applyDropData: async (...args) => calls.push(args)
+      }
+    }
+  });
+
+  const actor = { documentName: "Actor", uuid: "Actor.hero", id: "hero", name: "Hero" };
+  game.actors = new Map([["hero", actor]]);
+  const listeners = new Map();
+  const rowClasses = new Set();
+  const row = {
+    dataset: { entryId: "hero" },
+    classList: {
+      add: (value) => rowClasses.add(value),
+      remove: (value) => rowClasses.delete(value)
+    },
+    contains: () => false
+  };
+  const root = {
+    dataset: {},
+    querySelectorAll: (selector) => selector === ".pf2e-affliction-actor-drop-target" && rowClasses.has("pf2e-affliction-actor-drop-target") ? [row] : [],
+    querySelector: () => null,
+    matches: (selector) => selector.includes("#actors"),
+    contains: (candidate) => candidate === row,
+    addEventListener: (type, callback) => listeners.set(type, callback)
+  };
+  const target = { closest: () => row };
+  const payload = { type: "Affliction", source: "pf2e-affliction-forge", templateUuid: "Item.venom", label: "Venom" };
+  const json = JSON.stringify(payload);
+  const transfer = {
+    types: [AFFLICTION_DRAG_MIME, "text/plain"],
+    getData: (type) => type === AFFLICTION_DRAG_MIME || type === "text/plain" ? json : "",
+    dropEffect: "none"
+  };
+  let prevented = 0;
+  const baseEvent = {
+    target,
+    relatedTarget: null,
+    dataTransfer: transfer,
+    preventDefault: () => prevented++,
+    stopPropagation: () => {},
+    stopImmediatePropagation: () => {}
+  };
+
+  assert.equal(installAfflictionActorDirectoryDropTargets({ documentName: "Actor", tabName: "actors" }, root), true);
+  listeners.get("dragover")?.(baseEvent);
+  assert.equal(transfer.dropEffect, "copy");
+  assert.equal(rowClasses.has("pf2e-affliction-actor-drop-target"), true);
+
+  listeners.get("drop")?.(baseEvent);
+  await nextTurn();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1], actor);
+  assert.equal(calls[0][2].application, "drag-drop-actor-directory");
+  assert.equal(prevented >= 2, true);
+});

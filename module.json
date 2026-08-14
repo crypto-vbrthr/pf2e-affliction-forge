@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.32 adds drag-and-drop application, machine-readable ability references, custom Affliction links, and a public external application API.",
-  "version": "0.1.32",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.33 adds direct drag-and-drop application onto Actor Directory entries while retaining Actor-sheet and Canvas-token drops, ability references, custom Affliction links, and the public external application API.",
+  "version": "0.1.33",
   "socket": true,
   "authors": [
     {
