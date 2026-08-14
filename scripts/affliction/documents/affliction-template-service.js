@@ -46,6 +46,17 @@ function sourceLabel(document) {
   return pack?.title ?? game.i18n?.localize?.("PF2E_AFFLICTION_FORGE.Forge.WorldItems") ?? "World Items";
 }
 
+function definitionMetadata(flags) {
+  const definition = flags?.definition ?? {};
+  return {
+    afflictionType: definition.afflictionType ?? null,
+    level: Number.isFinite(Number(definition.level)) ? Number(definition.level) : null,
+    rarity: definition.rarity ?? null,
+    traits: Array.isArray(definition.traits) ? [...definition.traits] : [],
+    themes: Array.isArray(definition.themes) ? [...definition.themes] : []
+  };
+}
+
 function descriptorFromDocument(document) {
   const flags = getAfflictionFlags(document) ?? {};
   const pack = packForDocument(document);
@@ -61,7 +72,8 @@ function descriptorFromDocument(document) {
     definitionId: flags.definitionId ?? null,
     definitionVersion: Number(flags.definitionVersion ?? 1),
     copiedFromUuid: flags.copiedFromUuid ?? null,
-    world: !pack
+    world: !pack,
+    ...definitionMetadata(flags)
   });
 }
 
@@ -79,7 +91,8 @@ function descriptorFromIndexEntry(pack, entry) {
     definitionId: flags.definitionId ?? null,
     definitionVersion: Number(flags.definitionVersion ?? 1),
     copiedFromUuid: flags.copiedFromUuid ?? null,
-    world: false
+    world: false,
+    ...definitionMetadata(flags)
   });
 }
 

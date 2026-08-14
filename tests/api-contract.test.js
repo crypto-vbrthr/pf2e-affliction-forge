@@ -27,7 +27,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
-  assert.equal(api.version, "0.1.25");
+  assert.equal(api.version, "0.1.26");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -42,6 +42,12 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.templates.update, "function");
   assert.equal(typeof api.templates.clone, "function");
   assert.equal(typeof api.templates.list, "function");
+  assert.equal(typeof api.libraries.register, "function");
+  assert.equal(typeof api.libraries.list, "function");
+  assert.equal(typeof api.libraries.search, "function");
+  assert.equal(typeof api.libraries.setEnabled, "function");
+  assert.equal(typeof api.providers.register, "function");
+  assert.equal(typeof api.providers.list, "function");
   assert.equal(typeof api.controllers.createState, "function");
   assert.equal(api.integration.criticalForge.compatibility().effectEditorAvailable, true);
   assert.equal(api.integration.criticalForge.compatibility().effectExecutionApiAvailable, true);

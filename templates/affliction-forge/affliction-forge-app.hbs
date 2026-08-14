@@ -66,12 +66,26 @@
       <header class="affliction-forge-library-header">
         <div>
           <strong>{{localize "PF2E_AFFLICTION_FORGE.Forge.Library"}}</strong>
-          <small>{{templateCount}} {{localize "PF2E_AFFLICTION_FORGE.Forge.Templates"}}</small>
+          <small>{{templateCount}} {{localize "PF2E_AFFLICTION_FORGE.Forge.Templates"}} · {{libraryCount}} {{localize "PF2E_AFFLICTION_FORGE.Library.Libraries"}}</small>
         </div>
         <button type="button" class="icon" data-action="refreshLibrary" title="{{localize "PF2E_AFFLICTION_FORGE.Forge.RefreshLibrary"}}">
           <i class="fa-solid fa-rotate"></i>
         </button>
       </header>
+
+      <div class="affliction-forge-library-source-filter">
+        <label>
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Library.Source"}}</span>
+          <select data-affliction-library-source>
+            <option value="">{{localize "PF2E_AFFLICTION_FORGE.Library.AllEnabled"}}</option>
+            {{#each libraries as |library|}}
+              {{#if library.enabled}}
+                <option value="{{library.id}}" {{#if library.selected}}selected{{/if}}>{{library.label}}{{#unless library.writable}} 🔒{{/unless}}</option>
+              {{/if}}
+            {{/each}}
+          </select>
+        </label>
+      </div>
 
       <div class="affliction-forge-library-filter">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -87,12 +101,15 @@
 
       <div class="affliction-forge-library-list">
         {{#each templates as |template|}}
-          <article class="affliction-forge-template-row {{#if template.active}}active{{/if}}" data-affliction-template-row data-search="{{template.searchable}}">
+          <article class="affliction-forge-template-row {{#if template.active}}active{{/if}}" data-affliction-template-row data-library-id="{{template.libraryId}}" data-search="{{template.searchable}}">
             <button type="button" class="affliction-forge-template-open" data-action="openTemplate" data-template-uuid="{{template.uuid}}">
               <img src="{{template.img}}" alt="">
               <span class="affliction-forge-template-copy">
                 <strong>{{template.name}}</strong>
-                <small><i class="{{template.sourceIcon}}"></i> {{template.sourceLabel}}</small>
+                <small><i class="{{template.sourceIcon}}"></i> {{template.libraryLabel}}</small>
+                {{#if template.providerLabel}}
+                  <small class="affliction-forge-template-provider">{{template.providerLabel}}</small>
+                {{/if}}
               </span>
               {{#unless template.writable}}
                 <i class="fa-solid fa-lock affliction-forge-template-lock" title="{{localize "PF2E_AFFLICTION_FORGE.Forge.ReadOnly"}}"></i>

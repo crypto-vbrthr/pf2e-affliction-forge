@@ -11,6 +11,10 @@ export const SCHEDULER_SETTING_KEYS = Object.freeze({
   CATCH_UP_LIMIT: "schedulerCatchUpLimit"
 });
 
+export const LIBRARY_SETTING_KEYS = Object.freeze({
+  STATES: "libraryStates"
+});
+
 function queueSchedulerAfterSettingChange() {
   void globalThis.game?.modules?.get?.(MODULE_ID)?.api?.scheduler?.requestProcess?.({ reason: "setting-change" });
 }
@@ -51,6 +55,17 @@ export function registerAfflictionForgeSettings() {
     range: { min: 1, max: 100, step: 1 },
     default: 25,
     onChange: queueSchedulerAfterSettingChange
+  });
+
+  // Internal world-state map. Library providers can be registered after init,
+  // so their enabled/disabled state cannot be represented by static Foundry
+  // settings. The Library Service stores dynamic states here instead.
+  game.settings.register(MODULE_ID, LIBRARY_SETTING_KEYS.STATES, {
+    name: "Affliction library states",
+    scope: "world",
+    config: false,
+    type: Object,
+    default: {}
   });
 
   return true;

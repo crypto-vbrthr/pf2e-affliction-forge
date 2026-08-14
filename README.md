@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.25**
+Current development build: **0.1.26**
 
-Version **0.1.25** hardens historical catch-up after large Foundry world-time jumps. In `all` mode, every overdue interval is processed chronologically up to the current world-time horizon, including manual GM saves, and maximum active duration is enforced at its absolute deadline. Interactive dialogs are awaited sequentially rather than requiring another time-advance click.
+Version **0.1.26** adds a first-class Affliction Library Service and Provider API. World Items, standalone Affliction compendia, and registered external content libraries now share one searchable catalog. Provider libraries can be explicitly read-only while their templates remain openable, applicable, and copyable into a writable local destination.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -34,7 +34,10 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - player-facing identification presentation: hidden controllers concealed, suspected controllers generic, identified controllers fully restored
 - hidden/suspected stage-effect rows concealed from non-GM Actor-sheet presentation
 - lethal-stage cause-of-death record, GM/public-safe chat messaging, and controller runtime event log
-- searchable world/compendium template library with Save, Save As, clone/copy, and live deletion synchronization
+- searchable multi-library template catalog with world, compendium, and registered external provider sources
+- read-only provider libraries with copy-to-world editing workflow and write protection through the public API
+- public `api.libraries` / `api.providers` contracts for content modules, library enable state, metadata, and filtered searches
+- Save, Save As, clone/copy, and live deletion synchronization across the library catalog
 - Embedded Affliction Editor and public UI API for future hosts such as Creature Forge
 - GM-authoritative world-time scheduler using `game.time.worldTime` / `updateWorldTime`
 - automatic onset completion and due stage-save processing
@@ -74,7 +77,7 @@ A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See
 
 ## Runtime boundary
 
-0.1.25 includes the hardened world-time scheduler, active-duration anchoring, player-save routing, and identification visibility layer. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. In catch-up mode `all`, a jump across several phase durations resolves each historical due event in chronological order until the horizon or the maximum active-duration deadline is reached. Manual GM dialogs are sequential, while player results automatically resume the same catch-up chain.
+0.1.26 includes the hardened world-time scheduler, active-duration anchoring, player-save routing, identification visibility layer, and the first public library/provider discovery layer. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
 
 Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
 

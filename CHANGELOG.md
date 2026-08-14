@@ -1,15 +1,35 @@
 # Changelog
 
+## 0.1.26
+
+### Library Service & Provider API
+
+- adds a first-class Affliction Library Service above the existing template persistence layer
+- treats world Affliction Items as the built-in writable library and preserves unregistered visible Item compendia as backward-compatible implicit libraries
+- adds public `api.libraries` search, metadata, enable-state, source-resolution, write-policy, and summary contracts
+- adds public `api.providers` registration/list/unregister contracts for external content modules
+- supports providers with one or multiple named libraries backed by one or more Item compendium packs
+- defaults provider libraries to read-only and enforces that policy for in-place template updates and Save-As/create destinations through the public API
+- keeps read-only templates openable/applicable and preserves the existing copy-to-world editing workflow
+- makes provider pack ownership exclusive so template-to-library resolution remains deterministic
+- enriches template descriptors with affliction type, level, rarity, traits, themes, library identity, provider identity, and effective write state
+- adds filtered library search by query, library, affliction type, theme, and level range
+- persists dynamic library enabled/disabled state as hidden world configuration
+- adds a Library selector to the Forge template pane and shows provider/library labels and read-only state
+- refreshes an open Forge when providers are registered or library enable state changes
+- adds provider/library documentation and regression coverage for read-only policy, search metadata, and enabled state
+
 ## 0.1.25
 
 ### Large Time-Jump Catch-up & Maximum-Duration Hardening
 
-- fixes manual GM save catch-up after large world-time jumps: `all` mode now resolves every overdue interval sequentially instead of consuming only one interval per time-advance action
-- keeps PF2e modifier dialogs strictly sequential because each `AfflictionEngine.process()` call is awaited before the next historical interval is evaluated
-- preserves asynchronous player-save behavior: accepting a player result queues the next scheduler pass at the unchanged current world-time horizon, so overdue intervals continue without another time-advance click
-- evaluates maximum active duration as an absolute competing due event during catch-up; once its deadline is reached, the affliction ends immediately and no later historical save is manufactured
-- adds regression coverage for a ten-minute jump across one-minute stages with a five-minute maximum active duration
-- retains `next` catch-up mode as an explicit opt-in behavior that intentionally consumes only one historical due event per scheduler pass
+- fully processes every historically due interval during large world-time jumps in the default `all` catch-up mode
+- keeps manual GM saves sequential instead of stopping catch-up after one interactive dialog
+- resumes player-save catch-up automatically when an asynchronous player result returns
+- evaluates maximum active duration as an absolute competing deadline during historical catch-up
+- stops creating stage-save requests once the maximum active-duration deadline is reached
+- preserves the optional `next` catch-up mode for deliberately one-step-at-a-time processing
+- adds regression coverage for one-minute stages, ten-minute jumps, sequential interactive saves, and a five-minute maximum active-duration deadline
 
 ## 0.1.24
 

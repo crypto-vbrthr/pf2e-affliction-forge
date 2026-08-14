@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.25 hardens large world-time jumps so all overdue intervals, including interactive GM saves, are resolved sequentially up to the maximum active-duration deadline.",
-  "version": "0.1.25",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.26 adds a library catalog and public provider API for writable world collections and read-only content-module libraries.",
+  "version": "0.1.26",
   "socket": true,
   "authors": [
     {

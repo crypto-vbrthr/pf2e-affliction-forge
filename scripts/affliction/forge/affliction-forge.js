@@ -181,6 +181,15 @@ export function handleAfflictionRuntimeItemDeleted(item) {
   return true;
 }
 
+
+export function handleAfflictionLibrariesChanged() {
+  if (!app) return true;
+  void app.handleLibrariesChanged().catch((error) => {
+    console.error(`${MODULE_ID} | Failed to refresh Affliction libraries after provider change.`, error);
+  });
+  return true;
+}
+
 export function initializeAfflictionForgeUi() {
   if (initialized) return;
   initialized = true;
@@ -193,6 +202,7 @@ export function initializeAfflictionForgeUi() {
   Hooks.on("getItemSheetHeaderButtons", injectLegacyAfflictionTemplateHeaderButton);
   Hooks.on("deleteItem", handleAfflictionTemplateDeleted);
   Hooks.on("deleteItem", handleAfflictionRuntimeItemDeleted);
+  Hooks.on("pf2eAfflictionForgeLibrariesChanged", handleAfflictionLibrariesChanged);
 
   const current = document.querySelector("#items, .items-directory");
   if (current) injectAfflictionForgeButton({ tabName: "items" }, current);

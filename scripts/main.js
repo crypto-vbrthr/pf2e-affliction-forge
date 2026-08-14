@@ -47,6 +47,7 @@ Hooks.once("ready", () => {
     afflictionEngineAvailable: typeof api?.engine?.process === "function",
     schedulerAvailable: typeof api?.scheduler?.processDue === "function",
     scheduler: api?.scheduler?.status?.(),
+    libraries: api?.libraries?.summary?.(),
     criticalForge: compatibility
   });
 });

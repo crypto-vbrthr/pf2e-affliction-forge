@@ -32,7 +32,8 @@ test("host exposes a searchable template library beside the embedded editor", ()
   assert.match(hostTemplate, /data-affliction-library-filter/);
   assert.match(hostTemplate, /data-action="openTemplate"/);
   assert.match(hostTemplate, /data-action="copyTemplateToWorld"/);
-  assert.match(hostSource, /templates\.list\(\)/);
+  assert.match(hostSource, /libraries\.search\(\)/);
+  assert.match(hostTemplate, /data-affliction-library-source/);
   assert.match(css, /\.affliction-forge-workspace[\s\S]*grid-template-columns/);
 });
 

@@ -1,4 +1,4 @@
-# Public API 0.1.18
+# Public API 0.1.26
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -204,6 +204,62 @@ await editor.mount(htmlElement);
 const edited = editor.value;
 editor.destroy();
 ```
+
+## Library Service & Provider API
+
+The library layer organizes Affliction Templates without changing their canonical UUID references. World Items form the built-in writable library, unclaimed Item compendia remain discoverable as implicit compendium libraries, and external modules can register curated provider libraries.
+
+```js
+api.libraries.list()
+api.libraries.get(libraryId)
+api.libraries.search({ query, libraryIds, types, themes, minLevel, maxLevel })
+api.libraries.templates(options)
+api.libraries.setEnabled(libraryId, enabled)
+api.libraries.isEnabled(libraryId)
+api.libraries.forDocument(item)
+api.libraries.forPack(packCollection)
+api.libraries.canWriteDestination(packCollection)
+api.libraries.summary()
+```
+
+Provider modules should register after `pf2eAfflictionForgeReady`:
+
+```js
+Hooks.once("pf2eAfflictionForgeReady", (api) => {
+  api.providers.register({
+    id: "undead-horrors",
+    label: "Undead Horrors",
+    moduleId: "pf2e-affliction-undead-horrors",
+    version: "1.0.0",
+    libraries: [{
+      id: "undead-horrors.core",
+      label: "Undead Horrors",
+      packs: [
+        "pf2e-affliction-undead-horrors.diseases",
+        "pf2e-affliction-undead-horrors.curses"
+      ],
+      writable: false,
+      metadata: { themes: ["undead", "decay"] }
+    }]
+  });
+});
+```
+
+A provider library defaults to read-only. Read-only means Affliction Forge and its public template API refuse in-place updates or Save-As destinations into that library. Templates can still be opened, applied, referenced by UUID, or cloned into the writable world library. The underlying Foundry pack remains the storage authority.
+
+For simple one-library providers, `api.libraries.register({...})` is a convenience registration form.
+
+```js
+api.libraries.register({
+  id: "venoms-and-toxins",
+  label: "Venoms & Toxins",
+  moduleId: "pf2e-affliction-venoms",
+  packs: ["pf2e-affliction-venoms.afflictions"],
+  writable: false
+});
+```
+
+Library membership is storage-based: a template belongs to the world library or to the registered/implicit library that owns its compendium pack. Attacks, abilities, spells, and controllers should continue storing the template UUID, not a library/name pair.
 
 ## Template persistence API
 

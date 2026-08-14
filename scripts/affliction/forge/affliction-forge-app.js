@@ -61,8 +61,10 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
   resizeObserver = null;
   currentTemplate = null;
   library = [];
+  libraryCatalog = [];
   libraryLoaded = false;
   libraryError = null;
+  selectedLibraryId = "";
 
   static DEFAULT_OPTIONS = {
     id: "pf2e-affliction-forge",
@@ -120,10 +122,16 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
   async #ensureLibrary() {
     if (this.libraryLoaded) return;
     try {
-      this.library = await this.#api().templates.list();
+      this.library = await this.#api().libraries.search();
+      const usedLibraryIds = new Set(this.library.map((entry) => entry.libraryId).filter(Boolean));
+      this.libraryCatalog = this.#api().libraries.list().filter((entry) => entry.registered || usedLibraryIds.has(entry.id));
+      if (this.selectedLibraryId && !this.libraryCatalog.some((entry) => entry.id === this.selectedLibraryId && entry.enabled)) {
+        this.selectedLibraryId = "";
+      }
       this.libraryError = null;
     } catch (error) {
       this.library = [];
+      this.libraryCatalog = [];
       this.libraryError = String(error?.message ?? error);
       console.error(`${MODULE_ID} | Template library could not be loaded.`, error);
     }
@@ -132,6 +140,14 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
 
   #invalidateLibrary() {
     this.libraryLoaded = false;
+  }
+
+
+  async handleLibrariesChanged() {
+    this.#invalidateLibrary();
+    if (!(this.element instanceof HTMLElement) || !this.element.isConnected) return true;
+    await this.render({ force: true });
+    return true;
   }
 
   async handleTemplateDeleted(document) {
@@ -170,8 +186,26 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     const entries = this.library.map((entry) => ({
       ...entry,
       active: entry.uuid === currentUuid,
-      searchable: `${entry.name} ${entry.sourceLabel}`.toLocaleLowerCase(game.i18n.lang),
-      sourceIcon: entry.world ? "fa-solid fa-globe" : "fa-solid fa-box-archive"
+      searchable: [
+        entry.name,
+        entry.sourceLabel,
+        entry.libraryLabel,
+        entry.providerLabel,
+        entry.afflictionType,
+        entry.rarity,
+        ...(entry.traits ?? []),
+        ...(entry.themes ?? [])
+      ].filter(Boolean).join(" ").toLocaleLowerCase(game.i18n.lang),
+      sourceIcon: entry.world
+        ? "fa-solid fa-globe"
+        : entry.providerId
+          ? "fa-solid fa-books"
+          : "fa-solid fa-box-archive"
+    }));
+    const libraries = this.libraryCatalog.map((library) => ({
+      ...library,
+      selected: library.id === this.selectedLibraryId,
+      statusIcon: library.writable ? "fa-solid fa-pen" : "fa-solid fa-lock"
     }));
     const current = this.currentTemplate;
     const isDraft = !current;
@@ -186,12 +220,15 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
       apiVersion: this.#api().version,
       schemaVersion: this.#api().schemaVersion,
       templates: entries,
+      libraries,
+      selectedLibraryId: this.selectedLibraryId,
       libraryError: this.libraryError,
       templateCount: entries.length,
+      libraryCount: libraries.filter((entry) => entry.enabled).length,
       isDraft,
       canSave,
       currentTemplateName: current?.name ?? localize("PF2E_AFFLICTION_FORGE.Forge.UnsavedDraft"),
-      currentSourceLabel: current?.sourceLabel ?? localize("PF2E_AFFLICTION_FORGE.Forge.Unsaved"),
+      currentSourceLabel: current?.libraryLabel ?? current?.sourceLabel ?? localize("PF2E_AFFLICTION_FORGE.Forge.Unsaved"),
       currentDefinitionVersion: current?.definitionVersion ?? null,
       currentReadOnly: Boolean(current && !current.writable)
     };
@@ -226,15 +263,27 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   #bindLibraryFilter() {
-    const input = this.element?.querySelector?.("[data-affliction-library-filter]");
-    if (!(input instanceof HTMLInputElement)) return;
-    input.addEventListener("input", () => {
-      const query = String(input.value ?? "").trim().toLocaleLowerCase(game.i18n.lang);
+    const search = this.element?.querySelector?.("[data-affliction-library-filter]");
+    const source = this.element?.querySelector?.("[data-affliction-library-source]");
+
+    const apply = () => {
+      const query = search instanceof HTMLInputElement
+        ? String(search.value ?? "").trim().toLocaleLowerCase(game.i18n.lang)
+        : "";
+      const libraryId = source instanceof HTMLSelectElement ? String(source.value ?? "") : this.selectedLibraryId;
+      this.selectedLibraryId = libraryId;
       for (const row of this.element.querySelectorAll("[data-affliction-template-row]")) {
         const haystack = String(row.dataset.search ?? "");
-        row.hidden = Boolean(query && !haystack.includes(query));
+        const rowLibrary = String(row.dataset.libraryId ?? "");
+        const matchesQuery = !query || haystack.includes(query);
+        const matchesLibrary = !libraryId || rowLibrary === libraryId;
+        row.hidden = !(matchesQuery && matchesLibrary);
       }
-    });
+    };
+
+    if (search instanceof HTMLInputElement) search.addEventListener("input", apply);
+    if (source instanceof HTMLSelectElement) source.addEventListener("change", apply);
+    apply();
   }
 
   #syncPersistenceUi() {

@@ -31,6 +31,7 @@ import {
   inspectAfflictionItem
 } from "../affliction/documents/affliction-item-adapter.js";
 import { createAfflictionTemplateService } from "../affliction/documents/affliction-template-service.js";
+import { createAfflictionLibraryService } from "../affliction/library/affliction-library-service.js";
 import {
   getDocumentKind,
   isAfflictionController,
@@ -64,6 +65,7 @@ function effectValidatorOrNull() {
 export function createPublicApi() {
   const effectValidator = effectValidatorOrNull();
   const templateService = createAfflictionTemplateService({ effectValidator });
+  const libraryService = createAfflictionLibraryService({ templateService });
   const instanceService = createAfflictionInstanceService({ effectValidator });
   const afflictionEngine = createAfflictionEngine({ instanceService });
   const scheduler = createAfflictionScheduler({ engine: afflictionEngine, instanceService });
@@ -119,16 +121,49 @@ export function createPublicApi() {
     }),
 
     templates: Object.freeze({
-      create: (definition, options = {}) => templateService.create(definition, options),
+      create: (definition, options = {}) => {
+        if (!libraryService.canWriteDestination(options.pack ?? null)) throw new Error("Destination belongs to a read-only Affliction library.");
+        return templateService.create(definition, options);
+      },
       get: (itemOrUuid) => templateService.get(itemOrUuid),
       read: (itemOrUuid) => templateService.read(itemOrUuid),
-      update: (itemOrUuid, definition) => templateService.update(itemOrUuid, definition),
-      clone: (itemOrUuid, options = {}) => templateService.clone(itemOrUuid, options),
-      copyDefinition: (definition, options = {}) => templateService.copyDefinition(definition, options),
-      list: (options = {}) => templateService.list(options),
-      inspect: (item) => templateService.inspect(item),
-      canUpdate: (item) => templateService.canUpdate(item),
-      writableDestinations: () => templateService.writableDestinations()
+      update: async (itemOrUuid, definition) => {
+        const document = await templateService.get(itemOrUuid);
+        if (!libraryService.canUpdate(document)) throw new Error("Affliction template belongs to a read-only library and cannot be updated in place.");
+        return templateService.update(document, definition);
+      },
+      clone: (itemOrUuid, options = {}) => {
+        if (!libraryService.canWriteDestination(options.pack ?? null)) throw new Error("Destination belongs to a read-only Affliction library.");
+        return templateService.clone(itemOrUuid, options);
+      },
+      copyDefinition: (definition, options = {}) => {
+        if (!libraryService.canWriteDestination(options.pack ?? null)) throw new Error("Destination belongs to a read-only Affliction library.");
+        return templateService.copyDefinition(definition, options);
+      },
+      list: (options = {}) => libraryService.templates(options),
+      inspect: (item) => libraryService.inspect(item),
+      canUpdate: (item) => libraryService.canUpdate(item),
+      writableDestinations: () => libraryService.writableDestinations()
+    }),
+
+    libraries: Object.freeze({
+      register: (library) => libraryService.registerLibrary(library),
+      list: (options = {}) => libraryService.list(options),
+      get: (libraryId, options = {}) => libraryService.get(libraryId, options),
+      search: (options = {}) => libraryService.search(options),
+      templates: (options = {}) => libraryService.templates(options),
+      setEnabled: (libraryId, enabled) => libraryService.setEnabled(libraryId, enabled),
+      isEnabled: (libraryId) => libraryService.isEnabled(libraryId),
+      forDocument: (document) => libraryService.libraryForDocument(document),
+      forPack: (collection) => libraryService.libraryForPack(collection),
+      canWriteDestination: (pack = null) => libraryService.canWriteDestination(pack),
+      summary: () => libraryService.summary()
+    }),
+
+    providers: Object.freeze({
+      register: (provider) => libraryService.registerProvider(provider),
+      unregister: (providerId) => libraryService.unregisterProvider(providerId),
+      list: () => libraryService.providerList()
     }),
 
     controllers: Object.freeze({

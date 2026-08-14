@@ -1361,3 +1361,32 @@
 .affliction-editor-duration-hint i {
   margin-right: 0.3rem;
 }
+
+/* 0.1.26: Library Service & Provider API. */
+.affliction-forge-library-source-filter {
+  margin: 0.6rem 0.6rem 0;
+}
+
+.affliction-forge-library-source-filter label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: #aaa4ac;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.affliction-forge-library-source-filter select {
+  width: 100%;
+  min-width: 0;
+  height: 2rem;
+  color: #f0e8df;
+  border: 1px solid #30303d;
+  border-radius: 6px;
+  background: #242431;
+}
+
+.affliction-forge-template-provider {
+  opacity: 0.75;
+  font-size: 0.68rem !important;
+}
