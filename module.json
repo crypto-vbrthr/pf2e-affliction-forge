@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.24 gives maximum duration PF2e-correct active-duration semantics: onset/incubation is excluded and the deadline starts when the first active stage begins.",
-  "version": "0.1.24",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.25 hardens large world-time jumps so all overdue intervals, including interactive GM saves, are resolved sequentially up to the maximum active-duration deadline.",
+  "version": "0.1.25",
   "socket": true,
   "authors": [
     {

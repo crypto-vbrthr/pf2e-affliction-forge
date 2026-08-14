@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.24**
+Current development build: **0.1.25**
 
-Version **0.1.24** gives `maximumDuration` explicit active-duration semantics. The maximum clock begins only when the first effective stage becomes active; onset/incubation time is excluded. The runtime persists this anchor as `activeStartedAt` and preserves it across all later stage transitions.
+Version **0.1.25** hardens historical catch-up after large Foundry world-time jumps. In `all` mode, every overdue interval is processed chronologically up to the current world-time horizon, including manual GM saves, and maximum active duration is enforced at its absolute deadline. Interactive dialogs are awaited sequentially rather than requiring another time-advance click.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -74,7 +74,7 @@ A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See
 
 ## Runtime boundary
 
-0.1.24 includes the hardened world-time scheduler, active-duration anchoring, player-save routing, and identification visibility layer. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
+0.1.25 includes the hardened world-time scheduler, active-duration anchoring, player-save routing, and identification visibility layer. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. In catch-up mode `all`, a jump across several phase durations resolves each historical due event in chronological order until the horizon or the maximum active-duration deadline is reached. Manual GM dialogs are sequential, while player results automatically resume the same catch-up chain.
 
 Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
 

@@ -148,14 +148,6 @@ export function controllerCanonicalDueAt(controller) {
   return scheduledDueAt(flags.definitionSnapshot, flags.state);
 }
 
-function interactiveResolution(result, controller) {
-  if (!result?.degree) return false;
-  const resolvedController = result.controller ?? controller;
-  const lastCheck = getAfflictionFlags(resolvedController)?.state?.lastCheck;
-  const results = Object.values(lastCheck?.results ?? {});
-  return results.some((entry) => entry?.execution && entry.execution !== "automatic");
-}
-
 function terminalResult(status) {
   return ["rejected", "recovered", "ended", "inactive"].includes(status);
 }
@@ -377,13 +369,12 @@ export class AfflictionScheduler {
         return { controllerUuid: current.uuid, status: "pending", actions, reason };
       }
 
-      // Interactive GM saves are deliberately one-per scheduler pass. Even when
-      // a large world-time jump left several intervals overdue, one click in a
-      // PF2e roll dialog must never cascade into a stack of new dialogs without
-      // another explicit scheduling action. Automatic saves may still catch up.
-      if (interactiveResolution(result, result?.controller ?? current)) {
-        return { controllerUuid: current.uuid, status: "processed-interactive", actions, reason };
-      }
+      // In full catch-up mode, interactive GM saves also continue through all
+      // historical due events up to the requested world-time horizon.
+      // AfflictionEngine.process() awaits PF2e's modifier dialog, so dialogs are
+      // strictly sequential rather than stacked. Player-owned saves remain
+      // asynchronous: their accepted result queues a fresh scheduler pass at
+      // the unchanged current world-time horizon.
       if (["no-check", "not-due"].includes(result?.status)) {
         return { controllerUuid: current.uuid, status: result.status, actions, reason };
       }

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.25
+
+### Large Time-Jump Catch-up & Maximum-Duration Hardening
+
+- fixes manual GM save catch-up after large world-time jumps: `all` mode now resolves every overdue interval sequentially instead of consuming only one interval per time-advance action
+- keeps PF2e modifier dialogs strictly sequential because each `AfflictionEngine.process()` call is awaited before the next historical interval is evaluated
+- preserves asynchronous player-save behavior: accepting a player result queues the next scheduler pass at the unchanged current world-time horizon, so overdue intervals continue without another time-advance click
+- evaluates maximum active duration as an absolute competing due event during catch-up; once its deadline is reached, the affliction ends immediately and no later historical save is manufactured
+- adds regression coverage for a ten-minute jump across one-minute stages with a five-minute maximum active duration
+- retains `next` catch-up mode as an explicit opt-in behavior that intentionally consumes only one historical due event per scheduler pass
+
 ## 0.1.24
 
 ### Maximum Active Duration Semantics

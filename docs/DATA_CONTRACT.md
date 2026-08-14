@@ -253,7 +253,7 @@ flags["pf2e-affliction-forge"] = {
 
 Generated stage-effect Item(s) use `documentKind: "affliction-stage-effect"` and carry the same `instanceId`, `controllerUuid`, `stageId`, and `stageNumber`. They also retain an `identifiedPresentation` snapshot so runtime identification changes can restore the authored stage-effect name/image/description without recompiling the stage. This source tagging remains the authoritative cleanup boundary.
 
-Automatic and manual save checks, progression, instant stage mechanics, world-time due-event discovery, historical catch-up, maximum-active-duration enforcement, non-GM Actor-sheet concealment, and lethal-stage audit logging are live in 0.1.24. Dedicated turn-specific scheduling remains later runtime work.
+Automatic and manual save checks, progression, instant stage mechanics, world-time due-event discovery, chronological historical catch-up, maximum-active-duration enforcement, non-GM Actor-sheet concealment, and lethal-stage audit logging are live in 0.1.25. In `all` catch-up mode, interactive GM saves are awaited one after another within the same scheduler pass; player saves resume catch-up when their result returns. Dedicated turn-specific scheduling remains later runtime work.
 
 
 ## Pending-check runtime shape

@@ -288,11 +288,34 @@ test("an in-progress check blocks scheduler re-entry before a GM request marker 
   assert.equal(result.processed[0].status, "pending-manual");
 });
 
-test("manual GM saves process at most one overdue interval per scheduler pass", async () => {
+test("manual GM saves catch up sequentially through every overdue interval in all mode", async () => {
   const controller = makeController(definition());
   const parts = runtime(controller, { execution: "gm" });
   const scheduler = schedulerFor(controller, parts, { catchUpMode: "all" });
   const result = await scheduler.processDue({ worldTime: 300 });
-  assert.deepEqual(parts.calls, [100]);
-  assert.equal(result.processed[0].status, "processed-interactive");
+  assert.deepEqual(parts.calls, [100, 160, 220, 280]);
+  assert.equal(result.processed[0].status, "caught-up");
+});
+
+test("a large jump catches up manual saves chronologically and ends at maximum active duration", async () => {
+  const def = definition({
+    maximumDuration: { value: 5, unit: "minutes" },
+    stages: [{ ...createDefaultStage({ number: 1 }), duration: { value: 1, unit: "minutes" } }]
+  });
+  const controller = makeController(def, {
+    appliedAt: 0,
+    activeStartedAt: 0,
+    stageEnteredAt: 0,
+    nextCheckAt: 60
+  });
+  const parts = runtime(controller, { step: 60, execution: "gm" });
+  const scheduler = schedulerFor(controller, parts, { catchUpMode: "all" });
+  const result = await scheduler.processDue({ worldTime: 600 });
+
+  // Saves are due at minutes 1–4. At minute 5 the maximum active duration
+  // wins the tie against another stage check and terminates the affliction.
+  assert.deepEqual(parts.calls, [60, 120, 180, 240]);
+  assert.equal(parts.service.ended, "maximum-duration");
+  assert.equal(result.processed[0].status, "maximum-duration");
+  assert.deepEqual(result.processed[0].actions.at(-1), { type: "maximum-duration", at: 300 });
 });
