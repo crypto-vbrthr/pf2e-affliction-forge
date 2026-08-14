@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.35 - Attack & Ability Host-Sheet Theme Integration
+
+- replaces the fixed dark reference-panel surfaces introduced in 0.1.34 with host-sheet-adaptive `currentColor` tints
+- linked-affliction rows, selectors, buttons, counters, badges, and drop zones now inherit the surrounding PF2e sheet text palette
+- adds local adaptive accent/border/surface tokens so parchment/light sheets remain readable while dark and third-party themes keep appropriate contrast
+- restores explicit focus/hover affordances for reference selectors and linked-template buttons without importing the Affliction Forge window palette into PF2e Item sheets
+- keeps destructive remove actions visually distinct and preserves existing drag/drop/reference behavior unchanged
+- adds regression coverage for the theme-adaptive host-sheet CSS contract
+
 ## 0.1.34 - Attack & Ability Affliction Drop Zones
 
 - adds dedicated Affliction reference panels to eligible PF2e `melee`, `weapon`, `action`, `feat`, and `spell` Item sheets

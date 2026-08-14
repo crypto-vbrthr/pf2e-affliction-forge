@@ -1749,13 +1749,25 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-border-highlight, #ff6400) 55%, transparent);
 }
 
-/* 0.1.34: Attack & Ability Affliction reference drop zones */
+/* 0.1.35: host-sheet theme integration for Affliction reference UI.
+ *
+ * This UI is injected into PF2e sheets whose surface can be parchment/light,
+ * Foundry-dark, or provided by a third-party theme.  Avoid fixed dark panel
+ * backgrounds here: tint from currentColor so the controls follow the host
+ * sheet instead of importing the Affliction Forge's own dark window palette.
+ */
 .pf2e-affliction-reference-panel {
+  --pf2e-affliction-reference-accent: color-mix(in srgb, #4fc46b 72%, currentColor);
+  --pf2e-affliction-reference-border: color-mix(in srgb, currentColor 24%, transparent);
+  --pf2e-affliction-reference-surface: color-mix(in srgb, currentColor 5%, transparent);
+  --pf2e-affliction-reference-surface-strong: color-mix(in srgb, currentColor 8%, transparent);
+
   margin: 0.75rem 0 0;
   padding: 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--color-border-light-primary, #736953) 70%, transparent);
+  border: 1px solid var(--pf2e-affliction-reference-border);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--color-bg-option, #2b2726) 76%, transparent);
+  background: var(--pf2e-affliction-reference-surface);
+  color: inherit;
 }
 
 .pf2e-affliction-reference-panel > header {
@@ -1764,6 +1776,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.6rem;
+  color: inherit;
 }
 
 .pf2e-affliction-reference-panel > header h3 {
@@ -1772,17 +1785,19 @@
   gap: 0.25rem;
   margin: 0;
   border: 0;
+  color: inherit;
 }
 
 .pf2e-affliction-reference-panel > header h3 i,
 .pf2e-affliction-reference-open i,
 .pf2e-affliction-reference-badge i,
 .pf2e-affliction-reference-drop-zone i {
-  color: #67bf72;
+  color: var(--pf2e-affliction-reference-accent);
 }
 
 .pf2e-affliction-reference-count {
-  color: var(--color-text-secondary, #aaa4ac);
+  color: inherit;
+  opacity: 0.72;
   font-size: 0.78rem;
   white-space: nowrap;
 }
@@ -1794,6 +1809,8 @@
 
 .pf2e-affliction-reference-empty {
   margin: 0;
+  color: inherit;
+  opacity: 0.72;
 }
 
 .pf2e-affliction-reference-row {
@@ -1802,15 +1819,34 @@
   align-items: center;
   gap: 0.45rem;
   padding: 0.45rem;
-  border: 1px solid color-mix(in srgb, var(--color-border-light-primary, #736953) 48%, transparent);
+  border: 1px solid var(--pf2e-affliction-reference-border);
   border-radius: 5px;
-  background: color-mix(in srgb, var(--color-bg, #171513) 60%, transparent);
+  background: var(--pf2e-affliction-reference-surface-strong);
+  color: inherit;
+}
+
+/* Generic Foundry form controls can inherit the dark application palette even
+ * when they are inserted into PF2e's parchment sheets.  Re-anchor them to the
+ * host sheet's text colour and build a local translucent surface around it. */
+.pf2e-affliction-reference-panel select,
+.pf2e-affliction-reference-panel input,
+.pf2e-affliction-reference-panel button {
+  color: inherit;
+  border-color: color-mix(in srgb, currentColor 30%, transparent);
 }
 
 .pf2e-affliction-reference-row select,
 .pf2e-affliction-reference-config-dialog select {
   width: 100%;
   min-width: 0;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  color: inherit;
+}
+
+.pf2e-affliction-reference-row select:focus,
+.pf2e-affliction-reference-config-dialog select:focus {
+  border-color: var(--pf2e-affliction-reference-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pf2e-affliction-reference-accent) 45%, transparent);
 }
 
 .pf2e-affliction-reference-open {
@@ -1820,6 +1856,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+  color: inherit;
+}
+
+.pf2e-affliction-reference-open:hover,
+.pf2e-affliction-reference-open:focus-visible {
+  background: color-mix(in srgb, var(--pf2e-affliction-reference-accent) 12%, transparent);
+  border-color: var(--pf2e-affliction-reference-accent);
 }
 
 .pf2e-affliction-reference-remove {
@@ -1827,6 +1871,8 @@
   min-width: 2rem !important;
   height: 2rem !important;
   padding: 0 !important;
+  color: var(--color-level-error, #b51f1f) !important;
+  background: color-mix(in srgb, currentColor 4%, transparent);
 }
 
 .pf2e-affliction-reference-drop-zone {
@@ -1837,22 +1883,25 @@
   min-height: 2.7rem;
   margin-top: 0.6rem;
   padding: 0.6rem;
-  border: 1px dashed color-mix(in srgb, #67bf72 60%, var(--color-border-light-primary, #736953));
+  border: 1px dashed color-mix(in srgb, var(--pf2e-affliction-reference-accent) 68%, currentColor);
   border-radius: 5px;
-  color: var(--color-text-secondary, #aaa4ac);
+  background: color-mix(in srgb, currentColor 2.5%, transparent);
+  color: inherit;
+  opacity: 0.78;
   text-align: center;
-  transition: background-color 100ms ease, border-color 100ms ease, box-shadow 100ms ease;
+  transition: background-color 100ms ease, border-color 100ms ease, box-shadow 100ms ease, opacity 100ms ease;
 }
 
 .pf2e-affliction-reference-drop-zone.is-dragover {
-  border-color: #67bf72;
-  background: color-mix(in srgb, #67bf72 12%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #67bf72 50%, transparent);
-  color: var(--color-text-primary, #f0f0e8);
+  border-color: var(--pf2e-affliction-reference-accent);
+  background: color-mix(in srgb, var(--pf2e-affliction-reference-accent) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pf2e-affliction-reference-accent) 50%, transparent);
+  color: inherit;
+  opacity: 1;
 }
 
 .pf2e-affliction-reference-drop-zone.is-readonly {
-  opacity: 0.68;
+  opacity: 0.58;
 }
 
 .pf2e-affliction-reference-config-dialog {
@@ -1870,9 +1919,9 @@
 }
 
 .pf2e-affliction-reference-drop-target {
-  outline: 2px solid #67bf72 !important;
+  outline: 2px solid color-mix(in srgb, #4fc46b 72%, currentColor) !important;
   outline-offset: -2px;
-  background: color-mix(in srgb, #67bf72 10%, transparent) !important;
+  background: color-mix(in srgb, #4fc46b 10%, transparent) !important;
 }
 
 .pf2e-affliction-reference-badge {
@@ -1882,9 +1931,10 @@
   width: auto;
   margin-left: 0.35rem;
   padding: 0.08rem 0.32rem;
-  border: 1px solid color-mix(in srgb, #67bf72 50%, transparent);
+  border: 1px solid color-mix(in srgb, #4fc46b 58%, currentColor);
   border-radius: 999px;
-  color: var(--color-text-secondary, #aaa4ac);
+  color: inherit;
+  opacity: 0.82;
   font-size: 0.7rem;
   line-height: 1.2;
   white-space: nowrap;
