@@ -95,7 +95,7 @@ Save policy
     │      └── GM PF2e roll, normal modifier dialog
     └── player
            ├── active owner exists
-           │      └── whispered request → player PF2e roll → module socket → GM accepts
+           │      └── whispered request document → player PF2e roll → synchronized tagged roll message → GM accepts
            └── no active owner
                   └── GM-manual fallback
 ```
@@ -196,8 +196,9 @@ A returned player result is accepted only when its request/check/user still matc
 `hidden` and `suspected` already affect runtime presentation and save requests:
 
 - controller/stage Items use PF2e unidentified presentation and hide token icons
-- player save-request text does not reveal the affliction name
-- player save-request text does not display the DC
+- hidden/suspected player save-request text does not reveal the affliction name
+- hidden/suspected player save-request text does not display the DC
+- player-manual checks are executed on the selected owner's client through PF2e's native Statistic roll dialog; the synchronized request/roll ChatMessages are the primary correlation transport; the module socket is only a fallback
 - instant-damage breakdown labels use a generic unidentified-affliction label instead of the hidden affliction name
 
 Strict removal of the controller from non-GM Actor-sheet presentation remains a later hardening block.

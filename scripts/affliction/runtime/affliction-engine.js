@@ -8,7 +8,11 @@ import {
   resolveCheckResults
 } from "./affliction-engine-core.js";
 import { rollPf2eSave } from "./pf2e-save-roller.js";
-import { createPlayerSaveRequestMessage, playerOwnerIds } from "./affliction-save-runtime.js";
+import {
+  createPlayerSaveRequestMessage,
+  emitPlayerSavePrompt,
+  preferredPlayerOwnerId
+} from "./affliction-save-runtime.js";
 import { scheduledDueAt } from "./affliction-instance-service.js";
 
 function nowWorldTime() {
@@ -196,8 +200,8 @@ export class AfflictionEngine {
     const dcVisible = state.identification?.state === "identified" || globalThis.game?.user?.isGM;
 
     if (execution === "player") {
-      const owners = playerOwnerIds(actor);
-      if (owners.length > 0) {
+      const targetUserId = preferredPlayerOwnerId(actor);
+      if (targetUserId) {
         const request = pending.requests[check.id];
         if (!request || request.status !== "awaiting-player") {
           const requestData = {
@@ -209,16 +213,23 @@ export class AfflictionEngine {
             dc: check.dc,
             visibility,
             identificationState: state.identification?.state ?? "identified",
-            userIds: owners,
+            targetUserId,
+            userIds: [targetUserId],
             requestedByUserId: currentUserId()
           };
-          const message = await createPlayerSaveRequestMessage(actor, requestData);
           pending.requests[check.id] = {
             ...requestData,
-            status: "awaiting-player",
-            messageId: message?.id ?? null
+            status: "awaiting-player"
           };
+          // Persist before notifying another client. A very fast player roll
+          // can otherwise return before the authoritative GM knows the request
+          // exists and would be rejected as stale.
           await this.instanceService.setPendingCheck(controller, pending);
+          // Keep a whisper card as an audit/retry path, but the primary UX is
+          // the targeted socket request below, which opens PF2e's native save
+          // dialog immediately on the selected player's client.
+          await createPlayerSaveRequestMessage(actor, requestData);
+          emitPlayerSavePrompt(requestData);
         }
         return null;
       }

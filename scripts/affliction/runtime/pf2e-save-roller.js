@@ -1,6 +1,6 @@
 import { normalizeDegreeOfSuccess } from "./affliction-engine-core.js";
 
-function readD20(roll) {
+export function readD20(roll) {
   const candidates = [
     roll?.dice?.[0]?.total,
     roll?.dice?.[0]?.results?.find?.((entry) => entry?.active !== false)?.result,

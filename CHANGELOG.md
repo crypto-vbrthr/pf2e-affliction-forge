@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.1.22
+
+- makes the whispered save-request `ChatMessage` the primary cross-client transport for player-manual saving throws
+- automatically opens PF2e's native saving-throw dialog when the targeted player receives a new request document
+- tags player-requested PF2e rolls with the unique Affliction request id and check id
+- lets the authoritative GM resolve the pending Affliction directly from the synchronized PF2e roll `ChatMessage`, without depending on a module-socket result packet
+- retains the package socket request/result path as a best-effort fallback and keeps the request card as an explicit retry control
+- adds regression coverage for ChatMessage-backed prompt delivery and GM-side tagged roll resolution
+
+## 0.1.21
+
+### Direct Player Save Dialog & Socket Runtime
+
+- declares the Foundry module socket namespace in `module.json` so player/GM runtime messages are officially relayed between connected clients
+- replaces the chat-card-first player-save UX with a targeted client request that immediately invokes PF2e's native `Statistic.roll()` workflow on the selected player's browser
+- keeps `skipDialog: false`, so the player receives PF2e's normal saving-throw modifier dialog instead of an Affliction-specific imitation
+- returns the completed PF2e roll result to the requesting/authoritative GM and feeds it directly into the existing pending-check resolver
+- persists the pending request before notifying the player client, preventing fast remote rolls from racing the GM-side controller state and being rejected as stale
+- chooses exactly one active owner for an interactive prompt, preferring the user whose assigned character is the affected Actor and otherwise using deterministic user-id ordering
+- retains the whispered request card as an audit/retry fallback if the player closes the direct dialog or a socket prompt is missed
+- retains unambiguous manual Actor-sheet roll correlation as a secondary compatibility path
+- adds regression coverage for targeted socket dispatch, owner selection, direct PF2e roll execution, and returned player results
+
+## 0.1.20
+
+### Player Save Request & Manual Roll Correlation
+
+- pending player-save requests now accept matching PF2e saving throws rolled manually from the actor sheet
+- correlates manual saves by authorized player, actor UUID, and requested save statistic
+- keeps the existing request-card button as the deterministic path and ignores its generated roll in the manual-capture hook to prevent duplicate submission
+- refuses ambiguous correlation when more than one pending request matches the same actor/save and asks the player to use the specific request card instead
+- records pending requests from both rendered and newly created chat messages so the workflow survives chat rerenders and normal client activity
+- adds a `createChatMessage` runtime listener for player-save result capture
+
 ## 0.1.19
 
 - Fixes a runtime timestamp coercion bug where the default `atTime: null` became numeric `0` through `Number(null)`. Initial saves could therefore anchor onset at world-time zero, making a one-minute onset immediately overdue in established worlds.

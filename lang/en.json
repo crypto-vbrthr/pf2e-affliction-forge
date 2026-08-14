@@ -229,5 +229,6 @@
   "PF2E_AFFLICTION_FORGE.Settings.CatchUpLimit.Name": "Maximum catch-up steps per affliction",
   "PF2E_AFFLICTION_FORGE.Settings.CatchUpLimit.Hint": "Safety limit for automatically processed overdue stage intervals per scheduler pass.",
   "PF2E_AFFLICTION_FORGE.Scheduler.CatchUpLimitReached": "“{name}” reached the catch-up limit of {limit} steps. Additional overdue intervals remain pending.",
-  "PF2E_AFFLICTION_FORGE.Scheduler.ProcessingFailed": "Automatic processing of “{name}” failed. See the console for details."
+  "PF2E_AFFLICTION_FORGE.Scheduler.ProcessingFailed": "Automatic processing of “{name}” failed. See the console for details.",
+  "PF2E_AFFLICTION_FORGE.Runtime.AmbiguousManualSave": "Multiple matching saving-throw requests are pending. Please use the roll button on the specific request card in chat."
 }

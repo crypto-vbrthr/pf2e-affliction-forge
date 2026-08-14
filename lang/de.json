@@ -229,5 +229,6 @@
   "PF2E_AFFLICTION_FORGE.Settings.CatchUpLimit.Name": "Maximale Nachholschritte pro Leiden",
   "PF2E_AFFLICTION_FORGE.Settings.CatchUpLimit.Hint": "Sicherheitsgrenze für die Zahl automatisch nachgeholter Phasenintervalle pro Scheduler-Durchlauf.",
   "PF2E_AFFLICTION_FORGE.Scheduler.CatchUpLimitReached": "Für „{name}“ wurde die Nachholgrenze von {limit} Schritten erreicht. Weitere überfällige Intervalle bleiben bestehen.",
-  "PF2E_AFFLICTION_FORGE.Scheduler.ProcessingFailed": "Die automatische Verarbeitung von „{name}“ ist fehlgeschlagen. Details stehen in der Konsole."
+  "PF2E_AFFLICTION_FORGE.Scheduler.ProcessingFailed": "Die automatische Verarbeitung von „{name}“ ist fehlgeschlagen. Details stehen in der Konsole.",
+  "PF2E_AFFLICTION_FORGE.Runtime.AmbiguousManualSave": "Es sind mehrere passende Rettungswurf-Anforderungen offen. Bitte verwende den Würfelknopf der gewünschten Anforderung im Chat."
 }

@@ -127,9 +127,11 @@ These are useful for diagnostics and integrations that need to preview progressi
 
 `execution: "player"`
 
-- active non-GM owners receive a whispered chat request
-- the player executes the Actor's PF2e save from that request
-- the result is returned to the requesting/authoritative GM over the module socket
+- one active non-GM owner is selected for the interactive request; the Actor's assigned user is preferred when available
+- the selected player receives a whispered request ChatMessage; its creation on that client immediately opens PF2e's native save dialog
+- a whispered chat request is also created as an audit/retry fallback
+- the completed PF2e roll carries the unique Affliction request id, so the authoritative GM can accept it directly from the synchronized PF2e roll ChatMessage
+- the module socket remains available as a fallback result path
 - if no active player owner exists, execution falls back to a GM-manual roll
 
 `visibility: "public"` produces a public roll result. `visibility: "gmOnly"` uses a GM roll for GM execution and a blind roll for player execution.

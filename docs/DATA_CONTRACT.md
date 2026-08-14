@@ -136,7 +136,7 @@ Version 0.1.18 executes this contract. `automatic` uses a PF2e roll without the 
 
 The template stores the start state. The controller stores the current runtime state, so identifying an affliction later does not require rewriting its template.
 
-Version 0.1.18 uses this as live controller state. PF2e `unidentified` / token-icon presentation is updated on controller/stage Items, and hidden/suspected player save requests omit the affliction identity and DC. Strict removal of hidden controller Items from non-GM Actor-sheet presentation remains a later hardening block.
+Version 0.1.22 uses this as live controller state. PF2e `unidentified` / token-icon presentation is updated on controller/stage Items, and hidden/suspected player save prompts omit the affliction identity and DC. Player-manual checks are now requested directly on the selected owner's client through PF2e's native roll dialog. Strict removal of hidden controller Items from non-GM Actor-sheet presentation remains a later hardening block.
 
 ## Check gates and multiple saves
 

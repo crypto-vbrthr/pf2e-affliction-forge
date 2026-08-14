@@ -72,10 +72,19 @@ test("Affliction Engine owns save orchestration while PF2e rolls stay behind a s
   assert.doesNotMatch(engine, /pf2e-critical-forge\/scripts|effect-engine\//);
 });
 
-test("player-manual saves use chat requests, blind GM-only routing, and GM-side socket acceptance", () => {
+test("player-manual saves use ChatMessage-backed direct client dialogs, tagged PF2e result correlation, blind GM-only routing, and socket fallback", () => {
+  assert.equal(moduleManifest.socket, true);
   assert.match(saveRuntime, /renderChatMessageHTML/);
   assert.match(saveRuntime, /module\.\$\{MODULE_ID\}/);
+  assert.match(saveRuntime, /type:\s*"save-request"/);
+  assert.match(saveRuntime, /handlePlayerSavePrompt/);
+  assert.match(saveRuntime, /handleIncomingSaveRequestMessage/);
+  assert.match(saveRuntime, /captureTaggedPlayerSaveMessageForGm/);
+  assert.match(saveRuntime, /affliction-forge:request:/);
+  assert.match(saveRuntime, /performPlayerRequest\(request\)/);
   assert.match(saveRuntime, /api\?\.engine\?\.acceptPlayerResult/);
+  assert.match(engine, /emitPlayerSavePrompt/);
+  assert.match(engine, /preferredPlayerOwnerId/);
   assert.match(saveRoller, /execution === "player" \? "blindroll" : "gmroll"/);
   assert.match(saveRuntime, /HiddenSaveRequestDetail/);
 });

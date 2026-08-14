@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.19**
+Current development build: **0.1.22**
 
-Version **0.1.19** hardens the world-time anchor used by initial saves, onset, and stage intervals. A null runtime timestamp now correctly means “current Foundry world time” instead of accidentally coercing to world-time zero, and onset stores its own explicit start timestamp.
+Version **0.1.22** hardens player-manual saves against socket availability. The authoritative GM creates a whispered save-request ChatMessage for one active owner; reception of that synchronized document directly opens PF2e's native saving-throw dialog on the player client. The resulting PF2e roll is tagged with the Affliction request id, allowing the authoritative GM to resolve the pending check directly from the synchronized roll ChatMessage. The module socket remains only as an optional low-latency fallback.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -27,7 +27,8 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - Affliction Engine execution of initial and stage saves
 - automatic saves without a modifier dialog
 - GM-manual saves with the PF2e roll dialog
-- player-manual save requests through whispered chat cards
+- player-manual saves opened directly as PF2e roll dialogs on the selected owner client
+- whispered player-save cards retained as audit/retry fallback
 - public and GM-only result routing
 - hidden/suspected save requests that do not reveal the affliction identity or DC in the request text
 - searchable world/compendium template library with Save, Save As, clone/copy, and live deletion synchronization
@@ -70,7 +71,7 @@ A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See
 
 ## Runtime boundary
 
-0.1.19 includes the hardened world-time scheduler and runtime clock anchoring. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
+0.1.22 includes the hardened world-time scheduler and runtime clock anchoring. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
 
 Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
 
