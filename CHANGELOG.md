@@ -4,6 +4,7 @@
 
 - separates the public API compatibility version (`0.1.0`) from the module release version (`0.1.42`)
 - makes failed automatic combat-trigger applications retryable; idempotency is committed only after successful application or an intentional skip/manual/no-target decision
+- enforces one live controller per Actor and Affliction `definitionId`; duplicate applications skip already affected targets, overlapping applications are serialized, and the same Affliction can be applied again after its prior controller ends
 - tracks in-flight trigger keys separately to prevent duplicate concurrent application without poisoning later retries
 - adds strict runtime reconciliation that detects and rebuilds manually altered generated stage-effect content without replaying instant damage or death
 - makes the controller manager's “Runtime reparieren” action use strict reconciliation
@@ -12,6 +13,9 @@
 - adds pause/resume controls and audit events to the runtime manager
 - excludes malformed provider templates from level-bounded library searches instead of letting unknown levels pass filters
 - standardizes lethal-stage lifecycle chat as GM-only and keeps persisted Affliction links in the audit message
+- prevents controller-manager stage navigation from bypassing pending exposure or incubation gates, and reserves stage 0 exclusively for those workflows
+- rejects semantically impossible controller status/stage combinations and blocks active-to-stage-0 transitions
+- treats a recorded lethal result as terminal across engine processing and manual stage/pause/instant-retry mutations
 - preserves existing Affliction/Controller schema v2; pause metadata is an optional additive runtime field
 - adds regression coverage for trigger retry, strict reconcile, pause/resume timing, pending-save pause rejection, and malformed library levels
 

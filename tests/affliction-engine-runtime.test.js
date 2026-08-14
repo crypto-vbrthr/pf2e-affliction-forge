@@ -602,3 +602,34 @@ test("Affliction without an initial save announces immediately and falls back to
     globalThis.ChatMessage = previousChatMessage;
   }
 });
+
+
+test("engine processing treats a recorded lethal Affliction as terminal", async () => {
+  const definition = automaticDefinition();
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.dead",
+    status: "active",
+    currentStage: 1,
+    appliedAt: 900,
+    stageEnteredAt: 900,
+    activeStartedAt: 900,
+    nextCheckAt: 1000,
+    identification: { state: "identified", identifiedAt: 900, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [],
+    pendingCheck: null,
+    onsetTargetStage: null,
+    lastCheck: null,
+    mortality: { dead: true, at: 950, stageNumber: 1, category: "direct" },
+    pause: null,
+    events: [],
+    revision: 2
+  };
+  const { actor, controller } = makeController(definition, { state, degrees: ["failure"] });
+  const engine = createAfflictionEngine({ instanceService: serviceFor(controller) });
+  const result = await engine.process(controller, { force: true });
+  assert.equal(result.status, "dead");
+  assert.equal(actor.lastRollOptions, undefined);
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 1);
+});

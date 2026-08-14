@@ -161,6 +161,7 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
     const totalChecks = pending?.checkIds?.length ?? engineInfo.plan?.checks?.length ?? 0;
     const resolvedChecks = pending ? Object.values(pending.results ?? {}).filter((entry) => entry?.degree).length : 0;
     const lastDegree = state.lastCheck?.degree ?? null;
+    const lethal = state.mortality?.dead === true;
     const processLabelKey = state.status === "incubating"
       ? "PF2E_AFFLICTION_FORGE.Runtime.CompleteOnset"
       : state.status === "pending"
@@ -173,12 +174,15 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
         ? `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage")} ${stage.number}${stage.name ? ` · ${stage.name}` : ""}`
         : localize("PF2E_AFFLICTION_FORGE.Runtime.NoStage"),
       activeEffectCount: state.activeStageEffectUuids?.length ?? 0,
-      canPrevious: state.status !== "paused" && state.currentStage > 0,
-      canNext: state.status !== "paused" && state.currentStage < info.stageCount,
-      canReapply: state.status !== "paused" && state.currentStage > 0,
-      canProcess: ["pending", "incubating", "active"].includes(state.status),
-      canPause: ["incubating", "active"].includes(state.status) && !state.pendingCheck,
-      canResume: state.status === "paused",
+      // Stage navigation is only valid for an already active Affliction.
+      // Stage 0 belongs to exposure/onset and must never be reachable through
+      // the manual Previous/Next controls. A recorded lethal result is terminal.
+      canPrevious: !lethal && state.status === "active" && state.currentStage > 1,
+      canNext: !lethal && state.status === "active" && state.currentStage < info.stageCount,
+      canReapply: !lethal && state.status === "active" && state.currentStage > 0,
+      canProcess: !lethal && ["pending", "incubating", "active"].includes(state.status),
+      canPause: !lethal && ["incubating", "active"].includes(state.status) && !state.pendingCheck,
+      canResume: !lethal && state.status === "paused",
       processLabel: localize(processLabelKey),
       dueLabel: state.status === "paused" ? localize("PF2E_AFFLICTION_FORGE.Runtime.Paused") : formatDueAt(state.nextCheckAt),
       pendingSummary: totalChecks > 0 ? `${resolvedChecks}/${totalChecks}` : null,

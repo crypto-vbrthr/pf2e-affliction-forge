@@ -68,6 +68,15 @@ export function validateAfflictionControllerState(state, definition = null) {
     if (!CONTROLLER_STATUSES.includes(state.status)) errors.push(`Unsupported controller status: ${state.status}.`);
     if (!Number.isInteger(state.currentStage) || state.currentStage < 0) errors.push("currentStage must be a non-negative integer.");
     if (definition && state.currentStage > definition.stages.length) errors.push("currentStage exceeds the definition stage count.");
+
+    // Status/stage combinations are semantic runtime invariants, not merely UI
+    // conventions. Stage 0 is reserved for initial exposure/onset workflows;
+    // an active Affliction must always own a real stage.
+    if (state.status === "active" && state.currentStage < 1) errors.push("active controllers must be in stage 1 or higher.");
+    if (["pending", "incubating"].includes(state.status) && state.currentStage !== 0) errors.push(`${state.status} controllers must be in stage 0.`);
+    if (["recovered", "ended"].includes(state.status) && state.currentStage !== 0) errors.push(`${state.status} controllers must be in stage 0.`);
+    if (definition && state.status === "pending" && !definition.initialCheck) errors.push("pending controllers require an initial check.");
+    if (definition && state.status === "incubating" && !definition.onset) errors.push("incubating controllers require an onset duration.");
     if (!Array.isArray(state.activeStageEffectUuids)) errors.push("activeStageEffectUuids must be an array.");
     if (state.pendingCheck !== null && state.pendingCheck !== undefined && (typeof state.pendingCheck !== "object" || Array.isArray(state.pendingCheck))) errors.push("pendingCheck must be an object or null.");
     if (state.lastCheck !== null && state.lastCheck !== undefined && (typeof state.lastCheck !== "object" || Array.isArray(state.lastCheck))) errors.push("lastCheck must be an object or null.");
@@ -79,7 +88,12 @@ export function validateAfflictionControllerState(state, definition = null) {
         if (!Number.isFinite(state.pause.pausedAt)) errors.push("pause.pausedAt must be a finite world-time value.");
         if (!["incubating", "active"].includes(state.pause.previousStatus)) errors.push("pause.previousStatus must be incubating or active.");
         if (state.pause.nextCheckAt !== null && state.pause.nextCheckAt !== undefined && !Number.isFinite(state.pause.nextCheckAt)) errors.push("pause.nextCheckAt must be a finite world-time value or null.");
+        if (state.status !== "paused") errors.push("pause metadata is only valid while status is paused.");
+        if (state.pause.previousStatus === "active" && state.currentStage < 1) errors.push("paused active controllers must retain stage 1 or higher.");
+        if (state.pause.previousStatus === "incubating" && state.currentStage !== 0) errors.push("paused incubating controllers must remain in stage 0.");
       }
+    } else if (state.status === "paused") {
+      errors.push("paused controllers require pause metadata.");
     }
     if (!Number.isInteger(state.recoverySuccesses) || state.recoverySuccesses < 0) errors.push("recoverySuccesses must be a non-negative integer.");
     if (!Number.isInteger(state.revision) || state.revision < 1) errors.push("revision must be a positive integer.");

@@ -252,6 +252,13 @@ export class AfflictionEngine {
       ? Number(atTime)
       : nowWorldTime();
 
+    // Critical Forge death components can intentionally leave the controller
+    // in place as a cause-of-death/audit record. Once death has been committed,
+    // no manual or scheduled save may progress that controller further.
+    if (state.mortality?.dead === true) {
+      return { status: "dead", controller };
+    }
+
     if (state.status === "incubating") {
       const dueAt = scheduledDueAt(current.definition, state);
       if (!force && Number.isFinite(dueAt) && processAt < dueAt) {

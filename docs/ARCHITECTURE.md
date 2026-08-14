@@ -79,6 +79,7 @@ External content modules register providers through `api.providers.register()` a
 - **Templates are inert** and contain no Rule Elements.
 - **Active controllers snapshot definitions**, so later template edits cannot mutate an already running case.
 - **Every generated stage effect carries the controller `instanceId`**, preventing one affliction instance from removing another's effects.
+- **Every Actor has at most one live controller for a given Affliction `definitionId`**. Pending, incubating, active, paused, and terminal retained controllers reserve that identity; duplicate application attempts are skipped until the controller ends or is removed.
 
 ## Canonical application path
 
@@ -227,7 +228,7 @@ Lethal stage execution is audited separately from ordinary stage state. A succes
 
 ## Runtime concurrency and reconciliation boundary
 
-0.1.30 keeps one logical mutation stream per active controller. Affliction Engine save resolution and instance-service stage/identification/end mutations are serialized, while reconciliation uses revision snapshots and retries rather than writing stale generated output over a newer controller state. Reconciliation is also fault-isolated per controller/Actor and never replays instant mechanics. Multi-target application structurally commits all controller/persistent output before any irreversible instant damage/death executes.
+0.1.30 keeps one logical mutation stream per active controller. Affliction Engine save resolution and instance-service stage/identification/end mutations are serialized, while reconciliation uses revision snapshots and retries rather than writing stale generated output over a newer controller state. Reconciliation is also fault-isolated per controller/Actor and never replays instant mechanics. Multi-target application structurally commits all controller/persistent output before any irreversible instant damage/death executes. Actor/definition application locks are acquired in stable order, so overlapping multi-target calls cannot race into duplicate controllers or deadlock each other; already affected targets are filtered while eligible siblings continue normally.
 
 Generated stage-effect deletion hooks are coalesced, manually deleted controllers clean only their own generated output, and runtime discovery includes world Actors plus unlinked synthetic token Actors. Once `state.mortality.dead` records a successful lethal-stage outcome, automatic scheduler catch-up stops for that controller while the controller remains available for audit/GM management.
 
@@ -337,9 +338,13 @@ The adapter runs only on the authoritative active GM, deduplicates message/refer
 
 ## Contract/runtime hardening in 0.1.42
 
+- Runtime application now enforces one live controller per Actor + Affliction `definitionId`, including pending exposure/incubation reservations and concurrent apply calls.
 - Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.42`).
 - Combat-trigger idempotency is committed only after a successful application or an intentional terminal decision; transient failures remain retryable.
 - Strict reconciliation can verify generated stage-effect content, not merely controller/stage ownership flags.
 - Identification updates use batch embedded-document updates when available and fall back to strict reconciliation after a partial failure.
 - Paused controllers keep persistent mechanics but are excluded from scheduling. Resume shifts active timing anchors so neither stage duration nor maximum active duration advances while paused.
 - GM lifecycle reporting uses one privacy contract, including lethal-stage messages.
+- Controller-manager stage navigation is enabled only for active, nonlethal controllers; stage 0 remains reserved for initial exposure/onset state.
+- Controller-state validation enforces status/stage and pause-metadata invariants so malformed runtime states cannot be persisted by ordinary mutations.
+- A committed lethal result is terminal for engine progression and ordinary manual stage/pause/instant retry mutations; reconciliation, identification, inspection, and explicit end remain available for audit/cleanup.

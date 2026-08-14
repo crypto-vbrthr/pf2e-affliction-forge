@@ -245,6 +245,8 @@ Default controller creation mirrors the definition:
 - no `initialCheck` + onset -> `incubating`, stage 0, `onsetTargetStage: 1`
 - neither -> `active`, stage 1
 
+These are runtime invariants, not only defaults: `pending` and `incubating` remain in stage 0, `active` controllers are always in stage 1 or higher, and `paused` controllers retain the stage shape of their previous schedulable status. Stage 0 is therefore not a manual predecessor to stage 1; recovery/end is represented by the terminal controller lifecycle instead.
+
 The controller Item additionally stores:
 
 ```js
@@ -262,6 +264,8 @@ flags["pf2e-affliction-forge"] = {
 ```
 
 Generated stage-effect Item(s) use `documentKind: "affliction-stage-effect"` and carry the same `instanceId`, `controllerUuid`, `stageId`, and `stageNumber`. They also retain an `identifiedPresentation` snapshot so runtime identification changes can restore the authored stage-effect name/image/description without recompiling the stage. This source tagging remains the authoritative cleanup boundary.
+
+Runtime uniqueness is keyed by the controller `definitionId`: an Actor may have only one live Affliction controller with a given `definitionId` at a time. The controller reserves that identity from pending exposure/onset onward. This is a runtime invariant rather than a schema change, so controller schema v2 remains unchanged.
 
 Automatic and manual save checks, progression, instant stage mechanics, world-time due-event discovery, chronological historical catch-up, maximum-active-duration enforcement, non-GM Actor-sheet concealment, and lethal-stage audit logging are live in 0.1.25. In `all` catch-up mode, interactive GM saves are awaited one after another within the same scheduler pass; player saves resume catch-up when their result returns. Dedicated turn-specific scheduling remains later runtime work.
 

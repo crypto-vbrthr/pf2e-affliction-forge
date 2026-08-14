@@ -2,7 +2,7 @@
 
 Current development build: **0.1.42**
 
-Version **0.1.42** hardens the public and runtime contracts before the first release candidate: combat-trigger failures remain retryable, strict reconciliation can rebuild manually altered stage output, identification changes recover from partial updates, pause/resume freezes affliction clocks, level-bounded library searches reject malformed levels, and the public API now has its own compatibility version.
+Version **0.1.42** hardens the public and runtime contracts before the first release candidate: combat-trigger failures remain retryable, an Actor can hold only one live controller for a given Affliction `definitionId`, strict reconciliation can rebuild manually altered stage output, identification changes recover from partial updates, pause/resume freezes affliction clocks, controller stage navigation can no longer bypass exposure/onset gates or enter reserved stage 0, lethal controllers are terminal, level-bounded library searches reject malformed levels, and the public API now has its own compatibility version.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -122,7 +122,7 @@ Hidden controllers and unidentified stage-effect rows are now removed from non-G
 
 ## Runtime reconciliation
 
-Active Affliction controllers own their generated persistent stage Items. Applying an Affliction no longer opens the controller manager automatically. The manager is an explicit GM diagnostic tool and exposes a runtime repair action. The public API also provides `api.instances.reconcile()`, `reconcileActor()`, and `reconcileAll()` to restore missing or stale generated stage output without replaying instant damage/death components.
+Active Affliction controllers own their generated persistent stage Items. A live controller also reserves its Affliction `definitionId` on that Actor, so repeated or concurrent applications of the same Affliction are skipped until that controller ends; different Affliction identities can coexist normally. Applying an Affliction no longer opens the controller manager automatically. The manager is an explicit GM diagnostic tool and exposes a runtime repair action. The public API also provides `api.instances.reconcile()`, `reconcileActor()`, and `reconcileAll()` to restore missing or stale generated stage output without replaying instant damage/death components.
 
 - 0.1.39: linked host Items can evaluate supported PF2e attack, applied-damage, save, and use ChatMessages and apply matching references through the public Application Service.
 - 0.1.35: Affliction templates can be linked directly to attacks and abilities by dropping them onto eligible Item sheets or embedded Actor-sheet rows.

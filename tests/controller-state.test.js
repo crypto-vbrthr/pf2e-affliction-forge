@@ -60,3 +60,23 @@ test("legacy schema-v2 controller state remains valid when activeStartedAt is ab
   delete state.activeStartedAt;
   assert.equal(validateAfflictionControllerState(state, definition).valid, true);
 });
+
+
+test("controller validator rejects semantically impossible status/stage combinations", () => {
+  const activeDefinition = createAfflictionDefinition({ name: "Active Contract", initialCheck: null });
+  const active = createAfflictionControllerState(activeDefinition, { appliedAt: 100 });
+  active.currentStage = 0;
+  assert.equal(validateAfflictionControllerState(active, activeDefinition).valid, false);
+
+  const pendingWithoutGate = createAfflictionControllerState(activeDefinition, { appliedAt: 100 });
+  pendingWithoutGate.status = "pending";
+  pendingWithoutGate.currentStage = 0;
+  pendingWithoutGate.stageEnteredAt = null;
+  pendingWithoutGate.activeStartedAt = null;
+  assert.equal(validateAfflictionControllerState(pendingWithoutGate, activeDefinition).valid, false);
+
+  const pausedWithoutMetadata = createAfflictionControllerState(activeDefinition, { appliedAt: 100 });
+  pausedWithoutMetadata.status = "paused";
+  pausedWithoutMetadata.pause = null;
+  assert.equal(validateAfflictionControllerState(pausedWithoutMetadata, activeDefinition).valid, false);
+});

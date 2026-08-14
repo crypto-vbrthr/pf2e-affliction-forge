@@ -785,6 +785,7 @@ function descriptor(controller) {
 
 export class AfflictionInstanceService {
   #mutationQueues = new Map();
+  #applicationQueues = new Map();
 
   constructor({ effectValidator = null } = {}) {
     this.effectValidator = effectValidator;
@@ -805,6 +806,46 @@ export class AfflictionInstanceService {
       if (this.#mutationQueues.get(key) === tail) this.#mutationQueues.delete(key);
     });
     return run;
+  }
+
+  #applicationKey(actor, definitionId) {
+    return `${actor?.uuid ?? actor?.id ?? "unknown-actor"}::${definitionId}`;
+  }
+
+  async #withApplicationLocks(keys, task) {
+    const normalizedKeys = [...new Set(keys.filter(Boolean))].sort();
+    const acquired = [];
+
+    try {
+      // Acquire all Actor/definition locks in stable order so overlapping
+      // multi-target applications cannot deadlock one another. Each lock stays
+      // held through controller/persistent-output creation and instant effects,
+      // making the duplicate check atomic from the runtime's point of view.
+      for (const key of normalizedKeys) {
+        const previous = this.#applicationQueues.get(key) ?? Promise.resolve();
+        let release;
+        const gate = new Promise((resolve) => { release = resolve; });
+        const tail = previous.catch(() => undefined).then(() => gate);
+        this.#applicationQueues.set(key, tail);
+        await previous.catch(() => undefined);
+        acquired.push({ key, release, tail });
+      }
+      return await task();
+    } finally {
+      for (const { key, release, tail } of [...acquired].reverse()) {
+        release?.();
+        void tail.then(() => {
+          if (this.#applicationQueues.get(key) === tail) this.#applicationQueues.delete(key);
+        });
+      }
+    }
+  }
+
+  #hasActiveDefinition(actor, definitionId) {
+    return itemCollection(actor).some((item) => {
+      if (!isAfflictionController(item)) return false;
+      return getAfflictionFlags(item)?.definitionId === definitionId;
+    });
   }
 
   async get(controllerOrUuid) {
@@ -871,94 +912,104 @@ export class AfflictionInstanceService {
 
     for (const actor of actors) assertWritableActor(actor);
 
-    const controllers = [];
-    try {
-      for (const actor of actors) {
-        const hasInitialCheck = Boolean(definition.initialCheck);
-        const hasOnset = Boolean(definition.onset);
-        const initialStage = hasInitialCheck || hasOnset ? 0 : 1;
-        const initialStatus = hasInitialCheck ? "pending" : hasOnset ? "incubating" : "active";
-        const state = createAfflictionControllerState(definition, {
-          instanceId: randomId("affliction-instance"),
-          appliedAt,
-          currentStage: initialStage,
-          stageEnteredAt: initialStage > 0 ? appliedAt : null,
-          activeStartedAt: initialStage > 0 ? appliedAt : null,
-          onsetStartedAt: hasOnset && !hasInitialCheck ? appliedAt : null,
-          status: initialStatus,
-          onsetTargetStage: hasOnset && !hasInitialCheck ? 1 : null,
-          // The initial exposure save is not a timed event. It is resolved by
-          // AfflictionEngine.apply*() immediately after controller creation.
-          // Keeping nextCheckAt null prevents the world-time scheduler from
-          // racing that interactive save if time advances while its dialog is open.
-          nextCheckAt: hasInitialCheck
-            ? null
-            : hasOnset
-              ? dueAt(definition.onset, appliedAt)
-              : dueAt(definition.stages?.[0]?.duration, appliedAt)
-        });
-        appendRuntimeEvent(state, { type: "applied", at: appliedAt });
-        if (initialStage > 0) {
-          const firstStage = stageDescriptor(definition, initialStage);
-          appendRuntimeEvent(state, {
-            type: "stage-entered",
-            at: appliedAt,
-            stageNumber: initialStage,
-            stageId: firstStage?.id ?? null,
-            data: stageEventData(firstStage)
+    const lockKeys = actors.map((actor) => this.#applicationKey(actor, definition.id));
+    return this.#withApplicationLocks(lockKeys, async () => {
+      // A controller reserves the Affliction identity immediately, including
+      // pending exposure saves and incubation. Repeated application attempts
+      // therefore skip that Actor until the existing controller is ended or
+      // removed. Different definitionIds remain independent and may coexist.
+      const eligibleActors = actors.filter((actor) => !this.#hasActiveDefinition(actor, definition.id));
+      if (eligibleActors.length === 0) return [];
+
+      const controllers = [];
+      try {
+        for (const actor of eligibleActors) {
+          const hasInitialCheck = Boolean(definition.initialCheck);
+          const hasOnset = Boolean(definition.onset);
+          const initialStage = hasInitialCheck || hasOnset ? 0 : 1;
+          const initialStatus = hasInitialCheck ? "pending" : hasOnset ? "incubating" : "active";
+          const state = createAfflictionControllerState(definition, {
+            instanceId: randomId("affliction-instance"),
+            appliedAt,
+            currentStage: initialStage,
+            stageEnteredAt: initialStage > 0 ? appliedAt : null,
+            activeStartedAt: initialStage > 0 ? appliedAt : null,
+            onsetStartedAt: hasOnset && !hasInitialCheck ? appliedAt : null,
+            status: initialStatus,
+            onsetTargetStage: hasOnset && !hasInitialCheck ? 1 : null,
+            // The initial exposure save is not a timed event. It is resolved by
+            // AfflictionEngine.apply*() immediately after controller creation.
+            // Keeping nextCheckAt null prevents the world-time scheduler from
+            // racing that interactive save if time advances while its dialog is open.
+            nextCheckAt: hasInitialCheck
+              ? null
+              : hasOnset
+                ? dueAt(definition.onset, appliedAt)
+                : dueAt(definition.stages?.[0]?.duration, appliedAt)
           });
-        } else if (initialStatus === "incubating") {
-          appendRuntimeEvent(state, { type: "onset-started", at: appliedAt });
-        }
-        const [controller] = await actor.createEmbeddedDocuments("Item", [controllerItemSource(definition, state, {
-          sourceTemplateUuid,
-          sourceDefinitionVersion,
-          origin
-        })], {
-          renderSheet: false,
-          [MODULE_ID]: { afflictionControllerApplication: true }
-        });
-        if (!controller) throw new Error(`Affliction controller could not be created on ${actor.name ?? actor.uuid}.`);
-
-        try {
-          if (state.currentStage > 0) {
-            const stage = stageDescriptor(definition, state.currentStage);
-            const createdEffects = await createStageEffects({ actor, controller, definition, state, stage });
-            state.activeStageEffectUuids = createdEffects.map((item) => item.uuid);
-            await updateController(controller, definition, state);
+          appendRuntimeEvent(state, { type: "applied", at: appliedAt });
+          if (initialStage > 0) {
+            const firstStage = stageDescriptor(definition, initialStage);
+            appendRuntimeEvent(state, {
+              type: "stage-entered",
+              at: appliedAt,
+              stageNumber: initialStage,
+              stageId: firstStage?.id ?? null,
+              data: stageEventData(firstStage)
+            });
+          } else if (initialStatus === "incubating") {
+            appendRuntimeEvent(state, { type: "onset-started", at: appliedAt });
           }
-          controllers.push(controller);
-        } catch (error) {
-          try { await removeStageEffects(actor, state); } catch { /* best effort */ }
-          try { await actor.deleteEmbeddedDocuments("Item", [controller.id], { render: false }); } catch { /* best effort */ }
-          throw error;
-        }
-      }
+          const [controller] = await actor.createEmbeddedDocuments("Item", [controllerItemSource(definition, state, {
+            sourceTemplateUuid,
+            sourceDefinitionVersion,
+            origin
+          })], {
+            renderSheet: false,
+            [MODULE_ID]: { afflictionControllerApplication: true }
+          });
+          if (!controller) throw new Error(`Affliction controller could not be created on ${actor.name ?? actor.uuid}.`);
 
-      // Only after every target has a valid controller and persistent stage
-      // output do we execute irreversible stage-entry mechanics such as damage
-      // or death. This preserves structural multi-target rollback: a later Actor
-      // creation failure can never leave an earlier Actor damaged by an
-      // application whose controller was subsequently rolled back.
-      for (const controller of controllers) {
-        const actor = controller.parent;
-        const state = deepClone(getAfflictionFlags(controller)?.state ?? {});
-        if (state.currentStage <= 0) continue;
-        const stage = stageDescriptor(definition, state.currentStage);
-        const instantResults = await executeStageInstantEffectsSafely({ actor, controller, definition, state, stage });
-        await recordInstantExecutionResultsSafely({ actor, controller, definition, state, stage, results: instantResults, at: appliedAt });
-      }
-      return controllers;
-    } catch (error) {
-      // Persistent/controller creation is rollback-safe because irreversible
-      // instant stage mechanics are deferred until all targets commit.
-      for (const controller of [...controllers].reverse()) {
-        try { await this.end(controller, { reason: "ended", notifyLifecycle: false }); } catch (cleanupError) {
-          console.error(`${MODULE_ID} | Failed to roll back a partial multi-target Affliction application.`, cleanupError);
+          try {
+            if (state.currentStage > 0) {
+              const stage = stageDescriptor(definition, state.currentStage);
+              const createdEffects = await createStageEffects({ actor, controller, definition, state, stage });
+              state.activeStageEffectUuids = createdEffects.map((item) => item.uuid);
+              await updateController(controller, definition, state);
+            }
+            controllers.push(controller);
+          } catch (error) {
+            try { await removeStageEffects(actor, state); } catch { /* best effort */ }
+            try { await actor.deleteEmbeddedDocuments("Item", [controller.id], { render: false }); } catch { /* best effort */ }
+            throw error;
+          }
         }
+
+        // Only after every target has a valid controller and persistent stage
+        // output do we execute irreversible stage-entry mechanics such as damage
+        // or death. This preserves structural multi-target rollback: a later Actor
+        // creation failure can never leave an earlier Actor damaged by an
+        // application whose controller was subsequently rolled back.
+        for (const controller of controllers) {
+          const actor = controller.parent;
+          const state = deepClone(getAfflictionFlags(controller)?.state ?? {});
+          if (state.currentStage <= 0) continue;
+          const stage = stageDescriptor(definition, state.currentStage);
+          const instantResults = await executeStageInstantEffectsSafely({ actor, controller, definition, state, stage });
+          await recordInstantExecutionResultsSafely({ actor, controller, definition, state, stage, results: instantResults, at: appliedAt });
+        }
+        return controllers;
+      } catch (error) {
+        // Persistent/controller creation is rollback-safe because irreversible
+        // instant stage mechanics are deferred until all targets commit.
+        for (const controller of [...controllers].reverse()) {
+          try { await this.end(controller, { reason: "ended", notifyLifecycle: false }); } catch (cleanupError) {
+            console.error(`${MODULE_ID} | Failed to roll back a partial multi-target Affliction application.`, cleanupError);
+          }
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
   }
 
   async updateRuntimeState(controllerOrUuid, stateInput) {
@@ -1037,9 +1088,14 @@ export class AfflictionInstanceService {
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
     let previous = deepClone(flags.state);
     if (previous.status === "paused") throw new Error("Paused Afflictions must be resumed before changing stage.");
+    if (previous.mortality?.dead === true) throw new Error("A lethal Affliction cannot change stage after death has been recorded.");
     const max = definition.stages.length;
-    const stageNumber = Math.max(0, Math.min(max, Math.trunc(Number(requestedStage))));
-    if (!Number.isFinite(stageNumber)) throw new TypeError("Stage number must be numeric.");
+    const numericStage = Number(requestedStage);
+    if (!Number.isFinite(numericStage)) throw new TypeError("Stage number must be numeric.");
+    const stageNumber = Math.max(0, Math.min(max, Math.trunc(numericStage)));
+    if (previous.status === "active" && stageNumber === 0) {
+      throw new RangeError("Active Afflictions cannot transition to stage 0. End or recover the Affliction instead.");
+    }
 
     const stage = stageDescriptor(definition, stageNumber);
     const sameActiveStage = stageNumber > 0
@@ -1183,7 +1239,7 @@ export class AfflictionInstanceService {
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
     const state = deepClone(flags.state);
     const stage = stageDescriptor(definition, state.currentStage);
-    if (!stage || state.status !== "active") return [];
+    if (!stage || state.status !== "active" || state.mortality?.dead === true) return [];
     const results = await executeStageInstantEffects({ actor, controller, definition, state, stage });
     await recordInstantExecutionResultsSafely({ actor, controller, definition, state, stage, results, at: nowWorldTime() });
     return results;
@@ -1275,6 +1331,7 @@ export class AfflictionInstanceService {
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
     const state = deepClone(flags.state);
     if (state.status === "paused") return controller;
+    if (state.mortality?.dead === true) throw new Error("A lethal Affliction cannot be paused after death has been recorded.");
     if (!["incubating", "active"].includes(state.status)) throw new Error("Only incubating or active Afflictions can be paused.");
     if (state.pendingCheck) throw new Error("An Affliction with a pending save cannot be paused.");
     const at = finiteTime(pausedAt) ?? nowWorldTime();

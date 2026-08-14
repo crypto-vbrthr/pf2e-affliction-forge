@@ -69,6 +69,8 @@ The result is:
 
 An initial success that rejects the affliction removes that controller, so it remains in `created` but not in `controllers`.
 
+Application is unique per Actor and Affliction `definitionId` while a controller exists. A target that already carries that Affliction is skipped rather than receiving a second controller; in a multi-target call, eligible targets are still processed. Overlapping applications for the same Actor/definition are serialized, and once the prior controller ends or is removed the Affliction may be applied again. Consequently, `created` can legitimately be empty when every supplied target is already affected.
+
 If initial processing fails unexpectedly, the controller is intentionally left pending and returned in `controllers`; the GM can retry it from the controller manager rather than losing the affliction instance.
 
 ### Process an existing controller
@@ -175,9 +177,13 @@ api.instances.reconcile(controllerOrUuid, { strict: true })
 
 **Important:** `api.instances.apply*()` is a low-level creation path. It does not execute the initial exposure save. For normal Creature Forge, ability, spell, chat-card, or drag-and-drop application, prefer `api.engine.apply*()`.
 
+The same one-live-controller-per-`definitionId` invariant is enforced here as well, so low-level integrations cannot bypass duplicate protection. Pending exposure and incubation controllers reserve the identity too; ending/removing the controller releases it.
+
 Stage mechanics use two public Critical Forge paths: persistent components are compiled through `api.effects.toItemSources()`, while instant components are executed through `api.effects.execute()`. This includes one-shot `damage` and lethal `death` components; the latter retain Critical Forge's `direct` versus `death-effect` semantics. Every generated persistent stage effect is tagged with its controller `instanceId`, so parallel applications cannot clean up each other's mechanics.
 
 When `setStage()` resolves back to the already active stage, persistent Items are preserved and the stage interval is renewed; only instant mechanics execute again. `reapplyStage()` is the explicit repair/refresh operation and rebuilds persistent output before executing instant mechanics. `executeStageInstant()` is available for an explicit retry or diagnostic execution of the current active stage.
+
+Stage 0 is reserved for initial exposure/onset runtime state. An already active controller cannot be moved back to stage 0 with `setStage()`; use `end(..., { reason: "recovered" })` for recovery semantics. Once a Critical Forge `death` result has been committed to controller mortality state, engine progression and ordinary stage/pause/instant-retry mutations are terminally blocked while inspection, reconciliation, identification changes, and explicit cleanup remain available.
 
 
 ### API compatibility version

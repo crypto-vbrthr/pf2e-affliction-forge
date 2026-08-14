@@ -292,11 +292,15 @@ test("manual stage transitions replace only this instance stage effects and upda
   assert.equal(getAfflictionFlags(controller).state.activeStartedAt, 1000);
 });
 
-test("multiple instances of the same definition remain isolated", async () => {
+test("different Affliction definition identities remain isolated on the same Actor", async () => {
   const actor = new FakeActor("hero3", "Hero 3");
   const service = createAfflictionInstanceService();
-  const [a] = await service.applyDefinition(definition(), actor);
-  const [b] = await service.applyDefinition(definition(), actor);
+  const firstDefinition = definition();
+  const secondDefinition = definition();
+  assert.notEqual(firstDefinition.id, secondDefinition.id);
+
+  const [a] = await service.applyDefinition(firstDefinition, actor);
+  const [b] = await service.applyDefinition(secondDefinition, actor);
   const aId = getAfflictionFlags(a).instanceId;
   const bId = getAfflictionFlags(b).instanceId;
   assert.notEqual(aId, bId);
@@ -306,6 +310,98 @@ test("multiple instances of the same definition remain isolated", async () => {
   const effectsB = actor.items.filter((item) => isAfflictionStageEffect(item) && getAfflictionFlags(item).instanceId === bId);
   assert.equal(getAfflictionFlags(effectsA[0]).stageId, "stage-2");
   assert.equal(getAfflictionFlags(effectsB[0]).stageId, "stage-1");
+});
+
+test("the same Affliction definition cannot be applied twice while its controller exists", async () => {
+  const actor = new FakeActor("heroDuplicate", "Duplicate Hero");
+  const service = createAfflictionInstanceService();
+  const source = definition();
+
+  const [first] = await service.applyDefinition(source, actor);
+  const duplicate = await service.applyDefinition(source, actor);
+
+  assert.equal(duplicate.length, 0);
+  assert.equal(actor.items.filter(isAfflictionController).length, 1);
+  assert.equal(actor.items.filter(isAfflictionStageEffect).length, 1);
+  assert.equal(getAfflictionFlags(first).definitionId, source.id);
+});
+
+test("a pending initial-exposure controller also blocks duplicate Affliction application", async () => {
+  const actor = new FakeActor("heroPendingDuplicate", "Pending Duplicate Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Pending Testfäule",
+    stages: [{ ...createDefaultStage({ number: 1 }), effect: effect("pending.rot.stage1", "Pending Testfäule · Phase 1") }]
+  });
+
+  const [first] = await service.applyDefinition(source, actor);
+  assert.equal(getAfflictionFlags(first).state.status, "pending");
+  const duplicate = await service.applyDefinition(source, actor);
+
+  assert.equal(duplicate.length, 0);
+  assert.equal(actor.items.filter(isAfflictionController).length, 1);
+});
+
+test("the same Affliction may be applied again after the previous controller ends", async () => {
+  const actor = new FakeActor("heroReinfect", "Reinfection Hero");
+  const service = createAfflictionInstanceService();
+  const source = definition();
+
+  const [first] = await service.applyDefinition(source, actor);
+  await service.end(first, { reason: "recovered", notifyLifecycle: false });
+  const [second] = await service.applyDefinition(source, actor);
+
+  assert.ok(second);
+  assert.notEqual(getAfflictionFlags(first).instanceId, getAfflictionFlags(second).instanceId);
+  assert.equal(actor.items.filter(isAfflictionController).length, 1);
+});
+
+test("multi-target application skips already affected Actors and still applies to eligible targets", async () => {
+  const affected = new FakeActor("heroAlreadyAffected", "Already Affected Hero");
+  const fresh = new FakeActor("heroFreshTarget", "Fresh Hero");
+  const service = createAfflictionInstanceService();
+  const source = definition();
+
+  await service.applyDefinition(source, affected);
+  const created = await service.applyDefinition(source, [affected, fresh]);
+
+  assert.equal(created.length, 1);
+  assert.equal(created[0].parent, fresh);
+  assert.equal(affected.items.filter(isAfflictionController).length, 1);
+  assert.equal(fresh.items.filter(isAfflictionController).length, 1);
+});
+
+test("concurrent applications of the same Affliction serialize to one controller per Actor", async () => {
+  const actor = new FakeActor("heroConcurrentDuplicate", "Concurrent Duplicate Hero");
+  const service = createAfflictionInstanceService();
+  const source = definition();
+  const originalCreate = actor.createEmbeddedDocuments.bind(actor);
+  let releaseFirst;
+  let signalStarted;
+  const firstStarted = new Promise((resolve) => { signalStarted = resolve; });
+  const firstGate = new Promise((resolve) => { releaseFirst = resolve; });
+  let firstCreation = true;
+
+  actor.createEmbeddedDocuments = async (...args) => {
+    if (firstCreation) {
+      firstCreation = false;
+      signalStarted();
+      await firstGate;
+    }
+    return originalCreate(...args);
+  };
+
+  const firstApplication = service.applyDefinition(source, actor);
+  await firstStarted;
+  const secondApplication = service.applyDefinition(source, actor);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  releaseFirst();
+
+  const [first, second] = await Promise.all([firstApplication, secondApplication]);
+  assert.equal(first.length, 1);
+  assert.equal(second.length, 0);
+  assert.equal(actor.items.filter(isAfflictionController).length, 1);
+  assert.equal(actor.items.filter(isAfflictionStageEffect).length, 1);
 });
 
 test("identification changes are persisted on controller and active stage effects", async () => {
@@ -1082,4 +1178,41 @@ test("identified lethal-stage lifecycle messages remain GM-only and include the 
   } finally {
     globalThis.ChatMessage = previousChatMessage;
   }
+});
+
+
+test("active Afflictions cannot be pushed into reserved stage 0", async () => {
+  const actor = new FakeActor("stageZeroGuard", "Stage Zero Guard");
+  const service = createAfflictionInstanceService();
+  const [controller] = await service.applyDefinition(definition(), actor);
+  await assert.rejects(
+    () => service.setStage(controller, 0),
+    /cannot transition to stage 0/i
+  );
+  const state = getAfflictionFlags(controller).state;
+  assert.equal(state.status, "active");
+  assert.equal(state.currentStage, 1);
+});
+
+test("recorded lethal Afflictions are terminal for stage, pause, and instant retry mutations", async () => {
+  const actor = new FakeActor("lethalTerminal", "Lethal Terminal Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Terminal Venom",
+    initialCheck: null,
+    stages: [
+      { ...createDefaultStage({ number: 1 }), effect: deathOnlyEffect("terminal.stage1", "Terminal Venom · Phase 1") },
+      { ...createDefaultStage({ number: 2 }), effect: effect("terminal.stage2", "Terminal Venom · Phase 2") }
+    ]
+  });
+  const beforeExecutions = instantExecutions.length;
+  const [controller] = await service.applyDefinition(source, actor);
+  assert.equal(getAfflictionFlags(controller).state.mortality?.dead, true);
+  assert.equal(instantExecutions.length, beforeExecutions + 1);
+
+  await assert.rejects(() => service.setStage(controller, 2), /cannot change stage after death/i);
+  await assert.rejects(() => service.pause(controller), /cannot be paused after death/i);
+  const retry = await service.executeStageInstant(controller);
+  assert.deepEqual(retry, []);
+  assert.equal(instantExecutions.length, beforeExecutions + 1);
 });

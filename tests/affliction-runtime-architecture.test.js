@@ -191,3 +191,12 @@ test("controller manager live-syncs runtime changes without losing scroll state"
   assert.match(manager, /eventLogTop/);
   assert.match(manager, /handleControllerDeleted/);
 });
+
+
+test("controller manager cannot bypass exposure/onset gates or navigate below stage one", () => {
+  assert.match(manager, /canPrevious:\s*!lethal\s*&&\s*state\.status === "active"\s*&&\s*state\.currentStage > 1/);
+  assert.match(manager, /canNext:\s*!lethal\s*&&\s*state\.status === "active"/);
+  assert.match(manager, /canProcess:\s*!lethal/);
+  assert.match(engine, /state\.mortality\?\.dead === true[\s\S]*status:\s*"dead"/);
+  assert.match(runtime, /Active Afflictions cannot transition to stage 0/);
+});
