@@ -511,3 +511,94 @@ test("a manual controller transition invalidates an in-flight save before it can
   assert.equal(setStageCalls, 0);
   assert.equal(controller.flags[MODULE_ID].state.currentStage, 2);
 });
+
+test("successful initial Affliction application whispers the GM with a persisted template link", async () => {
+  const definition = automaticDefinition();
+  const { controller } = makeController(definition, { degrees: ["failure"] });
+  controller.flags[MODULE_ID].sourceTemplateUuid = "Compendium.afflictions.Item.engine-runtime-test";
+  const service = serviceFor(controller);
+  service.applyDefinition = async () => [controller];
+  const created = [];
+  const previousChatMessage = globalThis.ChatMessage;
+  globalThis.ChatMessage = {
+    getWhisperRecipients: () => [{ id: "gm" }],
+    getSpeaker: () => ({ actor: "test" }),
+    async create(data) { created.push(data); return data; }
+  };
+  try {
+    const engine = createAfflictionEngine({ instanceService: service });
+    const result = await engine.applyDefinition(definition, [controller.parent]);
+    assert.equal(result.controllers.length, 1);
+    assert.equal(created.length, 1);
+    assert.deepEqual(created[0].whisper, ["gm"]);
+    assert.match(created[0].content, /Test Actor/);
+    assert.match(created[0].content, /@Affliction\[Compendium\.afflictions\.Item\.engine-runtime-test\]/);
+    assert.equal(created[0].flags[MODULE_ID].runtimeEvent, "affliction-applied");
+  } finally {
+    globalThis.ChatMessage = previousChatMessage;
+  }
+});
+
+test("rejected initial exposure does not create a GM infection notice", async () => {
+  const definition = automaticDefinition();
+  const { controller } = makeController(definition, { degrees: ["success"] });
+  controller.flags[MODULE_ID].sourceTemplateUuid = "Compendium.afflictions.Item.rejected";
+  const service = serviceFor(controller);
+  service.applyDefinition = async () => [controller];
+  const created = [];
+  const previousChatMessage = globalThis.ChatMessage;
+  globalThis.ChatMessage = {
+    getWhisperRecipients: () => [{ id: "gm" }],
+    getSpeaker: () => ({}),
+    async create(data) { created.push(data); return data; }
+  };
+  try {
+    const engine = createAfflictionEngine({ instanceService: service });
+    const result = await engine.applyDefinition(definition, [controller.parent]);
+    assert.equal(result.controllers.length, 0);
+    assert.equal(created.length, 0);
+  } finally {
+    globalThis.ChatMessage = previousChatMessage;
+  }
+});
+
+test("Affliction without an initial save announces immediately and falls back to its definition name without a template UUID", async () => {
+  const definition = automaticDefinition({ initialCheck: null });
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.no-initial",
+    status: "active",
+    currentStage: 1,
+    appliedAt: 1000,
+    activeStartedAt: 1000,
+    stageEnteredAt: 1000,
+    nextCheckAt: 1060,
+    identification: { state: "identified", identifiedAt: 1000, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [],
+    pendingCheck: null,
+    onsetTargetStage: null,
+    lastCheck: null,
+    revision: 1
+  };
+  const { controller } = makeController(definition, { state });
+  const service = serviceFor(controller);
+  service.applyDefinition = async () => [controller];
+  const created = [];
+  const previousChatMessage = globalThis.ChatMessage;
+  globalThis.ChatMessage = {
+    getWhisperRecipients: () => [{ id: "gm" }],
+    getSpeaker: () => ({}),
+    async create(data) { created.push(data); return data; }
+  };
+  try {
+    const engine = createAfflictionEngine({ instanceService: service });
+    const result = await engine.applyDefinition(definition, [controller.parent]);
+    assert.equal(result.controllers.length, 1);
+    assert.equal(created.length, 1);
+    assert.match(created[0].content, /Engine Runtime Test/);
+    assert.doesNotMatch(created[0].content, /@Affliction\[/);
+  } finally {
+    globalThis.ChatMessage = previousChatMessage;
+  }
+});

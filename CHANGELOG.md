@@ -1,3 +1,14 @@
+## 0.1.40
+
+### GM Affliction Application Notifications
+
+- whispers the GM whenever an Affliction actually survives application and becomes active or begins onset/incubation
+- does not announce exposures rejected by the initial saving throw
+- waits for asynchronous player initial saves before announcing infection, avoiding false-positive notices while the result is pending
+- includes the affected Actor name and a clickable `@Affliction[...]` link when the active controller originated from a persisted template
+- falls back to the normalized Affliction name when a local draft/definition has no stable template UUID
+- tags the notice with controller/instance metadata for later diagnostics without exposing it publicly
+
 ## 0.1.39
 
 ### Native PF2e Combat Trigger Evaluation

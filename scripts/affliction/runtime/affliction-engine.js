@@ -15,6 +15,78 @@ import {
 } from "./affliction-save-runtime.js";
 import { scheduledDueAt } from "./affliction-instance-service.js";
 
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('\"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function localize(key, fallback = null) {
+  const value = globalThis.game?.i18n?.localize?.(key);
+  return value && value !== key ? value : (fallback ?? key);
+}
+
+function formatMessage(key, data = {}, fallback = null) {
+  const value = globalThis.game?.i18n?.format?.(key, data);
+  return value && value !== key ? value : (typeof fallback === "function" ? fallback() : (fallback ?? key));
+}
+
+function gmWhisperIds() {
+  const ChatMessage = globalThis.ChatMessage;
+  const recipients = ChatMessage?.getWhisperRecipients?.("GM") ?? [];
+  const ids = recipients.map((user) => user?.id ?? user).filter(Boolean);
+  if (ids.length > 0) return ids;
+  const users = [...(globalThis.game?.users ?? [])];
+  const gmIds = users.filter((user) => user?.isGM).map((user) => user.id).filter(Boolean);
+  if (gmIds.length > 0) return gmIds;
+  return globalThis.game?.user?.isGM && globalThis.game.user.id ? [globalThis.game.user.id] : [];
+}
+
+function afflictionTemplateLink(flags, definition) {
+  const uuid = typeof flags?.sourceTemplateUuid === "string" ? flags.sourceTemplateUuid.trim() : "";
+  if (uuid) return `@Affliction[${uuid}]`;
+  return `<strong>${escapeHtml(definition?.name ?? localize("PF2E_AFFLICTION_FORGE.Reference.Affliction", "Affliction"))}</strong>`;
+}
+
+async function createAfflictionAppliedGmMessage(controller) {
+  const ChatMessage = globalThis.ChatMessage;
+  if (!ChatMessage?.create || !controller?.parent) return null;
+  const flags = getAfflictionFlags(controller);
+  if (!flags?.definitionSnapshot || !flags?.state) return null;
+
+  const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
+  const actor = controller.parent;
+  const actorName = escapeHtml(actor?.name ?? localize("PF2E_AFFLICTION_FORGE.Runtime.ActorUnavailable", "Actor"));
+  const afflictionLink = afflictionTemplateLink(flags, definition);
+  const message = formatMessage("PF2E_AFFLICTION_FORGE.Runtime.AppliedGmChat", {
+    actor: actorName,
+    affliction: afflictionLink
+  }, () => `${actorName} is now affected by ${afflictionLink}.`);
+
+  try {
+    return await ChatMessage.create({
+      content: `<p><i class="fa-solid fa-biohazard"></i> ${message}</p>`,
+      speaker: ChatMessage.getSpeaker?.({ actor }) ?? {},
+      whisper: gmWhisperIds(),
+      flags: {
+        [MODULE_ID]: {
+          runtimeEvent: "affliction-applied",
+          instanceId: flags.state.instanceId ?? flags.instanceId ?? null,
+          controllerUuid: controller.uuid ?? null,
+          sourceTemplateUuid: flags.sourceTemplateUuid ?? null
+        }
+      }
+    });
+  } catch (error) {
+    console.warn(`${MODULE_ID} | GM Affliction application chat message could not be created.`, error);
+    return null;
+  }
+}
+
 function nowWorldTime() {
   const value = Number(globalThis.game?.time?.worldTime);
   return Number.isFinite(value) ? value : 0;
@@ -117,7 +189,13 @@ export class AfflictionEngine {
         const result = await this.processInitial(controller);
         results.push({ controllerUuid: controller.uuid, ...result });
         if (!["rejected", "recovered", "ended"].includes(result?.status)) {
-          surviving.push(await this.instanceService.get(controller.uuid));
+          const survivingController = await this.instanceService.get(controller.uuid);
+          surviving.push(survivingController);
+          // Definitions without an initial exposure save are already active or
+          // incubating when created. Save-driven applications notify from the
+          // initial resolution path below so pending player saves do not produce
+          // a false-positive "infected" message before their outcome is known.
+          if (result?.status === "not-initial") await createAfflictionAppliedGmMessage(survivingController);
         }
       } catch (error) {
         console.error(`${MODULE_ID} | Initial Affliction save processing failed.`, error);
@@ -423,13 +501,16 @@ export class AfflictionEngine {
     if (transition.type === "stage") {
       if (pending.kind === "initial" && current.definition.onset) {
         await this.instanceService.beginOnset(controller, transition.targetStage, { startedAt: transitionAt, lastCheck });
-        return { status: "incubating", degree: resolution.degree, transition, controller: await this.instanceService.get(controller.uuid) };
+        const refreshed = await this.instanceService.get(controller.uuid);
+        await createAfflictionAppliedGmMessage(refreshed);
+        return { status: "incubating", degree: resolution.degree, transition, controller: refreshed };
       }
       await this.instanceService.setStage(controller, transition.targetStage, {
         enteredAt: transitionAt,
         lastCheck
       });
       const refreshed = await this.instanceService.get(controller.uuid);
+      if (pending.kind === "initial") await createAfflictionAppliedGmMessage(refreshed);
       return { status: "stage-changed", degree: resolution.degree, transition, controller: refreshed };
     }
 

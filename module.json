@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.39 evaluates linked Affliction triggers against PF2e attack, applied-damage, and saving-throw chat workflows.",
-  "version": "0.1.39",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.40 adds GM-only application notifications with links back to persisted Affliction templates.",
+  "version": "0.1.40",
   "socket": true,
   "authors": [
     {
