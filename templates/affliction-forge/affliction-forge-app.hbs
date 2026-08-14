@@ -1,30 +1,37 @@
 <div class="affliction-forge-shell">
   <header class="affliction-forge-toolbar">
     <div class="affliction-forge-toolbar-main">
-      <button type="button" data-action="newDraft">
-        <i class="fa-solid fa-file-circle-plus"></i>
-        {{localize "PF2E_AFFLICTION_FORGE.Forge.NewDraft"}}
-      </button>
-      <button type="button" data-action="saveTemplate" {{#unless canSave}}disabled{{/unless}}>
-        <i class="fa-solid fa-floppy-disk"></i>
-        {{localize "PF2E_AFFLICTION_FORGE.Forge.Save"}}
-      </button>
-      <button type="button" data-action="saveAsTemplate">
-        <i class="fa-solid fa-file-export"></i>
-        {{localize "PF2E_AFFLICTION_FORGE.Forge.SaveAs"}}
-      </button>
-      <button type="button" data-action="validateDraft">
-        <i class="fa-solid fa-list-check"></i>
-        {{localize "PF2E_AFFLICTION_FORGE.Forge.Validate"}}
-      </button>
-      <button type="button" data-action="copyDefinition">
-        <i class="fa-regular fa-copy"></i>
-        {{localize "PF2E_AFFLICTION_FORGE.Forge.CopyDefinition"}}
-      </button>
-      <button type="button" data-action="applyToSelection" class="affliction-forge-apply" {{#unless criticalForgeReady}}disabled{{/unless}}>
-        <i class="fa-solid fa-user-plus"></i>
-        {{localize "PF2E_AFFLICTION_FORGE.Runtime.ApplyToSelection"}}
-      </button>
+      {{#if viewTemplates}}
+        <button type="button" data-action="newDraft">
+          <i class="fa-solid fa-file-circle-plus"></i>
+          {{localize "PF2E_AFFLICTION_FORGE.Forge.NewDraft"}}
+        </button>
+        <button type="button" data-action="saveTemplate" {{#unless canSave}}disabled{{/unless}}>
+          <i class="fa-solid fa-floppy-disk"></i>
+          {{localize "PF2E_AFFLICTION_FORGE.Forge.Save"}}
+        </button>
+        <button type="button" data-action="saveAsTemplate">
+          <i class="fa-solid fa-file-export"></i>
+          {{localize "PF2E_AFFLICTION_FORGE.Forge.SaveAs"}}
+        </button>
+        <button type="button" data-action="validateDraft">
+          <i class="fa-solid fa-list-check"></i>
+          {{localize "PF2E_AFFLICTION_FORGE.Forge.Validate"}}
+        </button>
+        <button type="button" data-action="copyDefinition">
+          <i class="fa-regular fa-copy"></i>
+          {{localize "PF2E_AFFLICTION_FORGE.Forge.CopyDefinition"}}
+        </button>
+        <button type="button" data-action="applyToSelection" class="affliction-forge-apply" {{#unless criticalForgeReady}}disabled{{/unless}}>
+          <i class="fa-solid fa-user-plus"></i>
+          {{localize "PF2E_AFFLICTION_FORGE.Runtime.ApplyToSelection"}}
+        </button>
+      {{else}}
+        <button type="button" data-action="refreshActive">
+          <i class="fa-solid fa-rotate"></i>
+          {{localize "PF2E_AFFLICTION_FORGE.Runtime.RefreshActive"}}
+        </button>
+      {{/if}}
     </div>
     <button type="button" data-action="closeWindow">
       <i class="fa-solid fa-xmark"></i>
@@ -32,108 +39,187 @@
     </button>
   </header>
 
-  <div class="affliction-forge-status-line">
-    <div class="affliction-forge-draft-note">
-      {{#if isDraft}}
-        <i class="fa-solid fa-file-pen"></i>
-      {{else}}
-        {{#if currentReadOnly}}
-          <i class="fa-solid fa-lock"></i>
+  <nav class="affliction-forge-view-tabs" aria-label="{{localize 'PF2E_AFFLICTION_FORGE.Forge.Views'}}">
+    <button type="button" data-action="showTemplates" class="{{#if viewTemplates}}active{{/if}}">
+      <i class="fa-solid fa-books"></i>
+      {{localize "PF2E_AFFLICTION_FORGE.Forge.TabTemplates"}}
+      <span class="affliction-forge-tab-count">{{templateCount}}</span>
+    </button>
+    <button type="button" data-action="showActive" class="{{#if viewActive}}active{{/if}}">
+      <i class="fa-solid fa-heart-pulse"></i>
+      {{localize "PF2E_AFFLICTION_FORGE.Forge.TabActive"}}
+      <span class="affliction-forge-tab-count">{{activeCount}}</span>
+    </button>
+  </nav>
+
+  {{#if viewTemplates}}
+    <div class="affliction-forge-status-line">
+      <div class="affliction-forge-draft-note">
+        {{#if isDraft}}
+          <i class="fa-solid fa-file-pen"></i>
         {{else}}
-          <i class="fa-solid fa-file-shield"></i>
+          {{#if currentReadOnly}}
+            <i class="fa-solid fa-lock"></i>
+          {{else}}
+            <i class="fa-solid fa-file-shield"></i>
+          {{/if}}
         {{/if}}
-      {{/if}}
-      <strong>{{currentTemplateName}}</strong>
-      <span class="affliction-forge-source-pill">{{currentSourceLabel}}</span>
-      {{#if currentDefinitionVersion}}
-        <span>v{{currentDefinitionVersion}}</span>
-      {{/if}}
-      <span data-affliction-persistence-state>{{localize "PF2E_AFFLICTION_FORGE.Forge.SavedState"}}</span>
-    </div>
-    <div class="affliction-forge-contract-meta">
-      <span>API {{apiVersion}}</span>
-      <span>Schema {{schemaVersion}}</span>
-      {{#if criticalForgeReady}}
-        <span class="ready"><i class="fa-solid fa-circle-check"></i> Critical Forge {{criticalForgeVersion}}</span>
-      {{else}}
-        <span class="not-ready"><i class="fa-solid fa-triangle-exclamation"></i> {{localize "PF2E_AFFLICTION_FORGE.Forge.CriticalForgeUnavailable"}}</span>
-      {{/if}}
-    </div>
-  </div>
-
-  <main class="affliction-forge-workspace">
-    <aside class="affliction-forge-library">
-      <header class="affliction-forge-library-header">
-        <div>
-          <strong>{{localize "PF2E_AFFLICTION_FORGE.Forge.Library"}}</strong>
-          <small>{{templateCount}} {{localize "PF2E_AFFLICTION_FORGE.Forge.Templates"}} · {{libraryCount}} {{localize "PF2E_AFFLICTION_FORGE.Library.Libraries"}}</small>
-        </div>
-        <button type="button" class="icon" data-action="refreshLibrary" title="{{localize "PF2E_AFFLICTION_FORGE.Forge.RefreshLibrary"}}">
-          <i class="fa-solid fa-rotate"></i>
-        </button>
-      </header>
-
-      <div class="affliction-forge-library-source-filter">
-        <label>
-          <span>{{localize "PF2E_AFFLICTION_FORGE.Library.Source"}}</span>
-          <select data-affliction-library-source>
-            <option value="">{{localize "PF2E_AFFLICTION_FORGE.Library.AllEnabled"}}</option>
-            {{#each libraries as |library|}}
-              {{#if library.enabled}}
-                <option value="{{library.id}}" {{#if library.selected}}selected{{/if}}>{{library.label}}{{#unless library.writable}} 🔒{{/unless}}</option>
-              {{/if}}
-            {{/each}}
-          </select>
-        </label>
+        <strong>{{currentTemplateName}}</strong>
+        <span class="affliction-forge-source-pill">{{currentSourceLabel}}</span>
+        {{#if currentDefinitionVersion}}
+          <span>v{{currentDefinitionVersion}}</span>
+        {{/if}}
+        <span data-affliction-persistence-state>{{localize "PF2E_AFFLICTION_FORGE.Forge.SavedState"}}</span>
       </div>
-
-      <div class="affliction-forge-library-filter">
-        <i class="fa-solid fa-magnifying-glass"></i>
-        <input type="search" data-affliction-library-filter placeholder="{{localize "PF2E_AFFLICTION_FORGE.Forge.SearchTemplates"}}">
-      </div>
-
-      {{#if libraryError}}
-        <div class="affliction-forge-library-error">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-          {{libraryError}}
-        </div>
-      {{/if}}
-
-      <div class="affliction-forge-library-list">
-        {{#each templates as |template|}}
-          <article class="affliction-forge-template-row {{#if template.active}}active{{/if}}" data-affliction-template-row data-library-id="{{template.libraryId}}" data-search="{{template.searchable}}">
-            <button type="button" class="affliction-forge-template-open" data-action="openTemplate" data-template-uuid="{{template.uuid}}">
-              <img src="{{template.img}}" alt="">
-              <span class="affliction-forge-template-copy">
-                <strong>{{template.name}}</strong>
-                <small><i class="{{template.sourceIcon}}"></i> {{template.libraryLabel}}</small>
-                {{#if template.providerLabel}}
-                  <small class="affliction-forge-template-provider">{{template.providerLabel}}</small>
-                {{/if}}
-              </span>
-              {{#unless template.writable}}
-                <i class="fa-solid fa-lock affliction-forge-template-lock" title="{{localize "PF2E_AFFLICTION_FORGE.Forge.ReadOnly"}}"></i>
-              {{/unless}}
-            </button>
-            {{#unless template.world}}
-              <button type="button" class="icon affliction-forge-template-copy-world" data-action="copyTemplateToWorld" data-template-uuid="{{template.uuid}}" title="{{localize "PF2E_AFFLICTION_FORGE.Forge.CopyToWorld"}}">
-                <i class="fa-solid fa-copy"></i>
-              </button>
-            {{/unless}}
-          </article>
+      <div class="affliction-forge-contract-meta">
+        <span>API {{apiVersion}}</span>
+        <span>Schema {{schemaVersion}}</span>
+        {{#if criticalForgeReady}}
+          <span class="ready"><i class="fa-solid fa-circle-check"></i> Critical Forge {{criticalForgeVersion}}</span>
         {{else}}
-          <div class="affliction-forge-library-empty">
-            {{localize "PF2E_AFFLICTION_FORGE.Forge.NoTemplates"}}
-          </div>
-        {{/each}}
+          <span class="not-ready"><i class="fa-solid fa-triangle-exclamation"></i> {{localize "PF2E_AFFLICTION_FORGE.Forge.CriticalForgeUnavailable"}}</span>
+        {{/if}}
       </div>
-    </aside>
+    </div>
 
-    <section class="affliction-forge-editor-frame" data-affliction-forge-editor-host>
-      <div class="affliction-forge-loading">
-        <i class="fa-solid fa-spinner fa-spin"></i>
-        {{localize "PF2E_AFFLICTION_FORGE.Forge.LoadingEditor"}}
-      </div>
-    </section>
-  </main>
+    <main class="affliction-forge-workspace">
+      <aside class="affliction-forge-library">
+        <header class="affliction-forge-library-header">
+          <div>
+            <strong>{{localize "PF2E_AFFLICTION_FORGE.Forge.Library"}}</strong>
+            <small>{{templateCount}} {{localize "PF2E_AFFLICTION_FORGE.Forge.Templates"}} · {{libraryCount}} {{localize "PF2E_AFFLICTION_FORGE.Library.Libraries"}}</small>
+          </div>
+          <button type="button" class="icon" data-action="refreshLibrary" title="{{localize "PF2E_AFFLICTION_FORGE.Forge.RefreshLibrary"}}">
+            <i class="fa-solid fa-rotate"></i>
+          </button>
+        </header>
+
+        <div class="affliction-forge-library-source-filter">
+          <label>
+            <span>{{localize "PF2E_AFFLICTION_FORGE.Library.Source"}}</span>
+            <select data-affliction-library-source>
+              <option value="">{{localize "PF2E_AFFLICTION_FORGE.Library.AllEnabled"}}</option>
+              {{#each libraries as |library|}}
+                {{#if library.enabled}}
+                  <option value="{{library.id}}" {{#if library.selected}}selected{{/if}}>{{library.label}}{{#unless library.writable}} 🔒{{/unless}}</option>
+                {{/if}}
+              {{/each}}
+            </select>
+          </label>
+        </div>
+
+        <div class="affliction-forge-library-filter">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" data-affliction-library-filter placeholder="{{localize "PF2E_AFFLICTION_FORGE.Forge.SearchTemplates"}}">
+        </div>
+
+        {{#if libraryError}}
+          <div class="affliction-forge-library-error">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            {{libraryError}}
+          </div>
+        {{/if}}
+
+        <div class="affliction-forge-library-list">
+          {{#each templates as |template|}}
+            <article class="affliction-forge-template-row {{#if template.active}}active{{/if}}" data-affliction-template-row data-library-id="{{template.libraryId}}" data-search="{{template.searchable}}">
+              <button type="button" class="affliction-forge-template-open" data-action="openTemplate" data-template-uuid="{{template.uuid}}">
+                <img src="{{template.img}}" alt="">
+                <span class="affliction-forge-template-copy">
+                  <strong>{{template.name}}</strong>
+                  <small><i class="{{template.sourceIcon}}"></i> {{template.libraryLabel}}</small>
+                  {{#if template.providerLabel}}
+                    <small class="affliction-forge-template-provider">{{template.providerLabel}}</small>
+                  {{/if}}
+                </span>
+                {{#unless template.writable}}
+                  <i class="fa-solid fa-lock affliction-forge-template-lock" title="{{localize "PF2E_AFFLICTION_FORGE.Forge.ReadOnly"}}"></i>
+                {{/unless}}
+              </button>
+              {{#unless template.world}}
+                <button type="button" class="icon affliction-forge-template-copy-world" data-action="copyTemplateToWorld" data-template-uuid="{{template.uuid}}" title="{{localize "PF2E_AFFLICTION_FORGE.Forge.CopyToWorld"}}">
+                  <i class="fa-solid fa-copy"></i>
+                </button>
+              {{/unless}}
+            </article>
+          {{else}}
+            <div class="affliction-forge-library-empty">
+              {{localize "PF2E_AFFLICTION_FORGE.Forge.NoTemplates"}}
+            </div>
+          {{/each}}
+        </div>
+      </aside>
+
+      <section class="affliction-forge-editor-frame" data-affliction-forge-editor-host>
+        <div class="affliction-forge-loading">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+          {{localize "PF2E_AFFLICTION_FORGE.Forge.LoadingEditor"}}
+        </div>
+      </section>
+    </main>
+  {{else}}
+    <main class="affliction-forge-workspace affliction-forge-active-workspace">
+      <section class="affliction-forge-active-registry">
+        <header class="affliction-forge-active-header">
+          <div>
+            <strong>{{localize "PF2E_AFFLICTION_FORGE.Runtime.ActiveRegistry"}}</strong>
+            <small>{{localize "PF2E_AFFLICTION_FORGE.Runtime.ActiveRegistryHint"}}</small>
+          </div>
+          <span class="affliction-forge-active-total">{{activeCount}} {{localize "PF2E_AFFLICTION_FORGE.Runtime.ActiveAfflictions"}}</span>
+        </header>
+
+        <div class="affliction-forge-active-filter">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" data-affliction-active-filter placeholder="{{localize "PF2E_AFFLICTION_FORGE.Runtime.SearchActive"}}">
+        </div>
+
+        {{#if activeError}}
+          <div class="affliction-forge-library-error">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            {{activeError}}
+          </div>
+        {{/if}}
+
+        <div class="affliction-forge-active-list">
+          {{#each activeGroups as |group|}}
+            <section class="affliction-forge-active-group" data-affliction-active-group>
+              <header>
+                <i class="fa-solid fa-user-shield"></i>
+                <strong>{{group.actorName}}</strong>
+                <span>{{group.entries.length}}</span>
+              </header>
+              <div class="affliction-forge-active-group-list">
+                {{#each group.entries as |entry|}}
+                  <article class="affliction-forge-active-row {{#if entry.dead}}dead{{/if}}" data-affliction-active-row data-search="{{entry.searchable}}">
+                    <img src="{{entry.img}}" alt="">
+                    <div class="affliction-forge-active-copy">
+                      <div class="affliction-forge-active-title">
+                        <strong>{{entry.name}}</strong>
+                        {{#if entry.dead}}<i class="fa-solid fa-skull" title="{{localize 'PF2E_AFFLICTION_FORGE.Runtime.DeathCause'}}"></i>{{/if}}
+                      </div>
+                      <div class="affliction-forge-active-meta">
+                        <span><i class="fa-solid fa-wave-square"></i> {{entry.statusLabel}}</span>
+                        <span><i class="fa-solid fa-layer-group"></i> {{entry.stageLabel}}</span>
+                        <span><i class="fa-solid fa-eye"></i> {{entry.identificationLabel}}</span>
+                        <span><i class="fa-solid fa-clock"></i> {{entry.dueLabel}}</span>
+                      </div>
+                    </div>
+                    <button type="button" data-action="manageActive" data-controller-uuid="{{entry.uuid}}" class="affliction-forge-manage-active">
+                      <i class="fa-solid fa-sliders"></i>
+                      {{localize "PF2E_AFFLICTION_FORGE.Runtime.Manage"}}
+                    </button>
+                  </article>
+                {{/each}}
+              </div>
+            </section>
+          {{else}}
+            <div class="affliction-forge-active-empty">
+              <i class="fa-solid fa-heart-circle-check"></i>
+              <strong>{{localize "PF2E_AFFLICTION_FORGE.Runtime.NoActiveAfflictions"}}</strong>
+            </div>
+          {{/each}}
+        </div>
+      </section>
+    </main>
+  {{/if}}
 </div>

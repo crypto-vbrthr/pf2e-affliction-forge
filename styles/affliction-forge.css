@@ -1242,6 +1242,16 @@
   align-self: stretch;
 }
 
+.affliction-controller-check-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.affliction-controller-check-actions > button {
+  width: 100%;
+}
+
 .pf2e-affliction-save-request {
   display: flex;
   flex-direction: column;
@@ -1389,4 +1399,296 @@
 .affliction-forge-template-provider {
   opacity: 0.75;
   font-size: 0.68rem !important;
+}
+
+/* 0.1.28: active Affliction registry and explicit manager entry points. */
+.affliction-forge-view-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex: 0 0 auto;
+  min-height: 2.35rem;
+  border-bottom: 1px solid #30303d;
+  background: #101018;
+}
+
+.affliction-forge-view-tabs button {
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0.48rem 0.85rem;
+  border: 0;
+  border-right: 1px solid #30303d;
+  border-radius: 0;
+  background: transparent;
+  color: #aaa4ac;
+  box-shadow: none;
+}
+
+.affliction-forge-view-tabs button:hover,
+.affliction-forge-view-tabs button:focus {
+  background: #191923;
+  color: #f0e8df;
+  box-shadow: none;
+}
+
+.affliction-forge-view-tabs button.active {
+  color: #f6a23a;
+  background: #191923;
+  box-shadow: inset 0 -3px 0 #f6a23a;
+}
+
+.affliction-forge-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.25rem;
+  padding: 0 0.32rem;
+  border: 1px solid #3b3b49;
+  border-radius: 999px;
+  color: #d2cbd1;
+  background: #242431;
+  font-size: 0.72rem;
+}
+
+.affliction-forge-active-workspace {
+  display: block;
+  overflow: hidden;
+}
+
+.affliction-forge-active-registry {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  color: #f0e8df;
+  background: #090910;
+}
+
+.affliction-forge-active-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #30303d;
+  background: #14141d;
+}
+
+.affliction-forge-active-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.affliction-forge-active-header strong {
+  color: #f6a23a;
+  font-size: 0.95rem;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.affliction-forge-active-header small,
+.affliction-forge-active-total {
+  color: #aaa4ac;
+}
+
+.affliction-forge-active-total {
+  white-space: nowrap;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid #30303d;
+  border-radius: 999px;
+  background: #1b1b25;
+}
+
+.affliction-forge-active-filter {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 1rem 0.45rem;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid #30303d;
+  border-radius: 6px;
+  background: #242431;
+}
+
+.affliction-forge-active-filter i {
+  color: #aaa4ac;
+}
+
+.affliction-forge-active-filter input {
+  width: 100%;
+  height: 1.8rem;
+  padding: 0;
+  border: 0;
+  color: #f0e8df;
+  background: transparent;
+  box-shadow: none;
+}
+
+.affliction-forge-active-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.35rem 1rem 1rem;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.affliction-forge-active-group {
+  border: 1px solid #30303d;
+  border-radius: 7px;
+  background: #111119;
+  overflow: hidden;
+}
+
+.affliction-forge-active-group > header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.48rem 0.65rem;
+  border-bottom: 1px solid #30303d;
+  background: #171720;
+}
+
+.affliction-forge-active-group > header i {
+  color: #f6a23a;
+}
+
+.affliction-forge-active-group > header span {
+  margin-left: auto;
+  color: #aaa4ac;
+}
+
+.affliction-forge-active-group-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.affliction-forge-active-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.62rem 0.7rem;
+  border-bottom: 1px solid rgba(48, 48, 61, 0.72);
+  background: #14141d;
+}
+
+.affliction-forge-active-row:last-child {
+  border-bottom: 0;
+}
+
+.affliction-forge-active-row:hover {
+  background: #1a1a24;
+}
+
+.affliction-forge-active-row.dead {
+  box-shadow: inset 3px 0 0 #dc6767;
+}
+
+.affliction-forge-active-row > img {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  border: 1px solid #30303d;
+  border-radius: 6px;
+}
+
+.affliction-forge-active-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.affliction-forge-active-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.affliction-forge-active-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.affliction-forge-active-title .fa-skull {
+  color: #dc6767;
+}
+
+.affliction-forge-active-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  color: #aaa4ac;
+  font-size: 0.76rem;
+}
+
+.affliction-forge-active-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.affliction-forge-active-meta i {
+  color: #77717c;
+}
+
+.affliction-forge-manage-active {
+  width: auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.affliction-forge-active-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  flex: 1 1 auto;
+  min-height: 14rem;
+  color: #aaa4ac;
+  text-align: center;
+}
+
+.affliction-forge-active-empty i {
+  color: #67bf72;
+  font-size: 2rem;
+}
+
+/* Best-effort inline manager button on GM Actor sheets. If a PF2e sheet does
+   not expose a controls container the regular Item-sheet header and Active
+   Afflictions registry remain the stable entry points. */
+.pf2e-affliction-inline-manage {
+  width: 1.75rem !important;
+  min-width: 1.75rem !important;
+  height: 1.75rem !important;
+  padding: 0 !important;
+  color: #f6a23a;
+}
+
+@media (max-width: 840px) {
+  .affliction-forge-active-row {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .affliction-forge-active-row > img {
+    width: 36px;
+    height: 36px;
+  }
+
+  .affliction-forge-manage-active {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
 }

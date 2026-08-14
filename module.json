@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.26 adds a library catalog and public provider API for writable world collections and read-only content-module libraries.",
-  "version": "0.1.26",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.28 adds an Active Afflictions registry and explicit GM manager entry points while keeping normal application non-intrusive.",
+  "version": "0.1.28",
   "socket": true,
   "authors": [
     {

@@ -6,6 +6,26 @@ function localize(key) {
   return game.i18n.localize(key);
 }
 
+function formatDueAt(timestamp) {
+  if (!Number.isFinite(timestamp)) return localize("PF2E_AFFLICTION_FORGE.Runtime.NoDueTime");
+  const now = Number(game.time?.worldTime ?? 0);
+  const seconds = Math.max(0, timestamp - now);
+  if (seconds <= 0) return localize("PF2E_AFFLICTION_FORGE.Runtime.DueNow");
+  if (seconds < 60) return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.DueSeconds", { value: Math.ceil(seconds) });
+  if (seconds < 3600) return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.DueMinutes", { value: Math.ceil(seconds / 60) });
+  if (seconds < 86400) return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.DueHours", { value: Math.ceil(seconds / 3600) });
+  return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.DueDays", { value: Math.ceil(seconds / 86400) });
+}
+
+function identificationLabel(value) {
+  const key = {
+    hidden: "PF2E_AFFLICTION_FORGE.Identification.Hidden",
+    suspected: "PF2E_AFFLICTION_FORGE.Identification.Suspected",
+    identified: "PF2E_AFFLICTION_FORGE.Identification.Identified"
+  }[value];
+  return key ? localize(key) : String(value ?? "");
+}
+
 function createDraftDefinition() {
   const api = game.modules.get(MODULE_ID)?.api;
   if (!api) throw new Error("Affliction Forge API is unavailable.");
@@ -65,6 +85,10 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
   libraryLoaded = false;
   libraryError = null;
   selectedLibraryId = "";
+  viewMode = "templates";
+  activeAfflictions = [];
+  activeLoaded = false;
+  activeError = null;
 
   static DEFAULT_OPTIONS = {
     id: "pf2e-affliction-forge",
@@ -89,6 +113,10 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
       refreshLibrary: AfflictionForgeApp.#refreshLibrary,
       openTemplate: AfflictionForgeApp.#openTemplate,
       copyTemplateToWorld: AfflictionForgeApp.#copyTemplateToWorld,
+      showTemplates: AfflictionForgeApp.#showTemplates,
+      showActive: AfflictionForgeApp.#showActive,
+      refreshActive: AfflictionForgeApp.#refreshActive,
+      manageActive: AfflictionForgeApp.#manageActive,
       closeWindow: AfflictionForgeApp.#closeWindow
     }
   };
@@ -142,6 +170,30 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     this.libraryLoaded = false;
   }
 
+  #invalidateActive() {
+    this.activeLoaded = false;
+  }
+
+  async #ensureActive() {
+    if (this.activeLoaded) return;
+    try {
+      this.activeAfflictions = await this.#api().instances.listAll();
+      this.activeError = null;
+    } catch (error) {
+      this.activeAfflictions = [];
+      this.activeError = String(error?.message ?? error);
+      console.error(`${MODULE_ID} | Active Affliction registry could not be loaded.`, error);
+    }
+    this.activeLoaded = true;
+  }
+
+  async handleActiveAfflictionsChanged() {
+    this.#invalidateActive();
+    if (!(this.element instanceof HTMLElement) || !this.element.isConnected) return true;
+    if (this.viewMode !== "active") return true;
+    await this.render({ force: true });
+    return true;
+  }
 
   async handleLibrariesChanged() {
     this.#invalidateLibrary();
@@ -180,7 +232,7 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   async _prepareContext() {
-    await this.#ensureLibrary();
+    await Promise.all([this.#ensureLibrary(), this.#ensureActive()]);
     const compatibility = this.#api().integration.criticalForge.compatibility();
     const currentUuid = this.currentTemplate?.uuid ?? null;
     const entries = this.library.map((entry) => ({
@@ -210,6 +262,36 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     const current = this.currentTemplate;
     const isDraft = !current;
     const canSave = isDraft || current.writable;
+    const activeRows = [...this.activeAfflictions]
+      .sort((a, b) => String(a.actorName ?? "").localeCompare(String(b.actorName ?? ""), game.i18n.lang)
+        || String(a.name ?? "").localeCompare(String(b.name ?? ""), game.i18n.lang))
+      .map((entry) => {
+        const state = entry.state ?? {};
+        const stage = entry.currentStage;
+        const identification = state.identification?.state ?? "identified";
+        return {
+          ...entry,
+          statusLabel: localize(`PF2E_AFFLICTION_FORGE.Runtime.Status.${state.status}`),
+          stageLabel: stage
+            ? `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage")} ${stage.number}${stage.name ? ` · ${stage.name}` : ""}`
+            : localize("PF2E_AFFLICTION_FORGE.Runtime.NoStage"),
+          dueLabel: formatDueAt(state.nextCheckAt),
+          identificationLabel: identificationLabel(identification),
+          identification,
+          dead: Boolean(state.mortality?.dead),
+          searchable: [entry.actorName, entry.name, stage?.name, state.status, identification]
+            .filter(Boolean).join(" ").toLocaleLowerCase(game.i18n.lang)
+        };
+      });
+    const activeGroups = [];
+    for (const row of activeRows) {
+      let group = activeGroups.at(-1);
+      if (!group || group.actorUuid !== row.actorUuid) {
+        group = { actorUuid: row.actorUuid, actorName: row.actorName, entries: [] };
+        activeGroups.push(group);
+      }
+      group.entries.push(row);
+    }
 
     return {
       criticalForgeReady: compatibility.effectApiAvailable
@@ -230,16 +312,26 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
       currentTemplateName: current?.name ?? localize("PF2E_AFFLICTION_FORGE.Forge.UnsavedDraft"),
       currentSourceLabel: current?.libraryLabel ?? current?.sourceLabel ?? localize("PF2E_AFFLICTION_FORGE.Forge.Unsaved"),
       currentDefinitionVersion: current?.definitionVersion ?? null,
-      currentReadOnly: Boolean(current && !current.writable)
+      currentReadOnly: Boolean(current && !current.writable),
+      viewTemplates: this.viewMode === "templates",
+      viewActive: this.viewMode === "active",
+      activeAfflictions: activeRows,
+      activeGroups,
+      activeCount: activeRows.length,
+      activeError: this.activeError
     };
   }
 
   _onRender(context, options) {
     super._onRender(context, options);
+    this.#installLayoutGuard();
+    if (this.viewMode === "active") {
+      this.#bindActiveFilter();
+      return;
+    }
+
     const host = this.element?.querySelector?.("[data-affliction-forge-editor-host]");
     if (!(host instanceof HTMLElement)) return;
-
-    this.#installLayoutGuard();
     this.#bindLibraryFilter();
 
     const token = ++this.mountToken;
@@ -286,6 +378,25 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     apply();
   }
 
+  #bindActiveFilter() {
+    const search = this.element?.querySelector?.("[data-affliction-active-filter]");
+    const apply = () => {
+      const query = search instanceof HTMLInputElement
+        ? String(search.value ?? "").trim().toLocaleLowerCase(game.i18n.lang)
+        : "";
+      for (const row of this.element.querySelectorAll("[data-affliction-active-row]")) {
+        const haystack = String(row.dataset.search ?? "");
+        row.hidden = Boolean(query && !haystack.includes(query));
+      }
+      for (const group of this.element.querySelectorAll("[data-affliction-active-group]")) {
+        const visible = [...group.querySelectorAll("[data-affliction-active-row]")].some((row) => !row.hidden);
+        group.hidden = !visible;
+      }
+    };
+    if (search instanceof HTMLInputElement) search.addEventListener("input", apply);
+    apply();
+  }
+
   #syncPersistenceUi() {
     if (!(this.element instanceof HTMLElement)) return;
     const dirty = Boolean(this.editor?.dirty);
@@ -318,7 +429,7 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     const shell = this.element.querySelector(".affliction-forge-shell");
     const workspace = this.element.querySelector(".affliction-forge-workspace");
     const frame = this.element.querySelector(".affliction-forge-editor-frame");
-    if (!(shell instanceof HTMLElement) || !(workspace instanceof HTMLElement) || !(frame instanceof HTMLElement)) return;
+    if (!(shell instanceof HTMLElement) || !(workspace instanceof HTMLElement)) return;
 
     const ownRect = this.element.getBoundingClientRect();
     const parentRect = this.element.parentElement?.getBoundingClientRect?.();
@@ -338,8 +449,10 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     });
 
     const toolbar = shell.querySelector(".affliction-forge-toolbar");
+    const tabs = shell.querySelector(".affliction-forge-view-tabs");
     const status = shell.querySelector(".affliction-forge-status-line");
     const fixedHeight = (toolbar?.getBoundingClientRect?.().height ?? 0)
+      + (tabs?.getBoundingClientRect?.().height ?? 0)
       + (status?.getBoundingClientRect?.().height ?? 0);
     const workspaceHeight = Math.max(280, shellHeight - fixedHeight);
 
@@ -348,13 +461,15 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
       minHeight: "0",
       overflow: "hidden"
     });
-    Object.assign(frame.style, {
-      height: "100%",
-      minHeight: "0",
-      overflowX: "hidden",
-      overflowY: "scroll",
-      overscrollBehavior: "contain"
-    });
+    if (frame instanceof HTMLElement) {
+      Object.assign(frame.style, {
+        height: "100%",
+        minHeight: "0",
+        overflowX: "hidden",
+        overflowY: "scroll",
+        overscrollBehavior: "contain"
+      });
+    }
   }
 
   async #confirmDiscard() {
@@ -533,7 +648,10 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     if (application.errors.length > 0) {
       console.warn(`${MODULE_ID} | Some initial Affliction checks could not be completed.`, application.errors);
     }
-    if (application.controllers.length === 1) await this.#api().ui.controller.open(application.controllers[0]);
+    // Controller management is now an explicit GM action. Applying an Affliction
+    // should hand runtime ownership to the engine without interrupting play with
+    // a diagnostic/management window. The manager remains available from the
+    // controller Item header and the public UI API.
     return application.controllers;
   }
 
@@ -621,6 +739,37 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     } catch (error) {
       console.error(`${MODULE_ID} | Template copy failed.`, error);
       ui.notifications.error(String(error?.message ?? error));
+    }
+  }
+
+  static async #showTemplates() {
+    if (this.viewMode === "templates") return;
+    this.viewMode = "templates";
+    await this.render({ force: true });
+  }
+
+  static async #showActive() {
+    if (this.viewMode === "active") return;
+    this.viewMode = "active";
+    this.#invalidateActive();
+    await this.render({ force: true });
+  }
+
+  static async #refreshActive() {
+    this.#invalidateActive();
+    await this.render({ force: true });
+  }
+
+  static async #manageActive(_event, target) {
+    const uuid = String(target?.dataset?.controllerUuid ?? "").trim();
+    if (!uuid) return;
+    try {
+      await this.#api().ui.controller.open(uuid);
+    } catch (error) {
+      console.error(`${MODULE_ID} | Active Affliction manager could not be opened.`, error);
+      ui.notifications.error(String(error?.message ?? error));
+      this.#invalidateActive();
+      await this.render({ force: true });
     }
   }
 

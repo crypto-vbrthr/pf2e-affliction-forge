@@ -268,5 +268,18 @@
   "PF2E_AFFLICTION_FORGE.Types.Curse": "Fluch",
   "PF2E_AFFLICTION_FORGE.Types.Disease": "Krankheit",
   "PF2E_AFFLICTION_FORGE.Types.Other": "Sonstiges",
-  "PF2E_AFFLICTION_FORGE.Types.Poison": "Gift"
+  "PF2E_AFFLICTION_FORGE.Types.Poison": "Gift",
+  "PF2E_AFFLICTION_FORGE.Runtime.Reconcile": "Runtime reparieren",
+  "PF2E_AFFLICTION_FORGE.Runtime.ReconcileRepaired": "Die Laufzeitdaten des Leidens wurden repariert.",
+  "PF2E_AFFLICTION_FORGE.Runtime.ReconcileClean": "Die Laufzeitdaten des Leidens sind konsistent.",
+  "PF2E_AFFLICTION_FORGE.Runtime.Event.RuntimeReconciled": "Runtime repariert ({stage})",
+  "PF2E_AFFLICTION_FORGE.Forge.Views": "Ansichten",
+  "PF2E_AFFLICTION_FORGE.Forge.TabTemplates": "Vorlagen",
+  "PF2E_AFFLICTION_FORGE.Forge.TabActive": "Aktive Leiden",
+  "PF2E_AFFLICTION_FORGE.Runtime.ActiveRegistry": "Aktive Leiden",
+  "PF2E_AFFLICTION_FORGE.Runtime.ActiveRegistryHint": "Laufende Leiden aller Actors in dieser Welt. Öffne den Verwalter nur, wenn du eingreifen oder diagnostizieren möchtest.",
+  "PF2E_AFFLICTION_FORGE.Runtime.ActiveAfflictions": "aktive Leiden",
+  "PF2E_AFFLICTION_FORGE.Runtime.SearchActive": "Nach Actor oder Leiden suchen …",
+  "PF2E_AFFLICTION_FORGE.Runtime.RefreshActive": "Aktive Leiden aktualisieren",
+  "PF2E_AFFLICTION_FORGE.Runtime.NoActiveAfflictions": "Derzeit sind keine Leiden aktiv."
 }

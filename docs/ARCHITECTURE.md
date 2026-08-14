@@ -249,3 +249,13 @@ The scheduler scans world Actors plus synthetic token Actors from loaded Scenes.
 World settings control automatic scheduling, catch-up mode (`all` or `next`), and a catch-up safety limit. `maximumDuration` is enforced as a runtime deadline anchored to `state.activeStartedAt`, the instant the first effective stage becomes active. Onset/incubation is excluded and later stage transitions never reset the deadline. Backwards world-time updates do not replay past events.
 
 Foundry's configured combat round time advances world time during combat, so round-based stage durations participate in the same clock. Dedicated turn-specific/event scheduling can be added later without changing the engine contract.
+
+
+## Reconciliation ownership
+
+Generated stage-effect Items are disposable runtime output owned by an Affliction controller. The controller snapshot/state remains authoritative. Reconciliation may rebuild missing or stale persistent stage output, synchronize stored UUIDs, and remove orphaned generated Items. It must not replay instant mechanics.
+
+
+## Active Afflictions registry
+
+The main Forge has two host views: `Templates` for authoring/library work and `Active Afflictions` for runtime discovery. The active registry is read-only and obtains controller descriptors through `api.instances.listAll()`. It never mutates runtime state directly; each row delegates intervention to the existing controller manager through `api.ui.controller.open()`. Controller create/update/delete hooks only invalidate and refresh the registry view. Applying an Affliction remains non-interruptive and never opens the manager automatically.

@@ -27,7 +27,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
-  assert.equal(api.version, "0.1.26");
+  assert.equal(api.version, "0.1.28");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -72,11 +72,15 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.instances.applyTemplate, "function");
   assert.equal(typeof api.instances.presentation, "function");
   assert.equal(typeof api.instances.events, "function");
+  assert.equal(typeof api.instances.listAll, "function");
   assert.equal(typeof api.instances.setStage, "function");
   assert.equal(typeof api.instances.reapplyStage, "function");
   assert.equal(typeof api.instances.executeStageInstant, "function");
   assert.equal(typeof api.instances.setIdentification, "function");
   assert.equal(typeof api.instances.end, "function");
+  assert.equal(typeof api.instances.reconcile, "function");
+  assert.equal(typeof api.instances.reconcileActor, "function");
+  assert.equal(typeof api.instances.reconcileAll, "function");
 });
 
 test("stage Effect Definitions are validated through Critical Forge when available", () => {

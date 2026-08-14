@@ -553,6 +553,37 @@ function stageEffectItems(actor, instanceId) {
   });
 }
 
+function runtimeActorCollection() {
+  const actors = new Map();
+  const add = (actor) => {
+    if (!actor || actor.documentName !== "Actor") return;
+    const key = actor.uuid ?? `Actor.${actor.id ?? actors.size}`;
+    if (!actors.has(key)) actors.set(key, actor);
+  };
+
+  const collect = (collection) => {
+    if (!collection) return [];
+    if (Array.isArray(collection)) return collection;
+    if (Array.isArray(collection.contents)) return collection.contents;
+    try { return [...collection]; } catch { return []; }
+  };
+
+  for (const actor of collect(globalThis.game?.actors)) add(actor);
+  for (const scene of collect(globalThis.game?.scenes)) {
+    for (const token of collect(scene?.tokens)) add(token?.actor ?? token?.document?.actor ?? null);
+  }
+  return [...actors.values()];
+}
+
+function stageEffectMatchesController(item, controller, state, stage) {
+  const flags = getAfflictionFlags(item);
+  if (!flags || !stage) return false;
+  return flags.instanceId === state.instanceId
+    && flags.controllerUuid === controller.uuid
+    && flags.stageId === stage.id
+    && Number(flags.stageNumber) === Number(stage.number);
+}
+
 async function removeStageEffects(actor, state) {
   const candidates = new Map();
   for (const item of stageEffectItems(actor, state.instanceId)) candidates.set(item.id, item);
@@ -675,6 +706,15 @@ export class AfflictionInstanceService {
     const actor = await resolveAfflictionActor(actorOrUuid);
     if (!actor) throw new TypeError("Actor not found.");
     return itemCollection(actor).filter(isAfflictionController).map(descriptor);
+  }
+
+  async listAll() {
+    const actors = globalThis.game?.actors;
+    if (!actors) return [];
+    const list = Array.isArray(actors) ? actors : (() => {
+      try { return [...actors]; } catch { return []; }
+    })();
+    return list.flatMap((actor) => itemCollection(actor).filter(isAfflictionController).map(descriptor));
   }
 
   async applyTemplate(templateOrUuid, targets, options = {}) {
@@ -854,7 +894,7 @@ export class AfflictionInstanceService {
     const { controller, actor } = await resolveController(controllerOrUuid);
     const flags = getAfflictionFlags(controller);
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
-    const previous = deepClone(flags.state);
+    let previous = deepClone(flags.state);
     const max = definition.stages.length;
     const stageNumber = Math.max(0, Math.min(max, Math.trunc(Number(requestedStage))));
     if (!Number.isFinite(stageNumber)) throw new TypeError("Stage number must be numeric.");
@@ -869,6 +909,12 @@ export class AfflictionInstanceService {
     // interval is renewed and only instant mechanics (for example damage) run
     // again. Manual repair/reapply can explicitly request a persistent refresh.
     if (sameActiveStage && !refreshPersistent) {
+      // Runtime drift can survive a crash or manual document edit even when no
+      // delete hook was able to repair it. Reconcile persistent output before a
+      // same-stage renewal so a successful save never perpetuates a missing
+      // condition/modifier. Instant mechanics are not executed by reconciliation.
+      await this.reconcile(controller, { recordEvent: true });
+      previous = deepClone(getAfflictionFlags(controller)?.state ?? previous);
       const next = buildTransitionState(
         previous,
         definition,
@@ -1063,6 +1109,119 @@ export class AfflictionInstanceService {
       [MODULE_ID]: { afflictionControllerEnd: reason }
     });
     return true;
+  }
+
+  async reconcile(controllerOrUuid, { cleanupOrphans = true, recordEvent = true } = {}) {
+    const { controller, actor } = await resolveController(controllerOrUuid);
+    const flags = getAfflictionFlags(controller);
+    const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
+    const state = deepClone(flags.state);
+    const stage = state.status === "active" && Number(state.currentStage) > 0
+      ? stageDescriptor(definition, Number(state.currentStage))
+      : null;
+
+    const currentItems = stageEffectItems(actor, state.instanceId);
+    const expectedSources = stage
+      ? await buildStageEffectSources({ actor, controller, definition, state, stage })
+      : [];
+    const matching = stage
+      ? currentItems.filter((item) => stageEffectMatchesController(item, controller, state, stage))
+      : [];
+    const stale = currentItems.filter((item) => !matching.includes(item));
+
+    let deleted = 0;
+    let created = [];
+    let repaired = false;
+
+    // Generated stage Items are controller-owned output. If the active stage no
+    // longer matches the generated Items, rebuild only persistent output. Instant
+    // mechanics are deliberately NOT executed during reconciliation.
+    const outputMismatch = matching.length !== expectedSources.length || stale.length > 0;
+    if (outputMismatch) {
+      const ids = currentItems.map((item) => item.id).filter(Boolean);
+      if (ids.length > 0) {
+        await actor.deleteEmbeddedDocuments("Item", ids, {
+          render: false,
+          [MODULE_ID]: { afflictionReconcile: true }
+        });
+        deleted += ids.length;
+      }
+      if (expectedSources.length > 0) {
+        created = await actor.createEmbeddedDocuments("Item", expectedSources, {
+          renderSheet: false,
+          [MODULE_ID]: { afflictionReconcile: true }
+        });
+      }
+      repaired = true;
+    }
+
+    const actual = outputMismatch ? created : matching;
+    const actualUuids = actual.map((item) => item.uuid).filter(Boolean);
+    const storedUuids = Array.isArray(state.activeStageEffectUuids) ? state.activeStageEffectUuids : [];
+    const uuidMismatch = storedUuids.length !== actualUuids.length
+      || storedUuids.some((uuid, index) => uuid !== actualUuids[index]);
+
+    if (uuidMismatch || repaired) {
+      state.activeStageEffectUuids = actualUuids;
+      if (recordEvent && repaired) {
+        appendRuntimeEvent(state, {
+          type: "runtime-reconciled",
+          at: nowWorldTime(),
+          stageNumber: stage?.number ?? null,
+          stageId: stage?.id ?? null,
+          data: { deleted, created: created.length }
+        });
+      }
+      state.revision = Number(state.revision ?? 0) + 1;
+      await updateController(controller, definition, state);
+    }
+
+    return Object.freeze({
+      controllerUuid: controller.uuid,
+      actorUuid: actor.uuid,
+      repaired,
+      deleted,
+      created: created.length,
+      expected: expectedSources.length,
+      active: actualUuids.length
+    });
+  }
+
+  async reconcileActor(actorOrUuid, { cleanupOrphans = true } = {}) {
+    const actor = await resolveAfflictionActor(actorOrUuid);
+    if (!actor) throw new TypeError("Actor not found.");
+    const controllers = itemCollection(actor).filter(isAfflictionController);
+    const reports = [];
+    for (const controller of controllers) reports.push(await this.reconcile(controller, { cleanupOrphans: false }));
+
+    let orphaned = 0;
+    if (cleanupOrphans) {
+      const instanceIds = new Set(controllers.map((controller) => getAfflictionFlags(controller)?.instanceId).filter(Boolean));
+      const orphans = itemCollection(actor).filter((item) => {
+        if (!isAfflictionStageEffect(item)) return false;
+        const flags = getAfflictionFlags(item);
+        return !flags?.instanceId || !instanceIds.has(flags.instanceId);
+      });
+      if (orphans.length > 0) {
+        await actor.deleteEmbeddedDocuments("Item", orphans.map((item) => item.id), {
+          render: false,
+          [MODULE_ID]: { orphanCleanup: true, afflictionReconcile: true }
+        });
+        orphaned = orphans.length;
+      }
+    }
+
+    return Object.freeze({ actorUuid: actor.uuid, controllers: reports, orphaned });
+  }
+
+  async reconcileAll({ cleanupOrphans = true } = {}) {
+    const reports = [];
+    for (const actor of runtimeActorCollection()) {
+      const hasRuntime = itemCollection(actor).some((item) => isAfflictionController(item) || isAfflictionStageEffect(item));
+      if (!hasRuntime) continue;
+      reports.push(await this.reconcileActor(actor, { cleanupOrphans }));
+    }
+    return Object.freeze(reports);
   }
 
   async cleanupDeletedController(controller) {

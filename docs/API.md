@@ -151,6 +151,7 @@ api.instances.inspect(controller)
 api.instances.presentation(controllerOrUuid)
 api.instances.events(controllerOrUuid)
 api.instances.listForActor(actorOrUuid)
+api.instances.listAll()
 api.instances.setStage(controllerOrUuid, stageNumber, options)
 api.instances.advance(controllerOrUuid, delta, options)
 api.instances.reapplyStage(controllerOrUuid, options)
@@ -303,7 +304,7 @@ World settings:
 ## Runtime UI
 
 ```js
-api.ui.controller.open(controllerOrUuid)
+api.ui.controller.open(controllerOrUuid) // same manager opened from Active Afflictions registry
 ```
 
 The GM controller manager can now:
@@ -362,3 +363,14 @@ const events = await api.instances.events(controllerUuid);
 ```
 
 `presentation()` resolves the current `hidden | suspected | identified` policy into player-facing controller/stage identity and concealment behavior. `events()` returns a deep-cloned bounded audit log for the active controller. Successful lethal-stage execution also stores `state.mortality` and emits `pf2eAfflictionForgeDeath`.
+
+
+### Runtime reconciliation (0.1.27)
+
+```js
+await api.instances.reconcile(controllerUuid);
+await api.instances.reconcileActor(actorUuid);
+await api.instances.reconcileAll({ cleanupOrphans: true });
+```
+
+Reconciliation repairs controller-owned persistent stage output only. It never re-executes instant components such as damage or death.

@@ -710,3 +710,91 @@ test("successful lethal stage execution records cause of death and a runtime aud
   assert.equal(state.mortality.afflictionName, "Endfäule");
   assert.equal(state.events.some((entry) => entry.type === "death"), true);
 });
+
+test("reconcile restores missing persistent stage output without replaying instant components", async () => {
+  instantExecutions.length = 0;
+  const actor = new FakeActor("heroReconcileMissing", "Reconcile Missing Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Reconcile Gift",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effect: mixedEffect("reconcile.stage1", "Reconcile Gift · Phase 1", "2d6")
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  assert.equal(instantExecutions.length, 1);
+  const first = actor.items.find(isAfflictionStageEffect);
+  await actor.deleteEmbeddedDocuments("Item", [first.id]);
+
+  const report = await service.reconcile(controller);
+  const repaired = actor.items.filter(isAfflictionStageEffect);
+  assert.equal(report.repaired, true);
+  assert.equal(report.created, 1);
+  assert.equal(repaired.length, 1);
+  assert.notEqual(repaired[0].uuid, first.uuid);
+  assert.equal(instantExecutions.length, 1, "reconciliation must not replay instant damage");
+  assert.deepEqual(getAfflictionFlags(controller).state.activeStageEffectUuids, [repaired[0].uuid]);
+});
+
+test("reconcile removes orphaned generated stage effects from an actor", async () => {
+  const actor = new FakeActor("heroReconcileOrphan", "Reconcile Orphan Hero");
+  const service = createAfflictionInstanceService();
+  const [controller] = await service.applyDefinition(definition(), actor);
+  const controllerId = controller.id;
+  assert.equal(actor.items.filter(isAfflictionStageEffect).length, 1);
+
+  // Simulate an interrupted/manual controller deletion that bypassed the
+  // normal cleanup hook, leaving controller-owned generated output behind.
+  actor.items = actor.items.filter((item) => item.id !== controllerId);
+  registry.delete(controller.uuid);
+
+  const report = await service.reconcileActor(actor, { cleanupOrphans: true });
+  assert.equal(report.orphaned, 1);
+  assert.equal(actor.items.filter(isAfflictionStageEffect).length, 0);
+});
+
+test("same-stage renewal self-heals missing persistent output before executing interval instant mechanics", async () => {
+  instantExecutions.length = 0;
+  const actor = new FakeActor("heroSameStageRepair", "Same Stage Repair Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Repair Cycle",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effect: mixedEffect("repaircycle.stage1", "Repair Cycle · Phase 1", "1d6")
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  const old = actor.items.find(isAfflictionStageEffect);
+  await actor.deleteEmbeddedDocuments("Item", [old.id]);
+
+  await service.setStage(controller, 1, { enteredAt: 2000 });
+  const effects = actor.items.filter(isAfflictionStageEffect);
+  assert.equal(effects.length, 1);
+  assert.equal(instantExecutions.length, 2, "initial entry plus one renewed interval only");
+  assert.deepEqual(getAfflictionFlags(controller).state.activeStageEffectUuids, [effects[0].uuid]);
+});
+
+test("listAll returns controller descriptors across world actors", async () => {
+  const service = createAfflictionInstanceService();
+  const actorA = new FakeActor("registry-a", "Registry A");
+  const actorB = new FakeActor("registry-b", "Registry B");
+  globalThis.game.actors = [actorA, actorB];
+
+  const definition = createAfflictionDefinition({
+    name: "Registry Probe",
+    stages: [createDefaultStage(1)]
+  });
+
+  await service.applyDefinition(definition, [actorA, actorB]);
+  const all = await service.listAll();
+
+  assert.equal(all.length, 2);
+  assert.deepEqual(all.map((entry) => entry.actorName).sort(), ["Registry A", "Registry B"]);
+  assert.ok(all.every((entry) => entry.name === "Registry Probe"));
+});

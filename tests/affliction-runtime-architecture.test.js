@@ -100,3 +100,47 @@ test("world-time scheduler uses canonical Foundry time hooks and active-GM autho
   assert.match(settings, /schedulerCatchUpMode/);
   assert.match(settings, /schedulerCatchUpLimit/);
 });
+
+test("application no longer opens the diagnostic controller manager automatically", () => {
+  const host = readFileSync(join(root, "scripts/affliction/forge/affliction-forge-app.js"), "utf8");
+  assert.doesNotMatch(host, /application\.controllers\.length\s*===\s*1[^\n]*ui\.controller\.open/);
+  assert.match(integration, /api\.ui\.controller\.open\(item\)/);
+  assert.match(managerTemplate, /data-action="reconcileRuntime"/);
+});
+
+test("runtime exposes reconciliation APIs and startup hardening before scheduler processing", () => {
+  const publicApi = readFileSync(join(root, "scripts/api/public-api.js"), "utf8");
+  assert.match(runtime, /async reconcile\(controllerOrUuid/);
+  assert.match(runtime, /async reconcileActor\(actorOrUuid/);
+  assert.match(runtime, /async reconcileAll\(/);
+  assert.match(publicApi, /reconcile:\s*\(controllerOrUuid/);
+  assert.match(publicApi, /reconcileActor:/);
+  assert.match(publicApi, /reconcileAll:/);
+  assert.match(main, /await api\.instances\?\.reconcileAll/);
+  assert.ok(main.indexOf("reconcileAll") < main.indexOf("scheduler?.start"));
+});
+
+
+test("Forge exposes an Active Afflictions registry with explicit manager actions", () => {
+  const host = readFileSync(join(root, "scripts/affliction/forge/affliction-forge-app.js"), "utf8");
+  assert.match(hostTemplate, /data-action="showTemplates"/);
+  assert.match(hostTemplate, /data-action="showActive"/);
+  assert.match(hostTemplate, /data-action="manageActive"/);
+  assert.match(hostTemplate, /data-affliction-active-row/);
+  assert.match(host, /instances\.listAll\(\)/);
+  assert.match(host, /ui\.controller\.open\(uuid\)/);
+});
+
+test("GM Actor sheets get a best-effort inline controller manager entry point", () => {
+  assert.match(integration, /injectAfflictionControllerRowControls/);
+  assert.match(integration, /pf2e-affliction-inline-manage/);
+  assert.match(integration, /api\.ui\.controller\.open\(controller\)/);
+  assert.match(integration, /Hooks\.on\("renderApplicationV2", injectAfflictionControllerRowControls\)/);
+});
+
+test("active registry is refreshed from controller create update and delete hooks", () => {
+  assert.match(integration, /handleActiveAfflictionChanged/);
+  assert.match(integration, /Hooks\.on\("createItem", handleActiveAfflictionChanged\)/);
+  assert.match(integration, /Hooks\.on\("updateItem", handleActiveAfflictionChanged\)/);
+  assert.match(integration, /Hooks\.on\("deleteItem", handleActiveAfflictionChanged\)/);
+});

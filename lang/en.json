@@ -268,5 +268,18 @@
   "PF2E_AFFLICTION_FORGE.Types.Curse": "Curse",
   "PF2E_AFFLICTION_FORGE.Types.Disease": "Disease",
   "PF2E_AFFLICTION_FORGE.Types.Other": "Other",
-  "PF2E_AFFLICTION_FORGE.Types.Poison": "Poison"
+  "PF2E_AFFLICTION_FORGE.Types.Poison": "Poison",
+  "PF2E_AFFLICTION_FORGE.Runtime.Reconcile": "Repair runtime",
+  "PF2E_AFFLICTION_FORGE.Runtime.ReconcileRepaired": "The affliction runtime state was repaired.",
+  "PF2E_AFFLICTION_FORGE.Runtime.ReconcileClean": "The affliction runtime state is consistent.",
+  "PF2E_AFFLICTION_FORGE.Runtime.Event.RuntimeReconciled": "Runtime repaired ({stage})",
+  "PF2E_AFFLICTION_FORGE.Forge.Views": "Views",
+  "PF2E_AFFLICTION_FORGE.Forge.TabTemplates": "Templates",
+  "PF2E_AFFLICTION_FORGE.Forge.TabActive": "Active Afflictions",
+  "PF2E_AFFLICTION_FORGE.Runtime.ActiveRegistry": "Active Afflictions",
+  "PF2E_AFFLICTION_FORGE.Runtime.ActiveRegistryHint": "Running Afflictions across all Actors in this world. Open the manager only when you need to intervene or diagnose.",
+  "PF2E_AFFLICTION_FORGE.Runtime.ActiveAfflictions": "active Afflictions",
+  "PF2E_AFFLICTION_FORGE.Runtime.SearchActive": "Search by Actor or Affliction …",
+  "PF2E_AFFLICTION_FORGE.Runtime.RefreshActive": "Refresh Active Afflictions",
+  "PF2E_AFFLICTION_FORGE.Runtime.NoActiveAfflictions": "There are currently no active Afflictions."
 }

@@ -11,7 +11,7 @@ Hooks.once("init", () => {
   initializePublicApi();
 });
 
-Hooks.once("ready", () => {
+Hooks.once("ready", async () => {
   const api = game.modules.get(MODULE_ID)?.api;
   const compatibility = getCriticalForgeCompatibility();
 
@@ -34,6 +34,17 @@ Hooks.once("ready", () => {
   initializeAfflictionForgeUi();
   initializeAfflictionSaveRuntime();
   initializeAfflictionVisibilityRuntime();
+
+  // Repair stale generated runtime output before the scheduler is allowed to
+  // process overdue transitions. This prevents a time catch-up from operating
+  // on missing or orphaned persistent stage output.
+  if (api?.scheduler?.isAuthoritative?.()) {
+    try {
+      await api.instances?.reconcileAll?.({ cleanupOrphans: true });
+    } catch (error) {
+      console.warn(`${MODULE_ID} | Initial Affliction runtime reconciliation failed.`, error);
+    }
+  }
   api?.scheduler?.start?.();
 
   Hooks.callAll("pf2eAfflictionForgeReady", api);

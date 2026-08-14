@@ -37,6 +37,8 @@ export async function openAfflictionForge(options = {}) {
 
   const isNew = !app;
   app ??= new AfflictionForgeApp(options);
+  if (options.templateUuid) app.viewMode = "templates";
+  else if (["templates", "active"].includes(options.view)) app.viewMode = options.view;
   if (options.templateUuid) {
     const opened = await app.openTemplate(options.templateUuid, {
       confirmDiscard: !isNew,
@@ -101,6 +103,15 @@ export function injectAfflictionForgeButton(appRef, html) {
 function itemFromSheetApplication(application) {
   const document = application?.document ?? application?.item ?? application?.object ?? null;
   return document?.documentName === "Item" || document?.constructor?.documentName === "Item" ? document : null;
+}
+
+function actorFromSheetApplication(application) {
+  const candidate = application?.actor
+    ?? (application?.document?.documentName === "Actor" ? application.document : null)
+    ?? (application?.object?.documentName === "Actor" ? application.object : null)
+    ?? application?.token?.actor
+    ?? null;
+  return candidate?.documentName === "Actor" ? candidate : null;
 }
 
 export function injectAfflictionTemplateHeaderControl(application, controls) {
@@ -172,11 +183,82 @@ export function injectLegacyAfflictionTemplateHeaderButton(sheet, buttons) {
   }
 }
 
-export function handleAfflictionRuntimeItemDeleted(item) {
+export function injectAfflictionControllerRowControls(application, html) {
+  if (!game.user?.isGM) return false;
+  const actor = actorFromSheetApplication(application);
+  const root = getRoot(html);
+  if (!actor || !root?.querySelectorAll) return false;
+  const api = game.modules.get(MODULE_ID)?.api;
+  const controllers = [...(actor.items ?? [])].filter((item) => api?.documents?.isController?.(item));
+  if (controllers.length === 0) return false;
+
+  let changed = false;
+  for (const controller of controllers) {
+    const candidates = [...root.querySelectorAll("[data-item-id]")].filter((node) => String(node.dataset?.itemId ?? "") === String(controller.id));
+    for (const node of candidates) {
+      const row = node.closest?.("li.item, article.item, .item, [data-item-id]") ?? node;
+      if (row.querySelector?.(`[data-${MODULE_ID}-inline-manage="${controller.id}"]`)) continue;
+      const controls = row.querySelector?.(".item-controls, .controls, .item-actions, .item-buttons, [data-item-controls]");
+      if (!(controls instanceof HTMLElement)) continue;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "icon pf2e-affliction-inline-manage";
+      button.setAttribute(`data-${MODULE_ID}-inline-manage`, controller.id);
+      button.title = localize("PF2E_AFFLICTION_FORGE.Runtime.Manage");
+      button.innerHTML = '<i class="fa-solid fa-biohazard"></i>';
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void api.ui.controller.open(controller);
+      });
+      controls.prepend(button);
+      changed = true;
+      break;
+    }
+  }
+  return changed;
+}
+
+export function handleActiveAfflictionChanged(item) {
   const api = game.modules.get(MODULE_ID)?.api;
   if (!api?.documents?.isController?.(item)) return false;
-  void api.instances.cleanupDeletedController(item).catch((error) => {
-    console.error(`${MODULE_ID} | Failed to clean orphaned Affliction stage effects.`, error);
+  if (!app) return true;
+  void app.handleActiveAfflictionsChanged().catch((error) => {
+    console.error(`${MODULE_ID} | Failed to refresh Active Afflictions registry.`, error);
+  });
+  return true;
+}
+
+function authoritativeRuntimeClient() {
+  if (!game.user?.isGM) return false;
+  const activeGM = game.users?.activeGM;
+  return !activeGM?.id || activeGM.id === game.user.id;
+}
+
+export function handleAfflictionRuntimeItemDeleted(item, options = {}) {
+  const api = game.modules.get(MODULE_ID)?.api;
+  if (api?.documents?.isController?.(item)) {
+    if (!authoritativeRuntimeClient()) return true;
+    void api.instances.cleanupDeletedController(item).catch((error) => {
+      console.error(`${MODULE_ID} | Failed to clean orphaned Affliction stage effects.`, error);
+    });
+    return true;
+  }
+
+  if (!api?.documents?.isStageEffect?.(item)) return false;
+  const internal = options?.[MODULE_ID] ?? {};
+  if (internal.afflictionStageCleanup || internal.afflictionStageRollback || internal.orphanCleanup || internal.afflictionReconcile) return true;
+  if (!authoritativeRuntimeClient()) return true;
+
+  const controllerUuid = api.documents.inspect?.(item)?.controllerUuid
+    ?? item.flags?.[MODULE_ID]?.controllerUuid
+    ?? null;
+  if (!controllerUuid) return true;
+
+  // A generated stage Item is controller-owned. Manual deletion is treated as
+  // runtime drift and repaired without re-running instant effects.
+  void api.instances.reconcile(controllerUuid).catch((error) => {
+    console.warn(`${MODULE_ID} | Deleted Affliction stage effect could not be reconciled.`, error);
   });
   return true;
 }
@@ -200,6 +282,11 @@ export function initializeAfflictionForgeUi() {
   Hooks.on("renderSidebarTab", injectAfflictionForgeButton);
   Hooks.on("getHeaderControlsApplicationV2", injectAfflictionTemplateHeaderControl);
   Hooks.on("getItemSheetHeaderButtons", injectLegacyAfflictionTemplateHeaderButton);
+  Hooks.on("renderApplicationV2", injectAfflictionControllerRowControls);
+  Hooks.on("renderApplication", injectAfflictionControllerRowControls);
+  Hooks.on("createItem", handleActiveAfflictionChanged);
+  Hooks.on("updateItem", handleActiveAfflictionChanged);
+  Hooks.on("deleteItem", handleActiveAfflictionChanged);
   Hooks.on("deleteItem", handleAfflictionTemplateDeleted);
   Hooks.on("deleteItem", handleAfflictionRuntimeItemDeleted);
   Hooks.on("pf2eAfflictionForgeLibrariesChanged", handleAfflictionLibrariesChanged);

@@ -61,6 +61,9 @@ export function inspectAfflictionItem(item) {
     documentKind: getDocumentKind(source),
     definitionId: flags?.definitionId ?? null,
     instanceId: flags?.instanceId ?? null,
+    controllerUuid: flags?.controllerUuid ?? null,
+    stageId: flags?.stageId ?? null,
+    stageNumber: Number.isFinite(Number(flags?.stageNumber)) ? Number(flags.stageNumber) : null,
     sourceTemplateUuid: flags?.sourceTemplateUuid ?? null,
     sourceDefinitionVersion: flags?.sourceDefinitionVersion ?? null
   });

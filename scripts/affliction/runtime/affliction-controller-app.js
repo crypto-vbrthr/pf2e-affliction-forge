@@ -47,6 +47,7 @@ function runtimeEventLabel(event) {
     case "stage-renewed": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.StageRenewed", { stage });
     case "stage-reapplied": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.StageReapplied", { stage });
     case "stage-cleared": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.StageCleared");
+    case "runtime-reconciled": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.RuntimeReconciled", { stage });
     case "identification-changed": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.IdentificationChanged", { state: identificationLabel(event.data?.to) });
     case "death": {
       const category = localize(event.data?.category === "death-effect"
@@ -82,6 +83,7 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
       previousStage: AfflictionControllerApp.#previousStage,
       nextStage: AfflictionControllerApp.#nextStage,
       reapplyStage: AfflictionControllerApp.#reapplyStage,
+      reconcileRuntime: AfflictionControllerApp.#reconcileRuntime,
       processCheck: AfflictionControllerApp.#processCheck,
       setIdentification: AfflictionControllerApp.#setIdentification,
       endAffliction: AfflictionControllerApp.#endAffliction
@@ -202,6 +204,21 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
       await this.#rerenderAfter(this.#api().instances.reapplyStage(this.controllerUuid));
     } catch (error) {
       console.error(`${MODULE_ID} | Reapply Affliction stage failed.`, error);
+      ui.notifications.error(String(error?.message ?? error));
+    }
+  }
+
+  static async #reconcileRuntime() {
+    try {
+      const report = await this.#api().instances.reconcile(this.controllerUuid);
+      if (report.repaired) {
+        ui.notifications.info(localize("PF2E_AFFLICTION_FORGE.Runtime.ReconcileRepaired"));
+      } else {
+        ui.notifications.info(localize("PF2E_AFFLICTION_FORGE.Runtime.ReconcileClean"));
+      }
+      await this.#rerenderAfter(Promise.resolve());
+    } catch (error) {
+      console.error(`${MODULE_ID} | Affliction runtime reconciliation failed.`, error);
       ui.notifications.error(String(error?.message ?? error));
     }
   }

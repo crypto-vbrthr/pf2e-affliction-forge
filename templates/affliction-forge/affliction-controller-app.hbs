@@ -57,10 +57,16 @@
         <strong>{{lastCheckLabel}}</strong>
       </div>
     </div>
-    <button type="button" data-action="processCheck" {{#unless canProcess}}disabled{{/unless}}>
-      <i class="fa-solid fa-dice-d20"></i>
-      {{processLabel}}
-    </button>
+    <div class="affliction-controller-check-actions">
+      <button type="button" data-action="processCheck" {{#unless canProcess}}disabled{{/unless}}>
+        <i class="fa-solid fa-dice-d20"></i>
+        {{processLabel}}
+      </button>
+      <button type="button" data-action="reconcileRuntime">
+        <i class="fa-solid fa-screwdriver-wrench"></i>
+        {{localize "PF2E_AFFLICTION_FORGE.Runtime.Reconcile"}}
+      </button>
+    </div>
   </section>
 
   <section class="affliction-controller-identification">

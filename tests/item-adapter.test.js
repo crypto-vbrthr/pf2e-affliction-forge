@@ -33,6 +33,9 @@ test("template definition round-trips from stored flags", () => {
     documentKind: "affliction-template",
     definitionId: definition.id,
     instanceId: null,
+    controllerUuid: null,
+    stageId: null,
+    stageNumber: null,
     sourceTemplateUuid: null,
     sourceDefinitionVersion: null
   });

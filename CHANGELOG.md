@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.1.28
+
+### Active Afflictions Registry & Manager Entry Points
+
+- adds a dedicated `Active Afflictions` tab to the main Affliction Forge window
+- groups all active controller instances by Actor and shows current status, stage, identification state, next due time, and lethal state
+- adds search/filtering and a manual refresh action for active runtime instances
+- opens the existing controller manager explicitly from each active-registry row
+- adds public `api.instances.listAll()` for runtime consumers that need a world-wide controller catalog
+- refreshes an open Active Afflictions registry when controllers are created, updated, or deleted
+- adds a best-effort inline biohazard manager button to controller rows on GM Actor sheets when the current PF2e sheet exposes an item-controls container
+- keeps the existing controller Item-sheet header action and `api.ui.controller.open()` as stable fallback entry points
+- keeps application non-intrusive: applying an Affliction still never opens the manager automatically
+
+## 0.1.27
+
+### Runtime Manager UX & Reconciliation Hardening
+
+- applying an Affliction no longer opens the controller manager automatically
+- controller manager remains available as an explicit GM diagnostic/intervention tool
+- added `instances.reconcile()`, `reconcileActor()`, and `reconcileAll()` public runtime APIs
+- reconciliation rebuilds missing/wrong persistent stage output without re-running instant damage or death
+- stale stage-effect UUIDs are synchronized back into controller state
+- orphaned generated stage effects are removed during world-ready reconciliation
+- manual deletion of a controller-owned stage effect is automatically repaired by the authoritative GM
+- added a controller-manager `Repair runtime` action
+
 ## 0.1.26
 
 ### Library Service & Provider API

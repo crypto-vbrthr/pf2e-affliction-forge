@@ -219,6 +219,7 @@ export function createPublicApi() {
       presentation: (controllerOrUuid) => instanceService.presentation(controllerOrUuid),
       events: (controllerOrUuid) => instanceService.events(controllerOrUuid),
       listForActor: (actorOrUuid) => instanceService.listForActor(actorOrUuid),
+      listAll: () => instanceService.listAll(),
       setStage: (controllerOrUuid, stage, options = {}) => instanceService.setStage(controllerOrUuid, stage, options),
       advance: (controllerOrUuid, delta = 1, options = {}) => instanceService.advance(controllerOrUuid, delta, options),
       reapplyStage: (controllerOrUuid, options = {}) => instanceService.reapplyStage(controllerOrUuid, options),
@@ -226,6 +227,9 @@ export function createPublicApi() {
       completeOnset: (controllerOrUuid, options = {}) => instanceService.completeOnset(controllerOrUuid, options),
       setIdentification: (controllerOrUuid, state, options = {}) => instanceService.setIdentification(controllerOrUuid, state, options),
       end: (controllerOrUuid, options = {}) => instanceService.end(controllerOrUuid, options),
+      reconcile: (controllerOrUuid, options = {}) => instanceService.reconcile(controllerOrUuid, options),
+      reconcileActor: (actorOrUuid, options = {}) => instanceService.reconcileActor(actorOrUuid, options),
+      reconcileAll: (options = {}) => instanceService.reconcileAll(options),
       cleanupDeletedController: (controller) => instanceService.cleanupDeletedController(controller)
     }),
 
