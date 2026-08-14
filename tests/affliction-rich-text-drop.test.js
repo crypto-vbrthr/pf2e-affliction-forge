@@ -155,3 +155,31 @@ test("prose-mirror custom-element plugins event can install the Affliction drop 
   assert.equal(handleProseMirrorPluginsEvent(event), true);
   assert.equal(plugins.afflictionForgeDrop instanceof Plugin, true);
 });
+
+test("delegated Affliction link click opens the template in the Forge even when element-local listeners are absent", async () => {
+  installApi();
+  let opened = null;
+  modules.get("pf2e-affliction-forge").api.ui = {
+    forge: {
+      async open(options) { opened = options; }
+    }
+  };
+  globalThis.game.user = { id: "gm", isGM: true };
+  const { handleAfflictionReferenceLinkClick } = await import("../scripts/affliction/integration/affliction-external-integration.js");
+  const anchor = {
+    dataset: { afflictionTemplateUuid: payload.templateUuid },
+    closest: (selector) => selector === ".pf2e-affliction-reference-link" ? anchor : null
+  };
+  let prevented = false;
+  let stopped = false;
+  const event = {
+    target: anchor,
+    preventDefault: () => { prevented = true; },
+    stopPropagation: () => { stopped = true; }
+  };
+
+  assert.equal(await handleAfflictionReferenceLinkClick(event), true);
+  assert.deepEqual(opened, { templateUuid: payload.templateUuid });
+  assert.equal(prevented, true);
+  assert.equal(stopped, true);
+});

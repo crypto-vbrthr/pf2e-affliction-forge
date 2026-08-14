@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.40**
+Current development build: **0.1.41**
 
-Version **0.1.40** adds a GM-only application notice whenever an Affliction actually survives its initial application and becomes active or incubating. Persisted templates are linked directly from that chat notice, while rejected initial exposures stay silent. Native PF2e combat-trigger evaluation from 0.1.39 remains unchanged.
+Version **0.1.41** makes Affliction chat links reliable through delegated interaction handling and extends GM-only runtime reporting beyond the initial infection notice. Stage changes, recovery, maximum active duration expiry, and explicit endings are now reported with links back to persisted templates.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -113,7 +113,7 @@ A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See
 
 ## Runtime boundary
 
-0.1.40 includes the hardened world-time scheduler, active-duration anchoring, player-save routing/recovery, identification visibility layer, public library/provider discovery, an explicit Active Afflictions runtime registry, revision-aware reconciliation, controller mutation serialization, a scroll-safe controller manager, and native PF2e combat-trigger evaluation for linked host Items. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
+0.1.39 includes the hardened world-time scheduler, active-duration anchoring, player-save routing/recovery, identification visibility layer, public library/provider discovery, an explicit Active Afflictions runtime registry, revision-aware reconciliation, controller mutation serialization, a scroll-safe controller manager, and native PF2e combat-trigger evaluation for linked host Items. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
 
 Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
 
@@ -124,7 +124,6 @@ Hidden controllers and unidentified stage-effect rows are now removed from non-G
 
 Active Affliction controllers own their generated persistent stage Items. Applying an Affliction no longer opens the controller manager automatically. The manager is an explicit GM diagnostic tool and exposes a runtime repair action. The public API also provides `api.instances.reconcile()`, `reconcileActor()`, and `reconcileAll()` to restore missing or stale generated stage output without replaying instant damage/death components.
 
-- 0.1.40: successful Affliction applications whisper the GM a compact chat notice with the affected Actor and, when available, an Affliction-template link.
 - 0.1.39: linked host Items can evaluate supported PF2e attack, applied-damage, save, and use ChatMessages and apply matching references through the public Application Service.
 - 0.1.35: Affliction templates can be linked directly to attacks and abilities by dropping them onto eligible Item sheets or embedded Actor-sheet rows.
 - 0.1.33: Affliction templates can be dropped directly onto Actor Directory entries.

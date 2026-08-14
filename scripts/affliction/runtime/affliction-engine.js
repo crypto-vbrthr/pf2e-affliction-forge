@@ -507,7 +507,12 @@ export class AfflictionEngine {
       }
       await this.instanceService.setStage(controller, transition.targetStage, {
         enteredAt: transitionAt,
-        lastCheck
+        lastCheck,
+        // The infection notice emitted immediately after a successful initial
+        // exposure already tells the GM that the Affliction took hold. Avoid a
+        // second stage-entry message for the same instant. Onset completion and
+        // later stage changes still use the normal lifecycle notification path.
+        notifyLifecycle: pending.kind !== "initial"
       });
       const refreshed = await this.instanceService.get(controller.uuid);
       if (pending.kind === "initial") await createAfflictionAppliedGmMessage(refreshed);

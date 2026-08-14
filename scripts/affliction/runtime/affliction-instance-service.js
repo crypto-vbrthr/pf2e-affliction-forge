@@ -146,12 +146,41 @@ function stageEventData(stage) {
   return stage ? { stageName: stage.name ?? "", stageNumber: stage.number, stageId: stage.id } : {};
 }
 
-async function createRuntimeChatMessage({ actor, definition, state, stage, type, category = null }) {
+function gmWhisperIds() {
+  const ChatMessage = globalThis.ChatMessage;
+  const recipients = ChatMessage?.getWhisperRecipients?.("GM") ?? [];
+  const ids = recipients.map((user) => user?.id ?? user).filter(Boolean);
+  if (ids.length > 0) return ids;
+  const users = [...(globalThis.game?.users ?? [])];
+  const gmIds = users.filter((user) => user?.isGM).map((user) => user.id).filter(Boolean);
+  if (gmIds.length > 0) return gmIds;
+  return globalThis.game?.user?.isGM && globalThis.game.user.id ? [globalThis.game.user.id] : [];
+}
+
+function afflictionChatReference(controller, definition) {
+  const templateUuid = String(getAfflictionFlags(controller)?.sourceTemplateUuid ?? "").trim();
+  return templateUuid
+    ? `@Affliction[${templateUuid}]`
+    : `<strong>${escapeHtml(definition?.name ?? localize("PF2E_AFFLICTION_FORGE.Reference.Affliction", "Affliction"))}</strong>`;
+}
+
+async function createRuntimeChatMessage({
+  actor,
+  controller = null,
+  definition,
+  state,
+  stage,
+  type,
+  category = null,
+  fromStage = null,
+  reason = null
+}) {
   const ChatMessage = globalThis.ChatMessage;
   if (!ChatMessage?.create) return null;
   const identification = state.identification?.state ?? "identified";
   const actorName = escapeHtml(actor?.name ?? "Actor");
   const afflictionName = escapeHtml(definition.name);
+  const afflictionRef = afflictionChatReference(controller, definition);
   const stageName = escapeHtml(stage?.name ?? `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage", "Stage")} ${stage?.number ?? ""}`);
 
   let content;
@@ -161,13 +190,49 @@ async function createRuntimeChatMessage({ actor, definition, state, stage, type,
       content = `<p><strong>${actorName}</strong>: ${formatMessage("PF2E_AFFLICTION_FORGE.Runtime.DeathChatIdentified", { affliction: afflictionName, stage: stageName }, () => `${afflictionName} (${stageName}) causes death.`)}</p>`;
     } else {
       content = `<p><strong>${actorName}</strong>: ${formatMessage("PF2E_AFFLICTION_FORGE.Runtime.DeathChatHidden", { affliction: afflictionName, stage: stageName }, () => `${afflictionName} (${stageName}) caused death.`)}</p>`;
-      const recipients = ChatMessage.getWhisperRecipients?.("GM") ?? [];
-      whisper = recipients.map((user) => user?.id ?? user).filter(Boolean);
+      whisper = gmWhisperIds();
     }
   } else if (type === "death-resisted") {
     content = `<p><strong>${actorName}</strong>: ${formatMessage("PF2E_AFFLICTION_FORGE.Runtime.DeathResistedChat", { affliction: afflictionName, stage: stageName }, () => `A death effect from ${afflictionName} (${stageName}) was prevented by immunity.`)}</p>`;
-    const recipients = ChatMessage.getWhisperRecipients?.("GM") ?? [];
-    whisper = recipients.map((user) => user?.id ?? user).filter(Boolean);
+    whisper = gmWhisperIds();
+  } else if (type === "stage-changed") {
+    const toStage = Number(stage?.number ?? state.currentStage ?? 0);
+    const from = Number(fromStage ?? 0);
+    const key = from > 0
+      ? "PF2E_AFFLICTION_FORGE.Runtime.StageChangedGmChat"
+      : "PF2E_AFFLICTION_FORGE.Runtime.StageEnteredGmChat";
+    const text = formatMessage(key, {
+      actor: actorName,
+      affliction: afflictionRef,
+      from,
+      to: toStage,
+      stage: stageName
+    }, () => from > 0
+      ? `${actorName}: ${afflictionRef} changes from stage ${from} to stage ${toStage} (${stageName}).`
+      : `${actorName}: ${afflictionRef} enters stage ${toStage} (${stageName}).`);
+    content = `<p><i class="fa-solid fa-biohazard"></i> ${text}</p>`;
+    whisper = gmWhisperIds();
+  } else if (type === "recovered") {
+    const text = formatMessage("PF2E_AFFLICTION_FORGE.Runtime.RecoveredGmChat", {
+      actor: actorName,
+      affliction: afflictionRef
+    }, () => `${actorName} has recovered from ${afflictionRef}.`);
+    content = `<p><i class="fa-solid fa-heart-pulse"></i> ${text}</p>`;
+    whisper = gmWhisperIds();
+  } else if (type === "maximum-duration") {
+    const text = formatMessage("PF2E_AFFLICTION_FORGE.Runtime.MaximumDurationGmChat", {
+      actor: actorName,
+      affliction: afflictionRef
+    }, () => `${afflictionRef} on ${actorName} ends when its maximum duration expires.`);
+    content = `<p><i class="fa-solid fa-hourglass-end"></i> ${text}</p>`;
+    whisper = gmWhisperIds();
+  } else if (type === "ended") {
+    const text = formatMessage("PF2E_AFFLICTION_FORGE.Runtime.EndedGmChat", {
+      actor: actorName,
+      affliction: afflictionRef
+    }, () => `${afflictionRef} on ${actorName} has ended.`);
+    content = `<p><i class="fa-solid fa-circle-stop"></i> ${text}</p>`;
+    whisper = gmWhisperIds();
   } else {
     return null;
   }
@@ -181,8 +246,12 @@ async function createRuntimeChatMessage({ actor, definition, state, stage, type,
         [MODULE_ID]: {
           runtimeEvent: type,
           instanceId: state.instanceId,
+          controllerUuid: controller?.uuid ?? null,
+          sourceTemplateUuid: getAfflictionFlags(controller)?.sourceTemplateUuid ?? null,
           stageNumber: stage?.number ?? null,
-          category
+          fromStage: Number.isFinite(Number(fromStage)) ? Number(fromStage) : null,
+          category,
+          reason
         }
       }
     });
@@ -191,6 +260,7 @@ async function createRuntimeChatMessage({ actor, definition, state, stage, type,
     return null;
   }
 }
+
 
 /**
  * Derive the earliest valid due time from the Affliction definition and runtime
@@ -502,7 +572,7 @@ async function recordInstantExecutionResults({ actor, controller, definition, st
         stageId: stage?.id ?? null,
         data: { category, ...stageEventData(stage) }
       });
-      await createRuntimeChatMessage({ actor, definition, state, stage, type: "death", category });
+      await createRuntimeChatMessage({ actor, controller, definition, state, stage, type: "death", category });
       globalThis.Hooks?.callAll?.("pf2eAfflictionForgeDeath", {
         controllerUuid: controller.uuid,
         actorUuid: actor.uuid,
@@ -520,7 +590,7 @@ async function recordInstantExecutionResults({ actor, controller, definition, st
         stageId: stage?.id ?? null,
         data: { category, ...stageEventData(stage) }
       });
-      await createRuntimeChatMessage({ actor, definition, state, stage, type: "death-resisted", category });
+      await createRuntimeChatMessage({ actor, controller, definition, state, stage, type: "death-resisted", category });
       changed = true;
     }
   }
@@ -846,7 +916,7 @@ export class AfflictionInstanceService {
       // Persistent/controller creation is rollback-safe because irreversible
       // instant stage mechanics are deferred until all targets commit.
       for (const controller of [...controllers].reverse()) {
-        try { await this.end(controller, { reason: "ended" }); } catch (cleanupError) {
+        try { await this.end(controller, { reason: "ended", notifyLifecycle: false }); } catch (cleanupError) {
           console.error(`${MODULE_ID} | Failed to roll back a partial multi-target Affliction application.`, cleanupError);
         }
       }
@@ -922,7 +992,8 @@ export class AfflictionInstanceService {
     enteredAt = nowWorldTime(),
     lastCheck = undefined,
     refreshPersistent = false,
-    executeInstant = true
+    executeInstant = true,
+    notifyLifecycle = true
   } = {}) {
     const { controller, actor } = await resolveController(controllerOrUuid);
     const flags = getAfflictionFlags(controller);
@@ -1014,6 +1085,17 @@ export class AfflictionInstanceService {
       if (executeInstant && stage) {
         const instantResults = await executeStageInstantEffectsSafely({ actor, controller, definition, state: next, stage });
         await recordInstantExecutionResultsSafely({ actor, controller, definition, state: next, stage, results: instantResults, at: enteredAt });
+      }
+      if (notifyLifecycle && stageNumber > 0 && Number(previous.currentStage ?? 0) !== stageNumber) {
+        await createRuntimeChatMessage({
+          actor,
+          controller,
+          definition,
+          state: next,
+          stage,
+          type: "stage-changed",
+          fromStage: Number(previous.currentStage ?? 0)
+        });
       }
       return controller;
     } catch (error) {
@@ -1125,11 +1207,12 @@ export class AfflictionInstanceService {
     return this.#serializeMutation(controllerOrUuid, () => this.#endUnlocked(controllerOrUuid, options));
   }
 
-  async #endUnlocked(controllerOrUuid, { reason = "ended" } = {}) {
+  async #endUnlocked(controllerOrUuid, { reason = "ended", notifyLifecycle = true } = {}) {
     const { controller, actor } = await resolveController(controllerOrUuid);
     const flags = getAfflictionFlags(controller);
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
     const state = deepClone(flags.state);
+    const endedAt = nowWorldTime();
     state.status = reason === "recovered" ? "recovered" : "ended";
     state.currentStage = 0;
     state.stageEnteredAt = null;
@@ -1140,7 +1223,7 @@ export class AfflictionInstanceService {
     state.onsetTargetStage = null;
     appendRuntimeEvent(state, {
       type: reason === "recovered" ? "recovered" : "ended",
-      at: nowWorldTime(),
+      at: endedAt,
       data: { reason }
     });
     state.revision = Number(state.revision ?? 0) + 1;
@@ -1149,6 +1232,22 @@ export class AfflictionInstanceService {
     // Persist the terminal state before deletion so hooks and integrations can
     // observe a coherent final controller if they listen to updateItem.
     await updateController(controller, definition, state);
+    if (notifyLifecycle && reason !== "rejected") {
+      const messageType = reason === "recovered"
+        ? "recovered"
+        : reason === "maximum-duration"
+          ? "maximum-duration"
+          : "ended";
+      await createRuntimeChatMessage({
+        actor,
+        controller,
+        definition,
+        state,
+        stage: null,
+        type: messageType,
+        reason
+      });
+    }
     await actor.deleteEmbeddedDocuments("Item", [controller.id], {
       render: false,
       [MODULE_ID]: { afflictionControllerEnd: reason }

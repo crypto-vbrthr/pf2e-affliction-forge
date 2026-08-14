@@ -940,3 +940,46 @@ test("cleanupDeletedController removes only the deleted controller's generated s
   assert.equal(actor.items.some((item) => isAfflictionStageEffect(item) && getAfflictionFlags(item)?.instanceId === secondInstanceId), true);
   assert.equal(actor.items.includes(second), true);
 });
+
+test("stage changes, recovery, and maximum-duration expiry create GM lifecycle chat messages with template links", async () => {
+  const created = [];
+  const previousChatMessage = globalThis.ChatMessage;
+  globalThis.ChatMessage = {
+    getWhisperRecipients: () => [{ id: "gm" }],
+    getSpeaker: ({ actor }) => ({ actor: actor?.id ?? null }),
+    async create(data) { created.push(data); return data; }
+  };
+  try {
+    const service = createAfflictionInstanceService();
+    const actor = new FakeActor("lifecycleHero", "Lifecycle Hero");
+    const [controller] = await service.applyDefinition(definition(), actor, {
+      sourceTemplateUuid: "Compendium.test.afflictions.Item.lifecycle"
+    });
+
+    await service.setStage(controller, 2, { enteredAt: 2000 });
+    assert.equal(created.length, 1);
+    assert.equal(created[0].flags[MODULE_ID].runtimeEvent, "stage-changed");
+    assert.equal(created[0].flags[MODULE_ID].fromStage, 1);
+    assert.equal(created[0].flags[MODULE_ID].stageNumber, 2);
+    assert.deepEqual(created[0].whisper, ["gm"]);
+    assert.match(created[0].content, /@Affliction\[Compendium\.test\.afflictions\.Item\.lifecycle\]/);
+
+    await service.end(controller, { reason: "recovered" });
+    assert.equal(created.length, 2);
+    assert.equal(created[1].flags[MODULE_ID].runtimeEvent, "recovered");
+    assert.deepEqual(created[1].whisper, ["gm"]);
+    assert.match(created[1].content, /@Affliction\[Compendium\.test\.afflictions\.Item\.lifecycle\]/);
+
+    const actor2 = new FakeActor("durationHero", "Duration Hero");
+    const [controller2] = await service.applyDefinition(definition(), actor2, {
+      sourceTemplateUuid: "Compendium.test.afflictions.Item.duration"
+    });
+    await service.end(controller2, { reason: "maximum-duration" });
+    assert.equal(created.length, 3);
+    assert.equal(created[2].flags[MODULE_ID].runtimeEvent, "maximum-duration");
+    assert.deepEqual(created[2].whisper, ["gm"]);
+    assert.match(created[2].content, /@Affliction\[Compendium\.test\.afflictions\.Item\.duration\]/);
+  } finally {
+    globalThis.ChatMessage = previousChatMessage;
+  }
+});

@@ -322,5 +322,10 @@
   "PF2E_AFFLICTION_FORGE.Trigger.UnknownTarget": "Unbekanntes Ziel",
   "PF2E_AFFLICTION_FORGE.Trigger.NoTarget": "{source}: Der Auslöser „{trigger}“ wurde erkannt, aber PF2e liefert kein eindeutiges Ziel. Das Leiden wurde nicht automatisch angewendet.",
   "PF2E_AFFLICTION_FORGE.Trigger.ApplyFailed": "{affliction} konnte über den Kampf-Trigger nicht angewendet werden.",
-  "PF2E_AFFLICTION_FORGE.Runtime.AppliedGmChat": "{actor} ist nun von {affliction} betroffen."
+  "PF2E_AFFLICTION_FORGE.Runtime.AppliedGmChat": "{actor} ist nun von {affliction} betroffen.",
+  "PF2E_AFFLICTION_FORGE.Runtime.StageEnteredGmChat": "{actor}: {affliction} tritt in Phase {to} ein ({stage}).",
+  "PF2E_AFFLICTION_FORGE.Runtime.StageChangedGmChat": "{actor}: {affliction} wechselt von Phase {from} zu Phase {to} ({stage}).",
+  "PF2E_AFFLICTION_FORGE.Runtime.RecoveredGmChat": "{actor} hat {affliction} überwunden.",
+  "PF2E_AFFLICTION_FORGE.Runtime.MaximumDurationGmChat": "{affliction} auf {actor} endet mit Ablauf der maximalen Wirkungsdauer.",
+  "PF2E_AFFLICTION_FORGE.Runtime.EndedGmChat": "{affliction} auf {actor} wurde beendet."
 }

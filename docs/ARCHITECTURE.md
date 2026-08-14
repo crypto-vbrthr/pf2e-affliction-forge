@@ -1,4 +1,4 @@
-# Architecture 0.1.40
+# Architecture 0.1.41
 
 ```text
 Affliction Template / Definition

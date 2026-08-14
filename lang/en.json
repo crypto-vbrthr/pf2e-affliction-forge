@@ -322,5 +322,10 @@
   "PF2E_AFFLICTION_FORGE.Trigger.UnknownTarget": "Unknown target",
   "PF2E_AFFLICTION_FORGE.Trigger.NoTarget": "{source}: The “{trigger}” trigger was detected, but PF2e did not provide an unambiguous target. The affliction was not applied automatically.",
   "PF2E_AFFLICTION_FORGE.Trigger.ApplyFailed": "{affliction} could not be applied by the combat trigger.",
-  "PF2E_AFFLICTION_FORGE.Runtime.AppliedGmChat": "{actor} is now affected by {affliction}."
+  "PF2E_AFFLICTION_FORGE.Runtime.AppliedGmChat": "{actor} is now affected by {affliction}.",
+  "PF2E_AFFLICTION_FORGE.Runtime.StageEnteredGmChat": "{actor}: {affliction} enters stage {to} ({stage}).",
+  "PF2E_AFFLICTION_FORGE.Runtime.StageChangedGmChat": "{actor}: {affliction} changes from stage {from} to stage {to} ({stage}).",
+  "PF2E_AFFLICTION_FORGE.Runtime.RecoveredGmChat": "{actor} has recovered from {affliction}.",
+  "PF2E_AFFLICTION_FORGE.Runtime.MaximumDurationGmChat": "{affliction} on {actor} ends when its maximum duration expires.",
+  "PF2E_AFFLICTION_FORGE.Runtime.EndedGmChat": "{affliction} on {actor} has ended."
 }

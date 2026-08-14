@@ -3,6 +3,7 @@ import { extractAfflictionDefinitionFromItem } from "../documents/affliction-ite
 import { getAfflictionFlags, isAfflictionTemplate } from "../documents/affliction-flags.js";
 
 let textIntegrationInitialized = false;
+let referenceLinkDelegationInitialized = false;
 let runtimeIntegrationInitialized = false;
 
 function localize(key) {
@@ -192,6 +193,64 @@ async function templateName(uuid) {
   }
 }
 
+export async function openAfflictionReferenceTemplate(uuid) {
+  const normalizedUuid = String(uuid ?? "").trim();
+  if (!normalizedUuid) return false;
+  try {
+    if (globalThis.game?.user?.isGM) {
+      await api()?.ui?.forge?.open?.({ templateUuid: normalizedUuid });
+      return true;
+    }
+    const referencedDocument = typeof globalThis.fromUuid === "function" ? await globalThis.fromUuid(normalizedUuid) : null;
+    referencedDocument?.sheet?.render?.(true);
+    return Boolean(referencedDocument);
+  } catch (error) {
+    console.warn(`${MODULE_ID} | Affliction reference could not be opened.`, error);
+    return false;
+  }
+}
+
+export async function handleAfflictionReferenceLinkClick(event) {
+  const anchor = event?.target?.closest?.(".pf2e-affliction-reference-link");
+  if (!anchor) return false;
+  const uuid = String(anchor.dataset?.afflictionTemplateUuid ?? anchor.dataset?.uuid ?? "").trim();
+  if (!uuid) return false;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  await openAfflictionReferenceTemplate(uuid);
+  return true;
+}
+
+export function handleAfflictionReferenceLinkDragStart(event) {
+  const anchor = event?.target?.closest?.(".pf2e-affliction-reference-link");
+  if (!anchor) return false;
+  const uuid = String(anchor.dataset?.afflictionTemplateUuid ?? anchor.dataset?.uuid ?? "").trim();
+  if (!uuid) return false;
+  const label = String(anchor.dataset?.afflictionLabel ?? anchor.textContent ?? "").trim();
+  const sourceUuid = String(anchor.dataset?.afflictionSourceUuid ?? "").trim() || null;
+  try {
+    const payload = api()?.application?.createDragData?.(uuid, { label, sourceUuid });
+    return payload ? writeDragData(event, payload) : false;
+  } catch (error) {
+    console.warn(`${MODULE_ID} | Could not create Affliction reference drag data.`, error);
+    return false;
+  }
+}
+
+function initializeAfflictionReferenceLinkDelegation() {
+  if (referenceLinkDelegationInitialized) return true;
+  const doc = globalThis.document;
+  if (!doc?.addEventListener) return false;
+  referenceLinkDelegationInitialized = true;
+  // Enriched HTML can be serialized and reconstructed by Foundry before it is
+  // inserted into Chat or a sheet. Element-local listeners do not survive that
+  // round-trip, while data attributes do. Delegated handlers therefore make
+  // Affliction links reliable in ChatMessages, journals, and sheet descriptions.
+  doc.addEventListener("click", (event) => { void handleAfflictionReferenceLinkClick(event); });
+  doc.addEventListener("dragstart", (event) => { handleAfflictionReferenceLinkDragStart(event); });
+  return true;
+}
+
 async function enrichAfflictionReference(match, options = {}) {
   const uuid = String(match?.[1] ?? "").trim();
   if (!uuid || typeof document === "undefined") return null;
@@ -202,42 +261,19 @@ async function enrichAfflictionReference(match, options = {}) {
   anchor.className = "content-link pf2e-affliction-reference-link";
   anchor.dataset.afflictionTemplateUuid = uuid;
   anchor.dataset.uuid = uuid;
+  anchor.dataset.afflictionLabel = label;
+  if (sourceUuid) anchor.dataset.afflictionSourceUuid = sourceUuid;
   anchor.draggable = true;
   const icon = document.createElement("i");
   icon.className = "fa-solid fa-biohazard";
   anchor.append(icon, document.createTextNode(` ${label}`));
   anchor.title = `${localize("PF2E_AFFLICTION_FORGE.Reference.OpenTemplate")} · ${localize("PF2E_AFFLICTION_FORGE.Reference.DragHint")}`;
   anchor.setAttribute("aria-label", `${label}: ${localize("PF2E_AFFLICTION_FORGE.Reference.OpenTemplate")}`);
-
-  anchor.addEventListener("dragstart", (event) => {
-    try {
-      const payload = api()?.application?.createDragData?.(uuid, { label, sourceUuid });
-      if (payload) writeDragData(event, payload);
-    } catch (error) {
-      console.warn(`${MODULE_ID} | Could not create Affliction reference drag data.`, error);
-    }
-  });
-
-  anchor.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    void (async () => {
-      try {
-        if (globalThis.game?.user?.isGM) {
-          await api()?.ui?.forge?.open?.({ templateUuid: uuid });
-          return;
-        }
-        const document = typeof globalThis.fromUuid === "function" ? await globalThis.fromUuid(uuid) : null;
-        document?.sheet?.render?.(true);
-      } catch (error) {
-        console.warn(`${MODULE_ID} | Affliction reference could not be opened.`, error);
-      }
-    })();
-  });
   return anchor;
 }
 
 export function initializeAfflictionTextIntegration() {
+  initializeAfflictionReferenceLinkDelegation();
   if (textIntegrationInitialized) return true;
   const enrichers = globalThis.CONFIG?.TextEditor?.enrichers;
   if (!Array.isArray(enrichers)) return false;

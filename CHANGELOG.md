@@ -1,13 +1,24 @@
+## 0.1.41
+
+### GM Lifecycle Chat & Affliction Link Interaction Hardening
+
+- fixes Affliction links in ChatMessages by using delegated click/drag handling that survives Foundry HTML enrichment and reconstruction
+- clicking an Affliction chat link now opens the persisted template in the Affliction Forge for GMs
+- reports real stage changes to the GM, including onset completion into the first active stage
+- reports recovery, maximum active duration expiry, and explicit Affliction ending to the GM
+- lifecycle messages include a persisted `@Affliction[...]` template reference when available
+- suppresses duplicate stage-entry reporting for the same instant as a successful initial-exposure infection notice
+- suppresses terminal lifecycle chat for rejected initial exposure and internal rollback cleanup
+- adds regression coverage for delegated chat-link opening and lifecycle message routing
+
 ## 0.1.40
 
 ### GM Affliction Application Notifications
 
-- whispers the GM whenever an Affliction actually survives application and becomes active or begins onset/incubation
-- does not announce exposures rejected by the initial saving throw
-- waits for asynchronous player initial saves before announcing infection, avoiding false-positive notices while the result is pending
-- includes the affected Actor name and a clickable `@Affliction[...]` link when the active controller originated from a persisted template
-- falls back to the normalized Affliction name when a local draft/definition has no stable template UUID
-- tags the notice with controller/instance metadata for later diagnostics without exposing it publicly
+- whispers the GM when an Affliction actually takes hold after exposure resolution
+- delays the notice until an initial save has confirmed infection
+- includes a persisted Affliction template reference when available
+- does not announce rejected initial exposure
 
 ## 0.1.39
 
