@@ -295,6 +295,8 @@ export function createPublicApi() {
       executeStageInstant: (controllerOrUuid) => instanceService.executeStageInstant(controllerOrUuid),
       completeOnset: (controllerOrUuid, options = {}) => instanceService.completeOnset(controllerOrUuid, options),
       setIdentification: (controllerOrUuid, state, options = {}) => instanceService.setIdentification(controllerOrUuid, state, options),
+      pause: (controllerOrUuid, options = {}) => instanceService.pause(controllerOrUuid, options),
+      resume: (controllerOrUuid, options = {}) => instanceService.resume(controllerOrUuid, options),
       end: (controllerOrUuid, options = {}) => instanceService.end(controllerOrUuid, options),
       reconcile: (controllerOrUuid, options = {}) => instanceService.reconcile(controllerOrUuid, options),
       reconcileActor: (actorOrUuid, options = {}) => instanceService.reconcileActor(actorOrUuid, options),

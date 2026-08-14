@@ -327,5 +327,12 @@
   "PF2E_AFFLICTION_FORGE.Runtime.StageChangedGmChat": "{actor}: {affliction} changes from stage {from} to stage {to} ({stage}).",
   "PF2E_AFFLICTION_FORGE.Runtime.RecoveredGmChat": "{actor} has recovered from {affliction}.",
   "PF2E_AFFLICTION_FORGE.Runtime.MaximumDurationGmChat": "{affliction} on {actor} ends when its maximum duration expires.",
-  "PF2E_AFFLICTION_FORGE.Runtime.EndedGmChat": "{affliction} on {actor} has ended."
+  "PF2E_AFFLICTION_FORGE.Runtime.EndedGmChat": "{affliction} on {actor} has ended.",
+  "PF2E_AFFLICTION_FORGE.Runtime.Paused": "Paused",
+  "PF2E_AFFLICTION_FORGE.Runtime.Pause": "Pause affliction",
+  "PF2E_AFFLICTION_FORGE.Runtime.Resume": "Resume affliction",
+  "PF2E_AFFLICTION_FORGE.Runtime.PauseSuccess": "The affliction was paused.",
+  "PF2E_AFFLICTION_FORGE.Runtime.ResumeSuccess": "The affliction has resumed.",
+  "PF2E_AFFLICTION_FORGE.Runtime.Event.Paused": "Affliction paused",
+  "PF2E_AFFLICTION_FORGE.Runtime.Event.Resumed": "Affliction resumed"
 }

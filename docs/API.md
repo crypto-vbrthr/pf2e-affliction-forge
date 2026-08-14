@@ -1,4 +1,4 @@
-# Public API 0.1.41
+# Public API 0.1.0 (module 0.1.42)
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -167,7 +167,10 @@ api.instances.reapplyStage(controllerOrUuid, options)
 api.instances.executeStageInstant(controllerOrUuid)
 api.instances.completeOnset(controllerOrUuid, options)
 api.instances.setIdentification(controllerOrUuid, state, options)
+api.instances.pause(controllerOrUuid, options)
+api.instances.resume(controllerOrUuid, options)
 api.instances.end(controllerOrUuid, options)
+api.instances.reconcile(controllerOrUuid, { strict: true })
 ```
 
 **Important:** `api.instances.apply*()` is a low-level creation path. It does not execute the initial exposure save. For normal Creature Forge, ability, spell, chat-card, or drag-and-drop application, prefer `api.engine.apply*()`.
@@ -175,6 +178,17 @@ api.instances.end(controllerOrUuid, options)
 Stage mechanics use two public Critical Forge paths: persistent components are compiled through `api.effects.toItemSources()`, while instant components are executed through `api.effects.execute()`. This includes one-shot `damage` and lethal `death` components; the latter retain Critical Forge's `direct` versus `death-effect` semantics. Every generated persistent stage effect is tagged with its controller `instanceId`, so parallel applications cannot clean up each other's mechanics.
 
 When `setStage()` resolves back to the already active stage, persistent Items are preserved and the stage interval is renewed; only instant mechanics execute again. `reapplyStage()` is the explicit repair/refresh operation and rebuilds persistent output before executing instant mechanics. `executeStageInstant()` is available for an explicit retry or diagnostic execution of the current active stage.
+
+
+### API compatibility version
+
+`api.version` is now independent from the module release number. Module `0.1.42` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
+
+### Pause / resume semantics
+
+`api.instances.pause()` freezes an `active` or `incubating` controller when no save request is pending. Persistent stage mechanics remain in place, while world-time scheduling stops. `resume()` shifts onset/stage and maximum-active-duration anchors by the time spent paused, preserving the exact remaining interval.
+
+`api.instances.reconcile(..., { strict: true })` compares generated persistent stage output against the current Critical Forge source contract and rebuilds output that was manually altered. It still never replays instant damage or death.
 
 ## Controller state helpers
 

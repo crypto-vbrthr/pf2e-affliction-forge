@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.41**
+Current development build: **0.1.42**
 
-Version **0.1.41** makes Affliction chat links reliable through delegated interaction handling and extends GM-only runtime reporting beyond the initial infection notice. Stage changes, recovery, maximum active duration expiry, and explicit endings are now reported with links back to persisted templates.
+Version **0.1.42** hardens the public and runtime contracts before the first release candidate: combat-trigger failures remain retryable, strict reconciliation can rebuild manually altered stage output, identification changes recover from partial updates, pause/resume freezes affliction clocks, level-bounded library searches reject malformed levels, and the public API now has its own compatibility version.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 

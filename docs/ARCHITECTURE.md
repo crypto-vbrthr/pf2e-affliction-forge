@@ -1,4 +1,4 @@
-# Architecture 0.1.41
+# Architecture 0.1.42
 
 ```text
 Affliction Template / Definition
@@ -24,7 +24,8 @@ Affliction Template / Definition
             │      ├── last-check audit snapshot
             │      ├── bounded runtime event log
             │      ├── lethal-stage mortality audit data
-            │      └── identification state
+            │      ├── identification state
+            │      └── optional pause metadata
             │
             └── Critical Forge Effect Engine
                    ├── toItemSources()
@@ -332,3 +333,13 @@ Affliction Engine
 ```
 
 The adapter runs only on the authoritative active GM, deduplicates message/reference/target tuples, and treats PF2e `damage-taken` as the `on-damage` boundary so rolled damage is not confused with actually applied damage. Custom trigger types deliberately remain the responsibility of the external host and use the same public Application Service directly.
+
+
+## Contract/runtime hardening in 0.1.42
+
+- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.42`).
+- Combat-trigger idempotency is committed only after a successful application or an intentional terminal decision; transient failures remain retryable.
+- Strict reconciliation can verify generated stage-effect content, not merely controller/stage ownership flags.
+- Identification updates use batch embedded-document updates when available and fall back to strict reconciliation after a partial failure.
+- Paused controllers keep persistent mechanics but are excluded from scheduling. Resume shifts active timing anchors so neither stage duration nor maximum active duration advances while paused.
+- GM lifecycle reporting uses one privacy contract, including lethal-stage messages.

@@ -168,8 +168,9 @@ function matchesSearch(entry, {
   const librarySet = libraryIds == null ? null : new Set(stringArray(libraryIds));
   if (librarySet?.size && !librarySet.has(entry.libraryId)) return false;
   const level = Number(entry.level);
-  if (minLevel != null && Number.isFinite(level) && level < Number(minLevel)) return false;
-  if (maxLevel != null && Number.isFinite(level) && level > Number(maxLevel)) return false;
+  if ((minLevel != null || maxLevel != null) && !Number.isFinite(level)) return false;
+  if (minLevel != null && level < Number(minLevel)) return false;
+  if (maxLevel != null && level > Number(maxLevel)) return false;
   return true;
 }
 

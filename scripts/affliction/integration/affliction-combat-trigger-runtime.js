@@ -4,6 +4,7 @@ import { readAfflictionReferences } from "./affliction-reference-service.js";
 const MAX_PROCESSED_TRIGGER_KEYS = 500;
 let triggerRuntimeInitialized = false;
 const processedTriggerKeys = new Map();
+const inFlightTriggerKeys = new Set();
 
 function localize(key) {
   return globalThis.game?.i18n?.localize?.(key) ?? key;
@@ -230,6 +231,10 @@ function alreadyProcessed(key) {
   return processedTriggerKeys.has(key);
 }
 
+function alreadyInFlight(key) {
+  return inFlightTriggerKeys.has(key);
+}
+
 function triggerKey(message, reference, event) {
   return [
     message?.id ?? message?.uuid ?? "message",
@@ -356,42 +361,57 @@ export async function processPf2eAfflictionTriggerMessage(message, { force = fal
       results.push(Object.freeze({ reference, status: "duplicate", result: null }));
       continue;
     }
-    rememberProcessed(key);
-
-    if (!event.targetActor) {
-      notifyNoTarget(reference, event);
-      results.push(Object.freeze({ reference, status: "no-target", result: null }));
+    if (alreadyInFlight(key)) {
+      results.push(Object.freeze({ reference, status: "in-flight", result: null }));
       continue;
     }
-
-    if (reference.application === "manual") {
-      results.push(Object.freeze({ reference, status: "manual", result: null }));
-      continue;
-    }
-
-    if (reference.application === "prompt") {
-      const approved = await confirmPrompt(reference, event);
-      if (!approved) {
-        results.push(Object.freeze({ reference, status: "skipped", result: null }));
-        continue;
-      }
-    }
+    inFlightTriggerKeys.add(key);
 
     try {
-      const result = await applyTriggeredReference(message, reference, event);
-      results.push(Object.freeze({ reference, status: "applied", result }));
-      globalThis.Hooks?.callAll?.("pf2eAfflictionForgeTriggerApplied", {
-        message,
-        event,
-        reference,
-        result
-      });
-    } catch (error) {
-      console.error(`${MODULE_ID} | Combat-trigger Affliction application failed.`, error);
-      globalThis.ui?.notifications?.error?.(format("PF2E_AFFLICTION_FORGE.Trigger.ApplyFailed", {
-        affliction: await templateLabel(reference)
-      }));
-      results.push(Object.freeze({ reference, status: "error", result: null, error }));
+      if (!event.targetActor) {
+        notifyNoTarget(reference, event);
+        rememberProcessed(key);
+        results.push(Object.freeze({ reference, status: "no-target", result: null }));
+        continue;
+      }
+
+      if (reference.application === "manual") {
+        rememberProcessed(key);
+        results.push(Object.freeze({ reference, status: "manual", result: null }));
+        continue;
+      }
+
+      if (reference.application === "prompt") {
+        const approved = await confirmPrompt(reference, event);
+        if (!approved) {
+          rememberProcessed(key);
+          results.push(Object.freeze({ reference, status: "skipped", result: null }));
+          continue;
+        }
+      }
+
+      try {
+        const result = await applyTriggeredReference(message, reference, event);
+        // Only commit idempotency after the application has actually succeeded.
+        // A transient runtime failure can therefore be retried explicitly with
+        // the same PF2e ChatMessage instead of being poisoned as a duplicate.
+        rememberProcessed(key);
+        results.push(Object.freeze({ reference, status: "applied", result }));
+        globalThis.Hooks?.callAll?.("pf2eAfflictionForgeTriggerApplied", {
+          message,
+          event,
+          reference,
+          result
+        });
+      } catch (error) {
+        console.error(`${MODULE_ID} | Combat-trigger Affliction application failed.`, error);
+        globalThis.ui?.notifications?.error?.(format("PF2E_AFFLICTION_FORGE.Trigger.ApplyFailed", {
+          affliction: await templateLabel(reference)
+        }));
+        results.push(Object.freeze({ reference, status: "error", result: null, error }));
+      }
+    } finally {
+      inFlightTriggerKeys.delete(key);
     }
   }
 
@@ -419,6 +439,7 @@ export function afflictionCombatTriggerRuntimeStatus() {
   return Object.freeze({
     initialized: triggerRuntimeInitialized,
     authoritative: authoritativeGm(),
-    processedKeys: processedTriggerKeys.size
+    processedKeys: processedTriggerKeys.size,
+    inFlightKeys: inFlightTriggerKeys.size
   });
 }

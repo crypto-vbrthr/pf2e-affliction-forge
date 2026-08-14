@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.41 fixes Affliction chat-link interaction and adds GM-only lifecycle notifications for stage changes, recovery, maximum-duration expiry, and manual ending.",
-  "version": "0.1.41",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.42 hardens public contracts, combat-trigger retry behavior, strict runtime reconciliation, identification updates, pause/resume semantics, and library filtering.",
+  "version": "0.1.42",
   "socket": true,
   "authors": [
     {

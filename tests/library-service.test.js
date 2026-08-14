@@ -151,3 +151,21 @@ test("library enabled state is persisted independently of provider registration"
   await api.libraries.setEnabled("venoms.core", false);
   assert.equal(api.libraries.isEnabled("venoms.core"), false);
 });
+
+test("level-bounded library searches exclude provider entries with invalid levels", async () => {
+  const api = createPublicApi();
+  const definition = api.definitions.create({ name: "Broken Level", level: 7 });
+  const packed = await api.templates.create(definition, { pack: providerPack.collection });
+  packed.flags["pf2e-affliction-forge"].definition.level = "not-a-level";
+  api.providers.register({
+    id: "invalid-level-provider",
+    label: "Invalid Levels",
+    moduleId: "invalid-level-provider",
+    libraries: [{ id: "invalid-levels.core", label: "Invalid Levels", packs: [providerPack.collection], writable: false }]
+  });
+
+  const unbounded = await api.libraries.search({ query: "Broken Level" });
+  assert.equal(unbounded.some((entry) => entry.uuid === packed.uuid), true);
+  const bounded = await api.libraries.search({ minLevel: 1, maxLevel: 20, query: "Broken Level" });
+  assert.equal(bounded.some((entry) => entry.uuid === packed.uuid), false);
+});

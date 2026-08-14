@@ -327,5 +327,12 @@
   "PF2E_AFFLICTION_FORGE.Runtime.StageChangedGmChat": "{actor}: {affliction} wechselt von Phase {from} zu Phase {to} ({stage}).",
   "PF2E_AFFLICTION_FORGE.Runtime.RecoveredGmChat": "{actor} hat {affliction} überwunden.",
   "PF2E_AFFLICTION_FORGE.Runtime.MaximumDurationGmChat": "{affliction} auf {actor} endet mit Ablauf der maximalen Wirkungsdauer.",
-  "PF2E_AFFLICTION_FORGE.Runtime.EndedGmChat": "{affliction} auf {actor} wurde beendet."
+  "PF2E_AFFLICTION_FORGE.Runtime.EndedGmChat": "{affliction} auf {actor} wurde beendet.",
+  "PF2E_AFFLICTION_FORGE.Runtime.Paused": "Pausiert",
+  "PF2E_AFFLICTION_FORGE.Runtime.Pause": "Leiden pausieren",
+  "PF2E_AFFLICTION_FORGE.Runtime.Resume": "Leiden fortsetzen",
+  "PF2E_AFFLICTION_FORGE.Runtime.PauseSuccess": "Das Leiden wurde pausiert.",
+  "PF2E_AFFLICTION_FORGE.Runtime.ResumeSuccess": "Das Leiden wird fortgesetzt.",
+  "PF2E_AFFLICTION_FORGE.Runtime.Event.Paused": "Leiden pausiert",
+  "PF2E_AFFLICTION_FORGE.Runtime.Event.Resumed": "Leiden fortgesetzt"
 }

@@ -225,9 +225,19 @@ The controller contract remains schema v2 and now carries live save-resolution s
   // Audit snapshot of the most recently completed check gate.
   lastCheck: null,
 
+  // Present only while status === "paused". Persistent stage mechanics stay
+  // applied, but scheduler-owned clocks do not advance until resume().
+  pause: null,
+
   revision: 1
 }
 ```
+
+When paused, `pause` stores the pause timestamp, the previous schedulable
+status (`active` or `incubating`), and the due time that was frozen. Resuming
+shifts `stageEnteredAt`, `onsetStartedAt`, `activeStartedAt`, and the saved due
+time by the elapsed pause duration. The controller schema remains v2 because
+this is an optional additive runtime field.
 
 Default controller creation mirrors the definition:
 

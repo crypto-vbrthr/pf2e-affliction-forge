@@ -186,12 +186,14 @@ async function createRuntimeChatMessage({
   let content;
   let whisper;
   if (type === "death") {
-    if (identification === "identified") {
-      content = `<p><strong>${actorName}</strong>: ${formatMessage("PF2E_AFFLICTION_FORGE.Runtime.DeathChatIdentified", { affliction: afflictionName, stage: stageName }, () => `${afflictionName} (${stageName}) causes death.`)}</p>`;
-    } else {
-      content = `<p><strong>${actorName}</strong>: ${formatMessage("PF2E_AFFLICTION_FORGE.Runtime.DeathChatHidden", { affliction: afflictionName, stage: stageName }, () => `${afflictionName} (${stageName}) caused death.`)}</p>`;
-      whisper = gmWhisperIds();
-    }
+    const key = identification === "identified"
+      ? "PF2E_AFFLICTION_FORGE.Runtime.DeathChatIdentified"
+      : "PF2E_AFFLICTION_FORGE.Runtime.DeathChatHidden";
+    content = `<p><strong>${actorName}</strong>: ${formatMessage(key, { affliction: afflictionRef, stage: stageName }, () => `${afflictionRef} (${stageName}) caused death.`)}</p>`;
+    // Lifecycle reporting is a GM audit channel. Keep death notifications on the
+    // same privacy contract as stage changes, recovery, and expiry even when the
+    // Affliction itself has already been identified.
+    whisper = gmWhisperIds();
   } else if (type === "death-resisted") {
     content = `<p><strong>${actorName}</strong>: ${formatMessage("PF2E_AFFLICTION_FORGE.Runtime.DeathResistedChat", { affliction: afflictionName, stage: stageName }, () => `A death effect from ${afflictionName} (${stageName}) was prevented by immunity.`)}</p>`;
     whisper = gmWhisperIds();
@@ -654,6 +656,41 @@ function stageEffectMatchesController(item, controller, state, stage) {
     && Number(flags.stageNumber) === Number(stage.number);
 }
 
+function sourceObject(item) {
+  try {
+    if (typeof item?.toObject === "function") return item.toObject(false);
+  } catch {
+    // Fall through to the document-shaped object below.
+  }
+  return item ?? {};
+}
+
+function expectedSubsetMatches(actual, expected) {
+  if (expected === undefined) return true;
+  if (expected === null || typeof expected !== "object") return Object.is(actual, expected);
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(actual) || actual.length !== expected.length) return false;
+    return expected.every((entry, index) => expectedSubsetMatches(actual[index], entry));
+  }
+  if (!actual || typeof actual !== "object" || Array.isArray(actual)) return false;
+  return Object.entries(expected).every(([key, value]) => expectedSubsetMatches(actual[key], value));
+}
+
+function stageEffectContentMatchesSource(item, expectedSource) {
+  return expectedSubsetMatches(sourceObject(item), expectedSource);
+}
+
+function strictStageOutputMatches(items, expectedSources) {
+  if (items.length !== expectedSources.length) return false;
+  const unused = new Set(items.map((_, index) => index));
+  for (const expected of expectedSources) {
+    const match = [...unused].find((index) => stageEffectContentMatchesSource(items[index], expected));
+    if (match === undefined) return false;
+    unused.delete(match);
+  }
+  return unused.size === 0;
+}
+
 async function removeStageEffects(actor, state) {
   const candidates = new Map();
   for (const item of stageEffectItems(actor, state.instanceId)) candidates.set(item.id, item);
@@ -999,6 +1036,7 @@ export class AfflictionInstanceService {
     const flags = getAfflictionFlags(controller);
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
     let previous = deepClone(flags.state);
+    if (previous.status === "paused") throw new Error("Paused Afflictions must be resumed before changing stage.");
     const max = definition.stages.length;
     const stageNumber = Math.max(0, Math.min(max, Math.trunc(Number(requestedStage))));
     if (!Number.isFinite(stageNumber)) throw new TypeError("Stage number must be numeric.");
@@ -1184,10 +1222,11 @@ export class AfflictionInstanceService {
     const presentation = runtimePresentation(definition, state);
     const unidentified = identificationState !== "identified";
     const stageItems = stageEffectItems(actor, state.instanceId);
-    for (const item of stageItems) {
+    const updates = stageItems.map((item) => {
       const itemFlags = getAfflictionFlags(item) ?? {};
       const identifiedPresentation = itemFlags.identifiedPresentation ?? {};
-      await item.update({
+      return {
+        _id: item.id,
         name: unidentified ? presentation.stageEffectName : (identifiedPresentation.name ?? item.name),
         img: unidentified ? presentation.stageEffectImg : (identifiedPresentation.img ?? item.img),
         system: {
@@ -1198,8 +1237,95 @@ export class AfflictionInstanceService {
           unidentified,
           tokenIcon: { show: presentation.showStageTokenIcon }
         }
-      }, { render: false });
+      };
+    });
+    try {
+      if (updates.length > 0 && typeof actor.updateEmbeddedDocuments === "function") {
+        await actor.updateEmbeddedDocuments("Item", updates, {
+          render: false,
+          [MODULE_ID]: { afflictionIdentification: true }
+        });
+      } else {
+        for (let index = 0; index < stageItems.length; index += 1) {
+          const { _id, ...changes } = updates[index];
+          await stageItems[index].update(changes, { render: false });
+        }
+      }
+    } catch (error) {
+      // The controller is already committed to the new identification state.
+      // Rebuild the derived stage presentation against that committed state so
+      // a partial item update cannot leave the Actor visually inconsistent.
+      try {
+        await this.reconcile(controller, { strict: true, recordEvent: false });
+      } catch (reconcileError) {
+        console.error(`${MODULE_ID} | Identification recovery reconciliation failed.`, reconcileError);
+      }
+      throw error;
     }
+    return controller;
+  }
+
+  async pause(controllerOrUuid, options = {}) {
+    return this.#serializeMutation(controllerOrUuid, () => this.#pauseUnlocked(controllerOrUuid, options));
+  }
+
+  async #pauseUnlocked(controllerOrUuid, { pausedAt = nowWorldTime() } = {}) {
+    const { controller } = await resolveController(controllerOrUuid);
+    const flags = getAfflictionFlags(controller);
+    const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
+    const state = deepClone(flags.state);
+    if (state.status === "paused") return controller;
+    if (!["incubating", "active"].includes(state.status)) throw new Error("Only incubating or active Afflictions can be paused.");
+    if (state.pendingCheck) throw new Error("An Affliction with a pending save cannot be paused.");
+    const at = finiteTime(pausedAt) ?? nowWorldTime();
+    state.pause = {
+      pausedAt: at,
+      previousStatus: state.status,
+      nextCheckAt: finiteTime(state.nextCheckAt)
+    };
+    state.status = "paused";
+    state.nextCheckAt = null;
+    appendRuntimeEvent(state, {
+      type: "paused",
+      at,
+      stageNumber: state.currentStage > 0 ? state.currentStage : null
+    });
+    state.revision = Number(state.revision ?? 0) + 1;
+    await updateController(controller, definition, state);
+    return controller;
+  }
+
+  async resume(controllerOrUuid, options = {}) {
+    return this.#serializeMutation(controllerOrUuid, () => this.#resumeUnlocked(controllerOrUuid, options));
+  }
+
+  async #resumeUnlocked(controllerOrUuid, { resumedAt = nowWorldTime() } = {}) {
+    const { controller } = await resolveController(controllerOrUuid);
+    const flags = getAfflictionFlags(controller);
+    const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
+    const state = deepClone(flags.state);
+    if (state.status !== "paused" || !state.pause) throw new Error("Affliction is not paused.");
+    const at = finiteTime(resumedAt) ?? nowWorldTime();
+    const pausedAt = finiteTime(state.pause.pausedAt) ?? at;
+    const elapsed = Math.max(0, at - pausedAt);
+    const shift = (value) => {
+      const finite = finiteTime(value);
+      return finite == null ? null : finite + elapsed;
+    };
+    state.status = state.pause.previousStatus;
+    state.stageEnteredAt = shift(state.stageEnteredAt);
+    state.activeStartedAt = shift(state.activeStartedAt);
+    state.onsetStartedAt = shift(state.onsetStartedAt);
+    state.nextCheckAt = shift(state.pause.nextCheckAt);
+    state.pause = null;
+    appendRuntimeEvent(state, {
+      type: "resumed",
+      at,
+      stageNumber: state.currentStage > 0 ? state.currentStage : null,
+      data: { pausedSeconds: elapsed }
+    });
+    state.revision = Number(state.revision ?? 0) + 1;
+    await updateController(controller, definition, state);
     return controller;
   }
 
@@ -1221,6 +1347,7 @@ export class AfflictionInstanceService {
     state.activeStageEffectUuids = [];
     state.pendingCheck = null;
     state.onsetTargetStage = null;
+    state.pause = null;
     appendRuntimeEvent(state, {
       type: reason === "recovered" ? "recovered" : "ended",
       at: endedAt,
@@ -1255,7 +1382,7 @@ export class AfflictionInstanceService {
     return true;
   }
 
-  async reconcile(controllerOrUuid, { cleanupOrphans = true, recordEvent = true, _attempt = 0 } = {}) {
+  async reconcile(controllerOrUuid, { cleanupOrphans = true, recordEvent = true, strict = false, _attempt = 0 } = {}) {
     const { controller, actor } = await resolveController(controllerOrUuid);
     const flags = getAfflictionFlags(controller);
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
@@ -1278,7 +1405,7 @@ export class AfflictionInstanceService {
         controller: refreshed
       };
     };
-    const stage = state.status === "active" && Number(state.currentStage) > 0
+    const stage = ["active", "paused"].includes(state.status) && Number(state.currentStage) > 0
       ? stageDescriptor(definition, Number(state.currentStage))
       : null;
 
@@ -1294,7 +1421,7 @@ export class AfflictionInstanceService {
     const beforeMutation = await stillCurrent();
     if (!beforeMutation.current) {
       if (beforeMutation.controller && _attempt < 2) {
-        return this.reconcile(beforeMutation.controller, { cleanupOrphans, recordEvent, _attempt: _attempt + 1 });
+        return this.reconcile(beforeMutation.controller, { cleanupOrphans, recordEvent, strict, _attempt: _attempt + 1 });
       }
       return Object.freeze({
         controllerUuid: controller.uuid,
@@ -1315,7 +1442,8 @@ export class AfflictionInstanceService {
     // Generated stage Items are controller-owned output. If the active stage no
     // longer matches the generated Items, rebuild only persistent output. Instant
     // mechanics are deliberately NOT executed during reconciliation.
-    const outputMismatch = matching.length !== expectedSources.length || stale.length > 0;
+    const strictMismatch = strict && !strictStageOutputMatches(matching, expectedSources);
+    const outputMismatch = matching.length !== expectedSources.length || stale.length > 0 || strictMismatch;
     if (outputMismatch) {
       const ids = currentItems.map((item) => item.id).filter(Boolean);
       if (ids.length > 0) {
@@ -1346,7 +1474,7 @@ export class AfflictionInstanceService {
         });
       }
       if (afterMutation.controller && _attempt < 2) {
-        return this.reconcile(afterMutation.controller, { cleanupOrphans, recordEvent, _attempt: _attempt + 1 });
+        return this.reconcile(afterMutation.controller, { cleanupOrphans, recordEvent, strict, _attempt: _attempt + 1 });
       }
       return Object.freeze({
         controllerUuid: controller.uuid,
@@ -1385,6 +1513,7 @@ export class AfflictionInstanceService {
       controllerUuid: controller.uuid,
       actorUuid: actor.uuid,
       repaired,
+      strict,
       deleted,
       created: created.length,
       expected: expectedSources.length,

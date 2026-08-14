@@ -66,6 +66,17 @@
         <i class="fa-solid fa-screwdriver-wrench"></i>
         {{localize "PF2E_AFFLICTION_FORGE.Runtime.Reconcile"}}
       </button>
+      {{#if canResume}}
+      <button type="button" data-action="resumeAffliction">
+        <i class="fa-solid fa-play"></i>
+        {{localize "PF2E_AFFLICTION_FORGE.Runtime.Resume"}}
+      </button>
+      {{else}}
+      <button type="button" data-action="pauseAffliction" {{#unless canPause}}disabled{{/unless}}>
+        <i class="fa-solid fa-pause"></i>
+        {{localize "PF2E_AFFLICTION_FORGE.Runtime.Pause"}}
+      </button>
+      {{/if}}
     </div>
   </section>
 

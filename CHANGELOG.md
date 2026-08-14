@@ -1,3 +1,20 @@
+## 0.1.42
+
+### Contract & Runtime Hardening
+
+- separates the public API compatibility version (`0.1.0`) from the module release version (`0.1.42`)
+- makes failed automatic combat-trigger applications retryable; idempotency is committed only after successful application or an intentional skip/manual/no-target decision
+- tracks in-flight trigger keys separately to prevent duplicate concurrent application without poisoning later retries
+- adds strict runtime reconciliation that detects and rebuilds manually altered generated stage-effect content without replaying instant damage or death
+- makes the controller manager's “Runtime reparieren” action use strict reconciliation
+- hardens identification changes with batch embedded Item updates when available and strict reconciliation after partial update failure
+- adds public `api.instances.pause()` / `resume()` semantics; paused afflictions keep persistent output while stage, onset, and maximum-active-duration clocks are frozen
+- adds pause/resume controls and audit events to the runtime manager
+- excludes malformed provider templates from level-bounded library searches instead of letting unknown levels pass filters
+- standardizes lethal-stage lifecycle chat as GM-only and keeps persisted Affliction links in the audit message
+- preserves existing Affliction/Controller schema v2; pause metadata is an optional additive runtime field
+- adds regression coverage for trigger retry, strict reconcile, pause/resume timing, pending-save pause rejection, and malformed library levels
+
 ## 0.1.41
 
 ### GM Lifecycle Chat & Affliction Link Interaction Hardening

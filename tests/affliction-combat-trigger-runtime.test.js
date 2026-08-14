@@ -192,6 +192,38 @@ test("automatic combat triggers route through the public application facade once
   assert.equal(calls[0][3].context.outcome, "criticalSuccess");
 });
 
+test("failed automatic trigger applications remain retryable until one succeeds", async () => {
+  const target = targetActor();
+  const item = sourceItem({ application: "automatic", referenceId: "retryable" });
+  let calls = 0;
+  modules.set(MODULE_ID, {
+    api: {
+      application: {
+        applyItemReference: async () => {
+          calls += 1;
+          if (calls === 1) throw new Error("temporary failure");
+          return { controllers: [{ id: "controller" }] };
+        }
+      }
+    }
+  });
+  const message = {
+    id: "retryable-hit",
+    uuid: "ChatMessage.retryable-hit",
+    item,
+    target: { actor: target },
+    flags: { pf2e: { context: { type: "attack-roll", outcome: "success" } } }
+  };
+
+  const first = await processPf2eAfflictionTriggerMessage(message, { force: true });
+  const second = await processPf2eAfflictionTriggerMessage(message, { force: true });
+  const third = await processPf2eAfflictionTriggerMessage(message, { force: true });
+  assert.equal(first.results[0].status, "error");
+  assert.equal(second.results[0].status, "applied");
+  assert.equal(third.results[0].status, "duplicate");
+  assert.equal(calls, 2);
+});
+
 test("manual application policies are recognized but never auto-applied", async () => {
   const target = targetActor();
   const item = sourceItem({ application: "manual" });

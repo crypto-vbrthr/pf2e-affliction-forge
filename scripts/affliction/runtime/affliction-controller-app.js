@@ -50,6 +50,8 @@ function runtimeEventLabel(event) {
     case "stage-cleared": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.StageCleared");
     case "runtime-reconciled": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.RuntimeReconciled", { stage });
     case "identification-changed": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.IdentificationChanged", { state: identificationLabel(event.data?.to) });
+    case "paused": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.Paused");
+    case "resumed": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.Resumed");
     case "death": {
       const category = localize(event.data?.category === "death-effect"
         ? "PF2E_AFFLICTION_FORGE.Runtime.DeathCategory.DeathEffect"
@@ -122,6 +124,8 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
       reconcileRuntime: AfflictionControllerApp.#reconcileRuntime,
       processCheck: AfflictionControllerApp.#processCheck,
       setIdentification: AfflictionControllerApp.#setIdentification,
+      pauseAffliction: AfflictionControllerApp.#pauseAffliction,
+      resumeAffliction: AfflictionControllerApp.#resumeAffliction,
       endAffliction: AfflictionControllerApp.#endAffliction
     }
   };
@@ -169,12 +173,14 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
         ? `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage")} ${stage.number}${stage.name ? ` · ${stage.name}` : ""}`
         : localize("PF2E_AFFLICTION_FORGE.Runtime.NoStage"),
       activeEffectCount: state.activeStageEffectUuids?.length ?? 0,
-      canPrevious: state.currentStage > 0,
-      canNext: state.currentStage < info.stageCount,
-      canReapply: state.currentStage > 0,
+      canPrevious: state.status !== "paused" && state.currentStage > 0,
+      canNext: state.status !== "paused" && state.currentStage < info.stageCount,
+      canReapply: state.status !== "paused" && state.currentStage > 0,
       canProcess: ["pending", "incubating", "active"].includes(state.status),
+      canPause: ["incubating", "active"].includes(state.status) && !state.pendingCheck,
+      canResume: state.status === "paused",
       processLabel: localize(processLabelKey),
-      dueLabel: formatDueAt(state.nextCheckAt),
+      dueLabel: state.status === "paused" ? localize("PF2E_AFFLICTION_FORGE.Runtime.Paused") : formatDueAt(state.nextCheckAt),
       pendingSummary: totalChecks > 0 ? `${resolvedChecks}/${totalChecks}` : null,
       lastCheckLabel: lastDegree ? localize(`PF2E_AFFLICTION_FORGE.Runtime.Degree.${lastDegree}`) : localize("PF2E_AFFLICTION_FORGE.Runtime.NoCheckResult"),
       identificationStates: IDENTIFICATION_STATES.map((value) => ({
@@ -360,7 +366,7 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
 
   static async #reconcileRuntime() {
     try {
-      const report = await this.#api().instances.reconcile(this.controllerUuid);
+      const report = await this.#api().instances.reconcile(this.controllerUuid, { strict: true });
       if (report.repaired) {
         ui.notifications.info(localize("PF2E_AFFLICTION_FORGE.Runtime.ReconcileRepaired"));
       } else {
@@ -395,6 +401,26 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
       await this.#rerenderAfter(this.#api().instances.setIdentification(this.controllerUuid, value));
     } catch (error) {
       console.error(`${MODULE_ID} | Affliction identification update failed.`, error);
+      ui.notifications.error(String(error?.message ?? error));
+    }
+  }
+
+  static async #pauseAffliction() {
+    try {
+      await this.#rerenderAfter(this.#api().instances.pause(this.controllerUuid));
+      ui.notifications.info(localize("PF2E_AFFLICTION_FORGE.Runtime.PauseSuccess"));
+    } catch (error) {
+      console.error(`${MODULE_ID} | Pausing Affliction failed.`, error);
+      ui.notifications.error(String(error?.message ?? error));
+    }
+  }
+
+  static async #resumeAffliction() {
+    try {
+      await this.#rerenderAfter(this.#api().instances.resume(this.controllerUuid));
+      ui.notifications.info(localize("PF2E_AFFLICTION_FORGE.Runtime.ResumeSuccess"));
+    } catch (error) {
+      console.error(`${MODULE_ID} | Resuming Affliction failed.`, error);
       ui.notifications.error(String(error?.message ?? error));
     }
   }

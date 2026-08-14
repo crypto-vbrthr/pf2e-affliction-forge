@@ -983,3 +983,103 @@ test("stage changes, recovery, and maximum-duration expiry create GM lifecycle c
     globalThis.ChatMessage = previousChatMessage;
   }
 });
+
+test("strict reconcile rebuilds manually modified stage-effect content while normal reconcile leaves it alone", async () => {
+  const actor = new FakeActor("strictReconcile", "Strict Reconcile Hero");
+  const service = createAfflictionInstanceService();
+  const [controller] = await service.applyDefinition(definition(), actor);
+  let stageEffect = actor.items.find(isAfflictionStageEffect);
+  stageEffect.system.rules[0].key = "TamperedRule";
+
+  const normal = await service.reconcile(controller);
+  assert.equal(normal.repaired, false);
+  assert.equal(actor.items.find(isAfflictionStageEffect).system.rules[0].key, "TamperedRule");
+
+  const strict = await service.reconcile(controller, { strict: true });
+  stageEffect = actor.items.find(isAfflictionStageEffect);
+  assert.equal(strict.repaired, true);
+  assert.equal(strict.strict, true);
+  assert.equal(stageEffect.system.rules[0].key, "MockRule");
+});
+
+test("pause and resume freeze stage and maximum-duration clocks without removing persistent output", async () => {
+  const actor = new FakeActor("pauseResume", "Pause Resume Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Paused Rot",
+    initialCheck: null,
+    maximumDuration: { value: 5, unit: "minutes" },
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      duration: { value: 1, unit: "minutes" },
+      effect: effect("paused.stage1", "Paused Rot · Phase 1")
+    }]
+  });
+  const [controller] = await service.applyDefinition(source, actor, { appliedAt: 1000 });
+  const originalEffectUuid = actor.items.find(isAfflictionStageEffect).uuid;
+
+  await service.pause(controller, { pausedAt: 1020 });
+  let state = getAfflictionFlags(controller).state;
+  assert.equal(state.status, "paused");
+  assert.equal(state.nextCheckAt, null);
+  assert.equal(state.pause.previousStatus, "active");
+  assert.equal(state.pause.nextCheckAt, 1060);
+  assert.equal(actor.items.find(isAfflictionStageEffect).uuid, originalEffectUuid);
+
+  const reconcile = await service.reconcile(controller, { strict: true });
+  assert.equal(reconcile.repaired, false, "paused active-stage output remains present");
+
+  await service.resume(controller, { resumedAt: 1120 });
+  state = getAfflictionFlags(controller).state;
+  assert.equal(state.status, "active");
+  assert.equal(state.stageEnteredAt, 1100);
+  assert.equal(state.activeStartedAt, 1100);
+  assert.equal(state.nextCheckAt, 1160);
+  assert.equal(state.pause, null);
+  assert.equal(state.events.at(-2).type, "paused");
+  assert.equal(state.events.at(-1).type, "resumed");
+});
+
+test("pause refuses controllers with an unresolved save", async () => {
+  const actor = new FakeActor("pausePending", "Pause Pending Hero");
+  const service = createAfflictionInstanceService();
+  const [controller] = await service.applyDefinition(definition(), actor);
+  const state = structuredClone(getAfflictionFlags(controller).state);
+  state.pendingCheck = { requestId: "pending", checkIds: ["save"], results: {}, requests: {} };
+  await service.updateRuntimeState(controller, state);
+  await assert.rejects(() => service.pause(controller), /pending save/i);
+});
+
+test("identified lethal-stage lifecycle messages remain GM-only and include the template link", async () => {
+  const created = [];
+  const previousChatMessage = globalThis.ChatMessage;
+  globalThis.ChatMessage = {
+    getWhisperRecipients: () => [{ id: "gm" }],
+    getSpeaker: ({ actor }) => ({ actor: actor?.id ?? null }),
+    async create(data) { created.push(data); return data; }
+  };
+  try {
+    const actor = new FakeActor("deathChatHero", "Death Chat Hero");
+    const service = createAfflictionInstanceService();
+    const source = createAfflictionDefinition({
+      name: "Final Rot",
+      initialCheck: null,
+      identification: { initialState: "identified" },
+      stages: [{
+        ...createDefaultStage({ number: 1 }),
+        name: "Finale",
+        effect: deathOnlyEffect("death.chat", "Final Rot · Finale", "direct")
+      }]
+    });
+    await service.applyDefinition(source, actor, {
+      sourceTemplateUuid: "Compendium.test.afflictions.Item.deathchat",
+      appliedAt: 3000
+    });
+    const death = created.find((entry) => entry.flags?.[MODULE_ID]?.runtimeEvent === "death");
+    assert.ok(death);
+    assert.deepEqual(death.whisper, ["gm"]);
+    assert.match(death.content, /@Affliction\[Compendium\.test\.afflictions\.Item\.deathchat\]/);
+  } finally {
+    globalThis.ChatMessage = previousChatMessage;
+  }
+});
