@@ -158,3 +158,21 @@ test("controller manager uses a taller resizable viewport with a guarded outer s
   assert.match(css, /\.affliction-controller-app \.affliction-controller-shell/);
   assert.match(css, /overflow-y:\s*auto/);
 })
+
+test("runtime hardening serializes controller save resolution and exposes pending-save recovery", () => {
+  const publicApi = readFileSync(join(root, "scripts/api/public-api.js"), "utf8");
+  assert.match(engine, /#controllerQueues/);
+  assert.match(engine, /#serialize\(/);
+  assert.match(engine, /async resumePending\(/);
+  assert.match(publicApi, /resumePending:/);
+});
+
+test("manual stage-effect delete storms are coalesced before reconciliation", () => {
+  assert.match(integration, /pendingRuntimeReconciles/);
+  assert.match(integration, /queueMicrotask/);
+  assert.match(integration, /api\.instances\.reconcile\(controllerUuid\)/);
+});
+
+test("active-affliction discovery uses the same world plus synthetic-token actor universe as reconciliation", () => {
+  assert.match(runtime, /async listAll\(\)[\s\S]*runtimeActorCollection\(\)/);
+});

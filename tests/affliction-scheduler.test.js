@@ -319,3 +319,142 @@ test("a large jump catches up manual saves chronologically and ends at maximum a
   assert.equal(result.processed[0].status, "maximum-duration");
   assert.deepEqual(result.processed[0].actions.at(-1), { type: "maximum-duration", at: 300 });
 });
+
+test("ready recovery resumes a persisted pending initial save instead of leaving it stranded", async () => {
+  const controller = makeController(definition(), {
+    status: "pending",
+    currentStage: 0,
+    stageEnteredAt: null,
+    nextCheckAt: null,
+    pendingCheck: {
+      requestId: "pending-initial-reload",
+      effectiveAt: 100,
+      checkIds: ["primary"],
+      requests: { primary: { status: "awaiting-gm" } },
+      results: {}
+    }
+  });
+  let resumeCalls = 0;
+  const service = { async get() { return controller; }, async end() { return true; } };
+  const engine = {
+    async process() { throw new Error("process should not run before resume"); },
+    async resumePending(_controller, { reason }) {
+      resumeCalls += 1;
+      assert.equal(reason, "ready");
+      const state = controller.flags[MODULE_ID].state;
+      state.status = "active";
+      state.currentStage = 1;
+      state.stageEnteredAt = 300;
+      state.activeStartedAt = 300;
+      state.pendingCheck = null;
+      state.nextCheckAt = 360;
+      state.revision += 1;
+      return { status: "stage-changed", controller };
+    }
+  };
+  const scheduler = createAfflictionScheduler({
+    engine,
+    instanceService: service,
+    controllerProvider: () => [controller],
+    authorityResolver: () => true,
+    settingsProvider: () => ({ enabled: true, catchUpMode: "all", catchUpLimit: 25 })
+  });
+
+  const result = await scheduler.processDue({ worldTime: 300, reason: "ready" });
+  assert.equal(resumeCalls, 1);
+  assert.equal(result.processed[0].status, "caught-up");
+  assert.equal(result.processed[0].actions[0].type, "resume-pending");
+});
+
+test("an offline player owner no longer leaves an awaiting-player save permanently stranded", async () => {
+  const previousUsers = globalThis.game.users;
+  const gm = { id: "gm-a", isGM: true, active: true };
+  const player = { id: "player-offline", isGM: false, active: false };
+  globalThis.game.users = { activeGM: gm, contents: [gm, player], get: (id) => [gm, player].find((user) => user.id === id) };
+  const controller = makeController(definition(), {
+    pendingCheck: {
+      requestId: "player-disconnected",
+      effectiveAt: 100,
+      checkIds: ["primary"],
+      requests: { primary: { status: "awaiting-player", userIds: ["player-offline"] } },
+      results: {}
+    }
+  });
+  controller.parent.testUserPermission = () => true;
+  let resumeCalls = 0;
+  const service = { async get() { return controller; }, async end() { return true; } };
+  const engine = {
+    async process() { throw new Error("normal process should remain blocked"); },
+    async resumePending(_controller, { reason }) {
+      resumeCalls += 1;
+      assert.equal(reason, "user-presence-change");
+      const state = controller.flags[MODULE_ID].state;
+      state.pendingCheck = null;
+      state.stageEnteredAt = 300;
+      state.nextCheckAt = 360;
+      state.revision += 1;
+      return { status: "stage-changed", controller };
+    }
+  };
+  const scheduler = createAfflictionScheduler({
+    engine,
+    instanceService: service,
+    controllerProvider: () => [controller],
+    authorityResolver: () => true,
+    settingsProvider: () => ({ enabled: true, catchUpMode: "all", catchUpLimit: 25 })
+  });
+
+  const result = await scheduler.processDue({ worldTime: 300, reason: "user-presence-change" });
+  assert.equal(resumeCalls, 1);
+  assert.equal(result.processed[0].actions[0].type, "resume-pending");
+  globalThis.game.users = previousUsers;
+});
+
+test("an unrelated player presence change does not reopen a valid awaiting-GM dialog", async () => {
+  const controller = makeController(definition(), {
+    pendingCheck: {
+      requestId: "gm-still-valid",
+      effectiveAt: 100,
+      checkIds: ["primary"],
+      requests: { primary: { status: "awaiting-gm" } },
+      results: {}
+    }
+  });
+  let resumeCalls = 0;
+  const service = { async get() { return controller; }, async end() { return true; } };
+  const engine = {
+    async process() { throw new Error("process should stay blocked"); },
+    async resumePending() { resumeCalls += 1; return { status: "pending" }; }
+  };
+  const scheduler = createAfflictionScheduler({
+    engine,
+    instanceService: service,
+    controllerProvider: () => [controller],
+    authorityResolver: () => true,
+    settingsProvider: () => ({ enabled: true, catchUpMode: "all", catchUpLimit: 25 })
+  });
+
+  const result = await scheduler.processDue({ worldTime: 300, reason: "user-presence-change" });
+  assert.equal(resumeCalls, 0);
+  assert.equal(result.processed[0].status, "pending-manual");
+});
+
+test("a lethal Affliction controller stops automatic catch-up after death is recorded", async () => {
+  const controller = makeController(definition(), {
+    mortality: {
+      dead: true,
+      at: 100,
+      stageNumber: 1,
+      stageId: "stage-1",
+      category: "direct"
+    },
+    nextCheckAt: 100
+  });
+  const parts = runtime(controller);
+  const scheduler = schedulerFor(controller, parts);
+  const result = await scheduler.processDue({ worldTime: 300 });
+
+  assert.deepEqual(parts.calls, []);
+  assert.equal(parts.service.ended, null);
+  assert.equal(result.processed[0].status, "dead");
+});

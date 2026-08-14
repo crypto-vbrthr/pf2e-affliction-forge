@@ -183,6 +183,7 @@ export function createPublicApi() {
       inspect: (controllerOrUuid) => afflictionEngine.inspect(controllerOrUuid),
       process: (controllerOrUuid, options = {}) => afflictionEngine.process(controllerOrUuid, options),
       processInitial: (controllerOrUuid) => afflictionEngine.processInitial(controllerOrUuid),
+      resumePending: (controllerOrUuid, options = {}) => afflictionEngine.resumePending(controllerOrUuid, options),
       acceptPlayerResult: async (payload = {}) => {
         const result = await afflictionEngine.acceptPlayerResult(payload);
         // A historical player save can complete a transition whose next interval

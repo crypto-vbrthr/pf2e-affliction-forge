@@ -310,3 +310,204 @@ test("engine does not request a one-minute stage save after only one combat roun
   assert.equal(result.dueAt, 1060);
   assert.equal(controller.flags[MODULE_ID].state.currentStage, 1);
 });
+
+test("duplicate player-save deliveries are serialized and transition only once", async () => {
+  globalThis.game.users = [{ id: "player", isGM: false, active: true }];
+  const definition = automaticDefinition({
+    saveDefaults: { execution: "player", visibility: "public" }
+  });
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.concurrent-player",
+    status: "active",
+    currentStage: 1,
+    appliedAt: 900,
+    stageEnteredAt: 900,
+    activeStartedAt: 900,
+    onsetStartedAt: null,
+    nextCheckAt: 1000,
+    identification: { state: "identified", identifiedAt: 900, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [],
+    pendingCheck: {
+      schemaVersion: 1,
+      requestId: "request.concurrent",
+      kind: "stage",
+      stageNumber: 1,
+      combine: "single",
+      checkIds: ["primary"],
+      requestedAt: 1000,
+      effectiveAt: 1000,
+      requests: {
+        primary: {
+          requestId: "request.concurrent",
+          checkId: "primary",
+          status: "awaiting-player",
+          execution: "player",
+          visibility: "public",
+          userIds: ["player"]
+        }
+      },
+      results: {}
+    },
+    onsetTargetStage: null,
+    lastCheck: null,
+    revision: 3
+  };
+  const { actor, controller } = makeController(definition, { state });
+  actor.testUserPermission = (user) => user?.id === "player";
+  const service = serviceFor(controller);
+  let stageTransitions = 0;
+  const originalSetStage = service.setStage.bind(service);
+  service.setStage = async (...args) => {
+    stageTransitions += 1;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return originalSetStage(...args);
+  };
+  const engine = createAfflictionEngine({ instanceService: service });
+  const payload = {
+    controllerUuid: controller.uuid,
+    requestId: "request.concurrent",
+    checkId: "primary",
+    userId: "player",
+    degree: "failure",
+    total: 17,
+    d20: 9,
+    rollId: "roll.concurrent"
+  };
+
+  const [first, second] = await Promise.all([
+    engine.acceptPlayerResult(payload),
+    engine.acceptPlayerResult(payload)
+  ]);
+
+  assert.equal(stageTransitions, 1);
+  assert.deepEqual([first.status, second.status].sort(), ["stage-changed", "stale"]);
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 2);
+});
+
+test("resumePending preserves completed results and re-runs only unresolved checks", async () => {
+  globalThis.game.users = [];
+  const definition = automaticDefinition({
+    saveDefaults: { execution: "gm", visibility: "public" }
+  });
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.resume",
+    status: "active",
+    currentStage: 1,
+    appliedAt: 900,
+    stageEnteredAt: 900,
+    activeStartedAt: 900,
+    onsetStartedAt: null,
+    nextCheckAt: 1000,
+    identification: { state: "identified", identifiedAt: 900, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [],
+    pendingCheck: {
+      schemaVersion: 1,
+      requestId: "request.resume",
+      kind: "stage",
+      stageNumber: 1,
+      combine: "single",
+      checkIds: ["primary"],
+      requestedAt: 1000,
+      effectiveAt: 1000,
+      requests: { primary: { status: "awaiting-gm", execution: "gm", visibility: "public" } },
+      results: {}
+    },
+    onsetTargetStage: null,
+    lastCheck: null,
+    revision: 4
+  };
+  const { actor, controller } = makeController(definition, { state, degrees: ["failure"] });
+  const service = serviceFor(controller);
+  const engine = createAfflictionEngine({ instanceService: service });
+
+  const result = await engine.resumePending(controller, { reason: "ready" });
+
+  assert.equal(result.status, "stage-changed");
+  assert.equal(result.resumed, true);
+  assert.equal(result.resetRequests, 1);
+  assert.equal(actor.lastRollOptions.skipDialog, false);
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 2);
+  assert.equal(controller.flags[MODULE_ID].state.lastCheck.effectiveAt, 1000);
+});
+
+test("a manual controller transition invalidates an in-flight save before it can apply a stale result", async () => {
+  globalThis.game.users = [{ id: "player", isGM: false, active: true }];
+  const definition = automaticDefinition({ saveDefaults: { execution: "player", visibility: "public" } });
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.manual-wins",
+    status: "active",
+    currentStage: 1,
+    appliedAt: 900,
+    stageEnteredAt: 900,
+    activeStartedAt: 900,
+    onsetStartedAt: null,
+    nextCheckAt: 1000,
+    identification: { state: "identified", identifiedAt: 900, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [],
+    pendingCheck: {
+      schemaVersion: 1,
+      requestId: "request.manual-wins",
+      kind: "stage",
+      stageNumber: 1,
+      combine: "single",
+      checkIds: ["primary"],
+      requestedAt: 1000,
+      effectiveAt: 1000,
+      requests: {
+        primary: {
+          requestId: "request.manual-wins",
+          checkId: "primary",
+          status: "awaiting-player",
+          execution: "player",
+          visibility: "public",
+          userIds: ["player"]
+        }
+      },
+      results: {}
+    },
+    onsetTargetStage: null,
+    lastCheck: null,
+    revision: 5
+  };
+  const { actor, controller } = makeController(definition, { state });
+  actor.testUserPermission = () => true;
+  const service = serviceFor(controller);
+  const originalSetPending = service.setPendingCheck.bind(service);
+  let manualIntervention = false;
+  service.setPendingCheck = async (target, pending) => {
+    const result = await originalSetPending(target, pending);
+    if (!manualIntervention && pending?.results?.primary?.degree) {
+      manualIntervention = true;
+      const runtimeState = controller.flags[MODULE_ID].state;
+      runtimeState.currentStage = 2;
+      runtimeState.pendingCheck = null;
+      runtimeState.revision += 1;
+    }
+    return result;
+  };
+  let setStageCalls = 0;
+  const originalSetStage = service.setStage.bind(service);
+  service.setStage = async (...args) => {
+    setStageCalls += 1;
+    return originalSetStage(...args);
+  };
+  const engine = createAfflictionEngine({ instanceService: service });
+  const result = await engine.acceptPlayerResult({
+    controllerUuid: controller.uuid,
+    requestId: "request.manual-wins",
+    checkId: "primary",
+    userId: "player",
+    degree: "failure",
+    rollId: "roll.manual-wins"
+  });
+
+  assert.equal(result.status, "stale");
+  assert.equal(setStageCalls, 0);
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 2);
+});

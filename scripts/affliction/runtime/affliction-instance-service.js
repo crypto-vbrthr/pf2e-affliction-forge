@@ -677,8 +677,27 @@ function descriptor(controller) {
 }
 
 export class AfflictionInstanceService {
+  #mutationQueues = new Map();
+
   constructor({ effectValidator = null } = {}) {
     this.effectValidator = effectValidator;
+  }
+
+  #mutationKey(controllerOrUuid) {
+    if (typeof controllerOrUuid === "string" && controllerOrUuid) return controllerOrUuid;
+    return controllerOrUuid?.uuid ?? controllerOrUuid?.id ?? "__global__";
+  }
+
+  #serializeMutation(controllerOrUuid, task) {
+    const key = this.#mutationKey(controllerOrUuid);
+    const previous = this.#mutationQueues.get(key) ?? Promise.resolve();
+    const run = previous.catch(() => undefined).then(task);
+    const tail = run.then(() => undefined, () => undefined);
+    this.#mutationQueues.set(key, tail);
+    void tail.then(() => {
+      if (this.#mutationQueues.get(key) === tail) this.#mutationQueues.delete(key);
+    });
+    return run;
   }
 
   async get(controllerOrUuid) {
@@ -709,12 +728,10 @@ export class AfflictionInstanceService {
   }
 
   async listAll() {
-    const actors = globalThis.game?.actors;
-    if (!actors) return [];
-    const list = Array.isArray(actors) ? actors : (() => {
-      try { return [...actors]; } catch { return []; }
-    })();
-    return list.flatMap((actor) => itemCollection(actor).filter(isAfflictionController).map(descriptor));
+    // World actors are not the whole runtime. Unlinked token actors can carry
+    // embedded controllers too and must appear in the Active Afflictions view.
+    return runtimeActorCollection()
+      .flatMap((actor) => itemCollection(actor).filter(isAfflictionController).map(descriptor));
   }
 
   async applyTemplate(templateOrUuid, targets, options = {}) {
@@ -802,12 +819,6 @@ export class AfflictionInstanceService {
             const createdEffects = await createStageEffects({ actor, controller, definition, state, stage });
             state.activeStageEffectUuids = createdEffects.map((item) => item.uuid);
             await updateController(controller, definition, state);
-            // Stage entry is committed before instant mechanics run. Damage and
-            // other future instant components are irreversible, so a failed
-            // execution must never roll the controller back to a phase whose
-            // persistent effects have already been replaced.
-            const instantResults = await executeStageInstantEffectsSafely({ actor, controller, definition, state, stage });
-            await recordInstantExecutionResultsSafely({ actor, controller, definition, state, stage, results: instantResults, at: appliedAt });
           }
           controllers.push(controller);
         } catch (error) {
@@ -816,10 +827,24 @@ export class AfflictionInstanceService {
           throw error;
         }
       }
+
+      // Only after every target has a valid controller and persistent stage
+      // output do we execute irreversible stage-entry mechanics such as damage
+      // or death. This preserves structural multi-target rollback: a later Actor
+      // creation failure can never leave an earlier Actor damaged by an
+      // application whose controller was subsequently rolled back.
+      for (const controller of controllers) {
+        const actor = controller.parent;
+        const state = deepClone(getAfflictionFlags(controller)?.state ?? {});
+        if (state.currentStage <= 0) continue;
+        const stage = stageDescriptor(definition, state.currentStage);
+        const instantResults = await executeStageInstantEffectsSafely({ actor, controller, definition, state, stage });
+        await recordInstantExecutionResultsSafely({ actor, controller, definition, state, stage, results: instantResults, at: appliedAt });
+      }
       return controllers;
     } catch (error) {
-      // Multi-target application is atomic from the user's point of view. If a
-      // later target fails, remove already-created instances from earlier targets.
+      // Persistent/controller creation is rollback-safe because irreversible
+      // instant stage mechanics are deferred until all targets commit.
       for (const controller of [...controllers].reverse()) {
         try { await this.end(controller, { reason: "ended" }); } catch (cleanupError) {
           console.error(`${MODULE_ID} | Failed to roll back a partial multi-target Affliction application.`, cleanupError);
@@ -849,11 +874,15 @@ export class AfflictionInstanceService {
     return controller;
   }
 
-  async beginOnset(controllerOrUuid, targetStage = 1, { startedAt = nowWorldTime(), lastCheck = null } = {}) {
+  async beginOnset(controllerOrUuid, targetStage = 1, options = {}) {
+    return this.#serializeMutation(controllerOrUuid, () => this.#beginOnsetUnlocked(controllerOrUuid, targetStage, options));
+  }
+
+  async #beginOnsetUnlocked(controllerOrUuid, targetStage = 1, { startedAt = nowWorldTime(), lastCheck = null } = {}) {
     const { controller, actor } = await resolveController(controllerOrUuid);
     const flags = getAfflictionFlags(controller);
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
-    if (!definition.onset) return this.setStage(controller, targetStage, { enteredAt: startedAt });
+    if (!definition.onset) return this.#setStageUnlocked(controller, targetStage, { enteredAt: startedAt });
     const state = deepClone(flags.state);
     await removeStageEffects(actor, state);
     state.status = "incubating";
@@ -885,7 +914,11 @@ export class AfflictionInstanceService {
     return this.setStage(controller, targetStage, { enteredAt });
   }
 
-  async setStage(controllerOrUuid, requestedStage, {
+  async setStage(controllerOrUuid, requestedStage, options = {}) {
+    return this.#serializeMutation(controllerOrUuid, () => this.#setStageUnlocked(controllerOrUuid, requestedStage, options));
+  }
+
+  async #setStageUnlocked(controllerOrUuid, requestedStage, {
     enteredAt = nowWorldTime(),
     lastCheck = undefined,
     refreshPersistent = false,
@@ -1021,6 +1054,10 @@ export class AfflictionInstanceService {
   }
 
   async executeStageInstant(controllerOrUuid) {
+    return this.#serializeMutation(controllerOrUuid, () => this.#executeStageInstantUnlocked(controllerOrUuid));
+  }
+
+  async #executeStageInstantUnlocked(controllerOrUuid) {
     const { controller, actor } = await resolveController(controllerOrUuid);
     const flags = getAfflictionFlags(controller);
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
@@ -1032,7 +1069,11 @@ export class AfflictionInstanceService {
     return results;
   }
 
-  async setIdentification(controllerOrUuid, identificationState, {
+  async setIdentification(controllerOrUuid, identificationState, options = {}) {
+    return this.#serializeMutation(controllerOrUuid, () => this.#setIdentificationUnlocked(controllerOrUuid, identificationState, options));
+  }
+
+  async #setIdentificationUnlocked(controllerOrUuid, identificationState, {
     identifiedBy = globalThis.game?.user?.id ?? null,
     changedAt = nowWorldTime()
   } = {}) {
@@ -1080,7 +1121,11 @@ export class AfflictionInstanceService {
     return controller;
   }
 
-  async end(controllerOrUuid, { reason = "ended" } = {}) {
+  async end(controllerOrUuid, options = {}) {
+    return this.#serializeMutation(controllerOrUuid, () => this.#endUnlocked(controllerOrUuid, options));
+  }
+
+  async #endUnlocked(controllerOrUuid, { reason = "ended" } = {}) {
     const { controller, actor } = await resolveController(controllerOrUuid);
     const flags = getAfflictionFlags(controller);
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
@@ -1111,11 +1156,29 @@ export class AfflictionInstanceService {
     return true;
   }
 
-  async reconcile(controllerOrUuid, { cleanupOrphans = true, recordEvent = true } = {}) {
+  async reconcile(controllerOrUuid, { cleanupOrphans = true, recordEvent = true, _attempt = 0 } = {}) {
     const { controller, actor } = await resolveController(controllerOrUuid);
     const flags = getAfflictionFlags(controller);
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
     const state = deepClone(flags.state);
+    const snapshot = {
+      revision: Number(state.revision ?? 0),
+      status: state.status,
+      currentStage: Number(state.currentStage ?? 0),
+      instanceId: state.instanceId
+    };
+    const stillCurrent = async () => {
+      const refreshed = await this.get(controller.uuid).catch(() => null);
+      const latest = getAfflictionFlags(refreshed)?.state ?? null;
+      if (!latest) return { current: false, controller: refreshed };
+      return {
+        current: Number(latest.revision ?? 0) === snapshot.revision
+          && latest.status === snapshot.status
+          && Number(latest.currentStage ?? 0) === snapshot.currentStage
+          && latest.instanceId === snapshot.instanceId,
+        controller: refreshed
+      };
+    };
     const stage = state.status === "active" && Number(state.currentStage) > 0
       ? stageDescriptor(definition, Number(state.currentStage))
       : null;
@@ -1128,6 +1191,23 @@ export class AfflictionInstanceService {
       ? currentItems.filter((item) => stageEffectMatchesController(item, controller, state, stage))
       : [];
     const stale = currentItems.filter((item) => !matching.includes(item));
+
+    const beforeMutation = await stillCurrent();
+    if (!beforeMutation.current) {
+      if (beforeMutation.controller && _attempt < 2) {
+        return this.reconcile(beforeMutation.controller, { cleanupOrphans, recordEvent, _attempt: _attempt + 1 });
+      }
+      return Object.freeze({
+        controllerUuid: controller.uuid,
+        actorUuid: actor.uuid,
+        repaired: false,
+        stale: true,
+        deleted: 0,
+        created: 0,
+        expected: expectedSources.length,
+        active: 0
+      });
+    }
 
     let deleted = 0;
     let created = [];
@@ -1153,6 +1233,32 @@ export class AfflictionInstanceService {
         });
       }
       repaired = true;
+    }
+
+    const afterMutation = await stillCurrent();
+    if (!afterMutation.current) {
+      // Another transition won the race while reconciliation was rebuilding
+      // persistent output. Remove only the Items created by this stale pass and
+      // retry against the current controller state. Never execute instant output.
+      if (created.length > 0) {
+        await actor.deleteEmbeddedDocuments("Item", created.map((item) => item.id).filter(Boolean), {
+          render: false,
+          [MODULE_ID]: { afflictionReconcile: true, staleReconcileCleanup: true }
+        });
+      }
+      if (afterMutation.controller && _attempt < 2) {
+        return this.reconcile(afterMutation.controller, { cleanupOrphans, recordEvent, _attempt: _attempt + 1 });
+      }
+      return Object.freeze({
+        controllerUuid: controller.uuid,
+        actorUuid: actor.uuid,
+        repaired: false,
+        stale: true,
+        deleted,
+        created: 0,
+        expected: expectedSources.length,
+        active: 0
+      });
     }
 
     const actual = outputMismatch ? created : matching;
@@ -1192,7 +1298,24 @@ export class AfflictionInstanceService {
     if (!actor) throw new TypeError("Actor not found.");
     const controllers = itemCollection(actor).filter(isAfflictionController);
     const reports = [];
-    for (const controller of controllers) reports.push(await this.reconcile(controller, { cleanupOrphans: false }));
+    const errors = [];
+    for (const controller of controllers) {
+      try {
+        reports.push(await this.reconcile(controller, { cleanupOrphans: false }));
+      } catch (error) {
+        // One corrupt/legacy controller must not prevent healthy Afflictions on
+        // the same Actor from reconciling during world startup. Preserve its
+        // generated output and report the failure for diagnostics instead.
+        console.warn(`${MODULE_ID} | Affliction controller reconciliation failed.`, {
+          controllerUuid: controller.uuid,
+          error
+        });
+        errors.push(Object.freeze({
+          controllerUuid: controller.uuid,
+          message: error?.message ?? String(error)
+        }));
+      }
+    }
 
     let orphaned = 0;
     if (cleanupOrphans) {
@@ -1203,15 +1326,24 @@ export class AfflictionInstanceService {
         return !flags?.instanceId || !instanceIds.has(flags.instanceId);
       });
       if (orphans.length > 0) {
-        await actor.deleteEmbeddedDocuments("Item", orphans.map((item) => item.id), {
-          render: false,
-          [MODULE_ID]: { orphanCleanup: true, afflictionReconcile: true }
-        });
-        orphaned = orphans.length;
+        try {
+          await actor.deleteEmbeddedDocuments("Item", orphans.map((item) => item.id), {
+            render: false,
+            [MODULE_ID]: { orphanCleanup: true, afflictionReconcile: true }
+          });
+          orphaned = orphans.length;
+        } catch (error) {
+          console.warn(`${MODULE_ID} | Affliction orphan cleanup failed.`, { actorUuid: actor.uuid, error });
+          errors.push(Object.freeze({
+            controllerUuid: null,
+            message: error?.message ?? String(error),
+            kind: "orphan-cleanup"
+          }));
+        }
       }
     }
 
-    return Object.freeze({ actorUuid: actor.uuid, controllers: reports, orphaned });
+    return Object.freeze({ actorUuid: actor.uuid, controllers: reports, orphaned, errors: Object.freeze(errors) });
   }
 
   async reconcileAll({ cleanupOrphans = true } = {}) {
@@ -1219,7 +1351,20 @@ export class AfflictionInstanceService {
     for (const actor of runtimeActorCollection()) {
       const hasRuntime = itemCollection(actor).some((item) => isAfflictionController(item) || isAfflictionStageEffect(item));
       if (!hasRuntime) continue;
-      reports.push(await this.reconcileActor(actor, { cleanupOrphans }));
+      try {
+        reports.push(await this.reconcileActor(actor, { cleanupOrphans }));
+      } catch (error) {
+        // Runtime recovery is best-effort across the whole world. A broken
+        // synthetic Actor or document collection must not abort reconciliation
+        // for every later Actor or prevent the scheduler from starting.
+        console.warn(`${MODULE_ID} | Affliction Actor reconciliation failed.`, { actorUuid: actor.uuid, error });
+        reports.push(Object.freeze({
+          actorUuid: actor.uuid,
+          controllers: Object.freeze([]),
+          orphaned: 0,
+          errors: Object.freeze([{ controllerUuid: null, message: error?.message ?? String(error), kind: "actor" }])
+        }));
+      }
     }
     return Object.freeze(reports);
   }

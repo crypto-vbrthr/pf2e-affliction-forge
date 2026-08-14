@@ -71,8 +71,27 @@ function pendingMatches(pending, plan) {
 }
 
 export class AfflictionEngine {
+  #controllerQueues = new Map();
+
   constructor({ instanceService }) {
     this.instanceService = instanceService;
+  }
+
+  #controllerKey(controllerOrUuid) {
+    if (typeof controllerOrUuid === "string" && controllerOrUuid) return controllerOrUuid;
+    return controllerOrUuid?.uuid ?? controllerOrUuid?.id ?? "__global__";
+  }
+
+  #serialize(controllerOrUuid, task) {
+    const key = this.#controllerKey(controllerOrUuid);
+    const previous = this.#controllerQueues.get(key) ?? Promise.resolve();
+    const run = previous.catch(() => undefined).then(task);
+    const tail = run.then(() => undefined, () => undefined);
+    this.#controllerQueues.set(key, tail);
+    void tail.then(() => {
+      if (this.#controllerQueues.get(key) === tail) this.#controllerQueues.delete(key);
+    });
+    return run;
   }
 
   async applyTemplate(templateOrUuid, targets, options = {}) {
@@ -140,6 +159,10 @@ export class AfflictionEngine {
 
   async process(controllerOrUuid, { force = false, atTime = null } = {}) {
     assertGm();
+    return this.#serialize(controllerOrUuid, () => this.#processUnlocked(controllerOrUuid, { force, atTime }));
+  }
+
+  async #processUnlocked(controllerOrUuid, { force = false, atTime = null } = {}) {
     const current = await this.inspect(controllerOrUuid);
     const { controller, state } = current;
     // `Number(null)` is 0. Treating the default null as a valid timestamp
@@ -262,7 +285,26 @@ export class AfflictionEngine {
 
   async acceptPlayerResult(payload = {}) {
     assertGm();
-    const { controller, actor, definition, state, plan } = await this.inspect(payload.controllerUuid);
+    if (!payload?.controllerUuid) return { status: "invalid", controller: null };
+    return this.#serialize(payload.controllerUuid, () => this.#acceptPlayerResultUnlocked(payload));
+  }
+
+  async #acceptPlayerResultUnlocked(payload = {}) {
+    let inspected;
+    try {
+      inspected = await this.inspect(payload.controllerUuid);
+    } catch (error) {
+      // Duplicate socket/ChatMessage deliveries can arrive after a resolving
+      // result has already ended and deleted the controller. Treat that as a
+      // stale result instead of surfacing a spurious runtime error.
+      let resolved = null;
+      if (typeof globalThis.fromUuid === "function") {
+        try { resolved = await globalThis.fromUuid(payload.controllerUuid); } catch { resolved = null; }
+      }
+      if (!resolved) return { status: "stale", controller: null };
+      throw error;
+    }
+    const { controller, actor, definition, state, plan } = inspected;
     const pending = deepClone(state.pendingCheck);
     if (!pending || pending.requestId !== payload.requestId) return { status: "stale", controller };
     const check = plan?.checks?.find((entry) => entry.id === payload.checkId);
@@ -289,13 +331,58 @@ export class AfflictionEngine {
     });
     pending.requests[check.id] = { ...request, status: "resolved", resolvedAt: nowWorldTime() };
     await this.instanceService.setPendingCheck(controller, pending);
-    return this.#finalizeIfComplete(controller, pending, { definition, state, plan });
+    return this.#finalizeIfComplete(controller, pending);
   }
 
-  async #finalizeIfComplete(controller, pending, cached = null) {
-    const current = cached ?? await this.inspect(controller);
+  async resumePending(controllerOrUuid, { reason = "manual-resume" } = {}) {
+    assertGm();
+    return this.#serialize(controllerOrUuid, () => this.#resumePendingUnlocked(controllerOrUuid, { reason }));
+  }
+
+  async #resumePendingUnlocked(controllerOrUuid, { reason = "manual-resume" } = {}) {
+    const current = await this.inspect(controllerOrUuid);
+    const { controller, state } = current;
+    const pending = state.pendingCheck ? deepClone(state.pendingCheck) : null;
+
+    // A legacy/interrupted initial application may have reached pending state
+    // before the request object itself was persisted. Re-run the initial plan.
+    if (!pending) {
+      if (state.status !== "pending") return { status: "no-pending", controller };
+      return this.#processUnlocked(controller, { force: true, atTime: nowWorldTime() });
+    }
+
+    const checkIds = Array.isArray(pending.checkIds) ? pending.checkIds : [];
+    let reset = 0;
+    pending.requests ??= {};
+    for (const checkId of checkIds) {
+      if (pending.results?.[checkId]?.degree) continue;
+      if (pending.requests?.[checkId]) reset += 1;
+      delete pending.requests[checkId];
+    }
+    pending.resumeCount = Number(pending.resumeCount ?? 0) + 1;
+    pending.lastResumedAt = nowWorldTime();
+    pending.lastResumeReason = reason;
+    await this.instanceService.setPendingCheck(controller, pending);
+
+    const effectiveAt = pending.effectiveAt != null && Number.isFinite(Number(pending.effectiveAt))
+      ? Number(pending.effectiveAt)
+      : nowWorldTime();
+    const result = await this.#processUnlocked(controller, { force: true, atTime: effectiveAt });
+    return { ...result, resumed: true, resetRequests: reset, reason };
+  }
+
+  async #finalizeIfComplete(controller, pending) {
+    const current = await this.inspect(controller);
+    const persisted = current.state.pendingCheck;
+    // Manual stage changes, ending the Affliction, or another accepted result
+    // can invalidate an in-flight resolution. Never apply a transition from a
+    // request which is no longer the controller's current pending check.
+    if (!persisted || persisted.requestId !== pending.requestId) {
+      return { status: "stale", controller: current.controller };
+    }
+    pending = deepClone(persisted);
     const plan = current.plan;
-    if (!plan) return { status: "no-check", controller };
+    if (!plan || !pendingMatches(pending, plan)) return { status: "stale", controller: current.controller };
     const resolution = resolveCheckResults(current.definition, current.state, plan, pending.results);
     if (!resolution.complete) {
       return {

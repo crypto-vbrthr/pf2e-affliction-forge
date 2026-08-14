@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.30
+
+### Runtime Review & Edge-Case Hardening
+
+- serializes Affliction Engine processing, pending-save resumption, and player-result acceptance per controller so duplicate client deliveries cannot progress one instance twice
+- serializes mutable controller operations such as stage changes, identification changes, instant retries, onset starts, and endings; a rejected mutation no longer poisons later queued work
+- revalidates the persisted pending request immediately before save resolution and discards stale results after manual GM intervention
+- adds public `api.engine.resumePending()` and automatic recovery for interrupted pending saves on world ready
+- reissues only unresolved checks while preserving already completed results in multi-save gates
+- recovers an `awaiting-player` request when its selected owner disconnects or loses ownership, using the normal fallback policy
+- reopens an abandoned GM request only on actual GM-authority recovery, not on unrelated player connection changes
+- bounds the in-memory player-save de-duplication history
+- includes unlinked/synthetic token Actors in the world-wide active-Affliction registry and runtime discovery
+- coalesces manual stage-effect deletion storms into one reconciliation pass
+- makes reconciliation revision-aware so a stale repair pass cannot overwrite a newer manual/runtime transition
+- isolates corrupt controllers during Actor/world reconciliation so healthy Afflictions still repair and the scheduler can continue starting
+- cleans generated output when a controller is manually deleted without touching sibling instances
+- defers irreversible multi-target instant mechanics until all controller and persistent-stage creation has structurally committed
+- stops automatic catch-up once an Affliction has recorded a successful lethal-stage death, preserving its controller for cause-of-death/audit inspection
+- adds regression coverage for duplicate save delivery, pending-save recovery, manual intervention races, rejected mutation queues, synthetic Actors, corrupt-controller isolation, deletion cleanup, stale reconciliation, multi-target rollback, and lethal catch-up
+
 ## 0.1.29
 
 ### Controller Manager Viewport & Scroll Hardening

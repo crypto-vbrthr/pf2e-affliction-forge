@@ -6,6 +6,7 @@ let initialized = false;
 const activePlayerRequests = new Map();
 const submittedPlayerRequests = new Set();
 const activePlayerPrompts = new Set();
+const MAX_SUBMITTED_REQUEST_HISTORY = 500;
 
 function localize(key) {
   return globalThis.game?.i18n?.localize?.(key) ?? key;
@@ -57,6 +58,13 @@ function registerPlayerRequest(request) {
 function markRequestSubmitted(request) {
   const key = requestKey(request);
   submittedPlayerRequests.add(key);
+  // This is an in-memory de-duplication cache, not an audit log. Bound it so a
+  // long-running world with many Affliction saves does not grow forever.
+  while (submittedPlayerRequests.size > MAX_SUBMITTED_REQUEST_HISTORY) {
+    const oldest = submittedPlayerRequests.values().next().value;
+    if (oldest == null) break;
+    submittedPlayerRequests.delete(oldest);
+  }
   activePlayerRequests.delete(key);
 }
 

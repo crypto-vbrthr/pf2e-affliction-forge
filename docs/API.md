@@ -1,4 +1,4 @@
-# Public API 0.1.26
+# Public API 0.1.30
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -93,15 +93,24 @@ The engine understands:
 - recovery/rejection/end transitions
 - resumable pending player-save requests
 
-### Player-result handoff
+### Player-result handoff and pending recovery
 
-Normally consumer modules should not call this directly. The module socket runtime uses it after a player submits a requested save:
+Normally consumer modules should not call `acceptPlayerResult()` directly. The player-save runtime uses it after a requested PF2e save has been correlated back to the authoritative GM:
 
 ```js
 await api.engine.acceptPlayerResult(payload);
 ```
 
-The engine verifies the pending request ID, requested check, permitted user, and Actor ownership before accepting the result.
+The engine verifies the pending request ID, requested check, permitted user, Actor ownership, and the controller's still-current persisted request immediately before applying progression. Duplicate or stale deliveries therefore resolve as `status: "stale"` rather than progressing the Affliction twice.
+
+Interrupted interactive checks can be resumed explicitly:
+
+```js
+await api.engine.resumePending(controllerUuid);
+await api.engine.resumePending(controllerUuid, { reason: "manual-retry" });
+```
+
+Resumption preserves completed results in a multi-save gate and reissues only unresolved checks. The scheduler invokes the same recovery path on world ready, after an actual GM-authority handoff for an abandoned GM dialog, or when an `awaiting-player` request can no longer be answered by its selected active owner.
 
 ### Pure resolution helpers
 
@@ -338,13 +347,13 @@ api.integration.criticalForge.compatibility()
 
 The compatibility report includes `effectApiAvailable`, `effectSourceApiAvailable`, `effectExecutionApiAvailable`, `deathComponentAvailable`, and `effectEditorAvailable`. Runtime stage instant effects require Critical Forge 1.0.1-rc.3 or later.
 
-## Remaining runtime hardening after 0.1.18
+## Runtime recovery and concurrency
 
-- dedicated turn-specific scheduling where a future effect needs start/end-of-turn semantics rather than world-time intervals
-- strict non-GM hiding of hidden controller Items on Actor sheets
-- richer GM-facing transition/death-cause audit presentation
+0.1.30 serializes save resolution and mutable instance operations per controller. This protects duplicate player-result delivery, rapid manual stage changes, identification edits, end operations, and rejected mutations from overlapping on the same runtime instance. A rejected operation does not poison the queue for later work.
 
-World-time due-event discovery, historical catch-up, and maximum-duration enforcement are active in 0.1.18.
+Startup reconciliation is best-effort per controller and per Actor: one malformed/legacy controller is reported but does not prevent healthy instances from repairing or stop the scheduler from starting. Reconciliation never replays instant damage/death and is revision-aware, so a stale repair pass cannot overwrite a newer transition. The world runtime catalog and reconciliation both include unlinked synthetic token Actors.
+
+Automatic catch-up stops for controllers whose mortality audit records a successful lethal-stage death. The controller remains present for GM cause-of-death/history inspection until explicitly ended. Dedicated start/end-of-turn scheduling remains intentionally outside the world-time interval model.
 
 ## Ready hook
 
@@ -373,4 +382,4 @@ await api.instances.reconcileActor(actorUuid);
 await api.instances.reconcileAll({ cleanupOrphans: true });
 ```
 
-Reconciliation repairs controller-owned persistent stage output only. It never re-executes instant components such as damage or death.
+Reconciliation repairs controller-owned persistent stage output only. It never re-executes instant components such as damage or death. `reconcileActor()` now reports an additive `errors` array and continues past malformed controllers so healthy sibling instances can still repair. `reconcileAll()` likewise isolates Actor-level failures.

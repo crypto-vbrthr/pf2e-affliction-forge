@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.29**
+Current development build: **0.1.30**
 
-Version **0.1.29** hardens the explicit active-affliction manager window. It opens at a taller default size, keeps the ApplicationV2 content chain bounded, and provides a reliable outer scrollbar so stage data, save controls, identification, mortality, runtime history, source information, and end controls remain reachable at any window size.
+Version **0.1.30** is the runtime review and edge-case hardening pass. It serializes controller mutations and save resolution, recovers interrupted interactive saves, includes synthetic token Actors in runtime discovery, makes reconciliation stale-safe and fault-isolated, protects multi-target application from irreversible partial damage, and stops automatic catch-up once a lethal Affliction has actually killed its target.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -46,6 +46,11 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - `Active Afflictions` registry grouped by Actor with explicit manager launch
 - public `api.instances.listAll()` world-wide runtime catalog
 - best-effort inline manager control on GM Actor-sheet controller rows, with Item-sheet/API fallbacks
+- per-controller serialization for save resolution and mutable runtime transitions
+- resumable pending saves after reload, GM authority handoff, or player-owner disconnect
+- revision-aware/fault-isolated runtime reconciliation, including synthetic token Actors
+- structural multi-target commit before any irreversible instant damage/death execution
+- lethal catch-up stop once controller mortality records a successful death
 
 ## Dependency
 
@@ -80,7 +85,7 @@ A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See
 
 ## Runtime boundary
 
-0.1.29 includes the hardened world-time scheduler, active-duration anchoring, player-save routing, identification visibility layer, public library/provider discovery, an explicit Active Afflictions runtime registry, and a taller scroll-safe controller manager. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
+0.1.30 includes the hardened world-time scheduler, active-duration anchoring, player-save routing/recovery, identification visibility layer, public library/provider discovery, an explicit Active Afflictions runtime registry, revision-aware reconciliation, controller mutation serialization, and a scroll-safe controller manager. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
 
 Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
 

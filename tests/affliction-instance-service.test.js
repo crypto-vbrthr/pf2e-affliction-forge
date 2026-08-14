@@ -162,6 +162,7 @@ const { createAfflictionInstanceService, scheduledDueAt } = await import("../scr
 const { createAfflictionEngine } = await import("../scripts/affliction/runtime/affliction-engine.js");
 const { createAfflictionScheduler } = await import("../scripts/affliction/runtime/affliction-scheduler.js");
 const { getAfflictionFlags, isAfflictionController, isAfflictionStageEffect } = await import("../scripts/affliction/documents/affliction-flags.js");
+const { MODULE_ID } = await import("../scripts/constants.js");
 
 function effect(id, name) {
   return {
@@ -797,4 +798,145 @@ test("listAll returns controller descriptors across world actors", async () => {
   assert.equal(all.length, 2);
   assert.deepEqual(all.map((entry) => entry.actorName).sort(), ["Registry A", "Registry B"]);
   assert.ok(all.every((entry) => entry.name === "Registry Probe"));
+});
+
+test("listAll includes controllers on unlinked synthetic token actors", async () => {
+  const previousActors = globalThis.game.actors;
+  const previousScenes = globalThis.game.scenes;
+  globalThis.game.actors = [];
+  const actor = new FakeActor("synthetic-list", "Synthetic List Actor");
+  actor.uuid = "Scene.test.Token.synthetic.Actor.synthetic-list";
+  const service = createAfflictionInstanceService();
+  const [controller] = await service.applyDefinition(definition(), actor);
+  globalThis.game.scenes = [{
+    tokens: [{ actor }]
+  }];
+
+  const all = await service.listAll();
+  assert.equal(all.some((entry) => entry.uuid === controller.uuid), true);
+  assert.equal(all.some((entry) => entry.actorUuid === actor.uuid), true);
+
+  globalThis.game.actors = previousActors;
+  globalThis.game.scenes = previousScenes;
+});
+
+test("reconcile retries against a newer controller revision instead of rebuilding stale stage output", async () => {
+  const actor = new FakeActor("heroReconcileRace", "Reconcile Race Hero");
+  const service = createAfflictionInstanceService();
+  const [controller] = await service.applyDefinition(definition(), actor);
+  const initialStageEffect = actor.items.find(isAfflictionStageEffect);
+  await actor.deleteEmbeddedDocuments("Item", [initialStageEffect.id]);
+
+  const criticalApi = modules.get("pf2e-critical-forge").api;
+  const originalToItemSources = criticalApi.effects.toItemSources;
+  let injectedRevisionChange = false;
+  criticalApi.effects.toItemSources = async (effectDefinition, options) => {
+    if (!injectedRevisionChange && String(effectDefinition.id).includes("rot.stage1")) {
+      injectedRevisionChange = true;
+      const state = getAfflictionFlags(controller).state;
+      state.currentStage = 2;
+      state.stageEnteredAt = 1100;
+      state.nextCheckAt = 1106;
+      state.revision += 1;
+    }
+    return originalToItemSources(effectDefinition, options);
+  };
+
+  const report = await service.reconcile(controller);
+  criticalApi.effects.toItemSources = originalToItemSources;
+
+  assert.equal(report.repaired, true);
+  const effects = actor.items.filter(isAfflictionStageEffect);
+  assert.equal(effects.length, 1);
+  assert.equal(getAfflictionFlags(effects[0]).stageNumber, 2);
+  assert.equal(getAfflictionFlags(controller).state.currentStage, 2);
+  assert.deepEqual(getAfflictionFlags(controller).state.activeStageEffectUuids, [effects[0].uuid]);
+});
+
+test("multi-target structural rollback happens before any irreversible instant stage mechanics execute", async () => {
+  const actorA = new FakeActor("multiInstantA", "Multi Instant A");
+  const actorB = new FakeActor("multiInstantB", "Multi Instant B");
+  const source = createAfflictionDefinition({
+    name: "Atomic Instant Test",
+    initialCheck: null,
+    onset: null,
+    stages: [{ ...createDefaultStage({ number: 1 }), effect: mixedEffect("atomic.stage1", "Atomic Stage 1", "4d6") }]
+  });
+  actorB.failOnStageId = "stage-1";
+  const service = createAfflictionInstanceService();
+  const before = instantExecutions.length;
+
+  await assert.rejects(() => service.applyDefinition(source, [actorA, actorB]), /Synthetic creation failure/);
+
+  assert.equal(instantExecutions.length, before);
+  assert.equal(actorA.items.length, 0);
+  assert.equal(actorB.items.length, 0);
+});
+
+test("serialized controller mutations continue after a rejected transition", async () => {
+  const actor = new FakeActor("heroMutationQueue", "Mutation Queue Hero");
+  const service = createAfflictionInstanceService();
+  const [controller] = await service.applyDefinition(definition(), actor);
+  actor.failOnStageId = "stage-2";
+
+  const failedTransition = service.setStage(controller, 2);
+  const queuedIdentification = service.setIdentification(controller, "hidden", {
+    changedAt: 5000,
+    identifiedBy: "gm"
+  });
+
+  const [transitionResult, identificationResult] = await Promise.allSettled([
+    failedTransition,
+    queuedIdentification
+  ]);
+
+  assert.equal(transitionResult.status, "rejected");
+  assert.equal(identificationResult.status, "fulfilled");
+  const flags = getAfflictionFlags(controller);
+  assert.equal(flags.state.currentStage, 1);
+  assert.equal(flags.state.identification.state, "hidden");
+});
+
+test("reconcileActor isolates a corrupt controller and still repairs healthy instances", async () => {
+  const actor = new FakeActor("heroReconcileIsolation", "Reconcile Isolation Hero");
+  const service = createAfflictionInstanceService();
+  const [corrupt] = await service.applyDefinition(definition(), actor);
+  const [healthy] = await service.applyDefinition(definition(), actor);
+
+  // Damage only one controller's persisted definition contract. Its generated
+  // output must be preserved, while the healthy sibling can still reconcile.
+  corrupt.flags[MODULE_ID].definitionSnapshot = { schemaVersion: 999 };
+  const healthyEffect = actor.items.find((item) => {
+    const flags = getAfflictionFlags(item);
+    return isAfflictionStageEffect(item) && flags?.instanceId === getAfflictionFlags(healthy)?.instanceId;
+  });
+  await actor.deleteEmbeddedDocuments("Item", [healthyEffect.id]);
+
+  const report = await service.reconcileActor(actor, { cleanupOrphans: true });
+  assert.equal(report.errors.length, 1);
+  assert.equal(report.errors[0].controllerUuid, corrupt.uuid);
+  assert.equal(report.controllers.some((entry) => entry.controllerUuid === healthy.uuid && entry.repaired), true);
+  assert.equal(actor.items.some((item) => {
+    const flags = getAfflictionFlags(item);
+    return isAfflictionStageEffect(item) && flags?.instanceId === getAfflictionFlags(healthy)?.instanceId;
+  }), true);
+});
+
+test("cleanupDeletedController removes only the deleted controller's generated stage output", async () => {
+  const actor = new FakeActor("heroDeletedControllerCleanup", "Deleted Controller Cleanup Hero");
+  const service = createAfflictionInstanceService();
+  const [first] = await service.applyDefinition(definition(), actor);
+  const [second] = await service.applyDefinition(definition(), actor);
+  const firstInstanceId = getAfflictionFlags(first).instanceId;
+  const secondInstanceId = getAfflictionFlags(second).instanceId;
+
+  // Simulate Foundry's post-delete hook: the deleted document still carries its
+  // parent/flags while it is already absent from the Actor collection.
+  actor.items = actor.items.filter((item) => item.id !== first.id);
+  registry.delete(first.uuid);
+  await service.cleanupDeletedController(first);
+
+  assert.equal(actor.items.some((item) => isAfflictionStageEffect(item) && getAfflictionFlags(item)?.instanceId === firstInstanceId), false);
+  assert.equal(actor.items.some((item) => isAfflictionStageEffect(item) && getAfflictionFlags(item)?.instanceId === secondInstanceId), true);
+  assert.equal(actor.items.includes(second), true);
 });

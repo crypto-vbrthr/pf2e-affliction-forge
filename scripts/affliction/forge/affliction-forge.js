@@ -3,6 +3,7 @@ import { AfflictionForgeApp } from "./affliction-forge-app.js";
 
 let app = null;
 let initialized = false;
+const pendingRuntimeReconciles = new Set();
 
 export function ensureAfflictionForgeStyles() {
   if (!globalThis.document?.head) return null;
@@ -256,9 +257,16 @@ export function handleAfflictionRuntimeItemDeleted(item, options = {}) {
   if (!controllerUuid) return true;
 
   // A generated stage Item is controller-owned. Manual deletion is treated as
-  // runtime drift and repaired without re-running instant effects.
-  void api.instances.reconcile(controllerUuid).catch((error) => {
-    console.warn(`${MODULE_ID} | Deleted Affliction stage effect could not be reconciled.`, error);
+  // runtime drift and repaired without re-running instant effects. Batch
+  // deletions can fire one hook per Item, so coalesce them into one reconcile
+  // pass after the current document-update microtask has settled.
+  if (pendingRuntimeReconciles.has(controllerUuid)) return true;
+  pendingRuntimeReconciles.add(controllerUuid);
+  const schedule = globalThis.queueMicrotask ?? ((callback) => Promise.resolve().then(callback));
+  schedule(() => {
+    void api.instances.reconcile(controllerUuid).catch((error) => {
+      console.warn(`${MODULE_ID} | Deleted Affliction stage effect could not be reconciled.`, error);
+    }).finally(() => pendingRuntimeReconciles.delete(controllerUuid));
   });
   return true;
 }

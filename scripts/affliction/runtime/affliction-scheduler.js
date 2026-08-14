@@ -135,6 +135,42 @@ function blockingPendingCheck(state) {
   return ids.some((id) => !pending.results?.[id]?.degree);
 }
 
+function unresolvedPendingRequests(state) {
+  const pending = state?.pendingCheck;
+  if (!pending) return [];
+  const ids = Array.isArray(pending.checkIds) ? pending.checkIds : [];
+  return ids
+    .filter((id) => !pending.results?.[id]?.degree)
+    .map((id) => ({ checkId: id, request: pending.requests?.[id] ?? null }));
+}
+
+function activeUser(userId) {
+  if (!userId) return null;
+  const users = globalThis.game?.users;
+  const user = users?.get?.(userId) ?? collectionValues(users).find((entry) => entry?.id === userId) ?? null;
+  return user && user.active !== false ? user : null;
+}
+
+function playerRequestStillAnswerable(controller, request) {
+  const userIds = Array.isArray(request?.userIds) ? request.userIds : [];
+  if (userIds.length === 0) return false;
+  const actor = controller?.parent?.documentName === "Actor" ? controller.parent : null;
+  return userIds.some((userId) => {
+    const user = activeUser(userId);
+    if (!user || user.isGM) return false;
+    if (actor && typeof actor.testUserPermission === "function") return actor.testUserPermission(user, "OWNER");
+    return true;
+  });
+}
+
+function pendingRecoveryNeeded(controller, state, reason) {
+  const unresolved = unresolvedPendingRequests(state);
+  if (unresolved.length === 0) return false;
+  if (reason === "ready") return true;
+  if (reason === "gm-authority-change" && unresolved.some(({ request }) => request?.status === "awaiting-gm")) return true;
+  return unresolved.some(({ request }) => request?.status === "awaiting-player" && !playerRequestStillAnswerable(controller, request));
+}
+
 function schedulableState(state) {
   // Initial exposure saves are resolved by AfflictionEngine.apply*() and are
   // intentionally not world-time events. A pending initial save is retried by
@@ -180,6 +216,7 @@ export class AfflictionScheduler {
   #running = false;
   #inFlight = new Set();
   #lastRun = null;
+  #lastAuthorityGmId = null;
 
   constructor({
     engine,
@@ -195,6 +232,7 @@ export class AfflictionScheduler {
     this.#controllerProvider = controllerProvider;
     this.#authorityResolver = authorityResolver;
     this.#settingsProvider = settingsProvider;
+    this.#lastAuthorityGmId = authoritativeGmId();
   }
 
   get started() {
@@ -233,9 +271,18 @@ export class AfflictionScheduler {
       });
     })]);
 
-    this.#hookIds.push(["userConnected", Hooks.on("userConnected", () => {
-      // Foundry can designate a different active GM when a GM joins or leaves.
-      void this.requestProcess({ reason: "gm-authority-change" });
+    this.#hookIds.push(["userConnected", Hooks.on("userConnected", (user, connected) => {
+      // A presence change can invalidate a persisted player request. Only call
+      // it an authority change when Foundry actually selected a different GM;
+      // otherwise an unrelated player login must not reopen an active GM dialog.
+      const nextAuthority = authoritativeGmId();
+      const authorityChanged = nextAuthority !== this.#lastAuthorityGmId;
+      this.#lastAuthorityGmId = nextAuthority;
+      void this.requestProcess({
+        reason: authorityChanged ? "gm-authority-change" : "user-presence-change",
+        userId: user?.id ?? null,
+        connected: Boolean(connected)
+      });
     })]);
 
     // Process controllers which became overdue while the world was offline.
@@ -330,8 +377,29 @@ export class AfflictionScheduler {
 
       const flags = getAfflictionFlags(current);
       const state = flags?.state ?? {};
+
+      // A lethal stage can leave the controller in place for GM-visible cause
+      // of death and audit history. Once this Affliction has actually killed
+      // its target, automatic time progression must stop so catch-up cannot
+      // manufacture later saves, damage, or repeated death execution.
+      if (state.mortality?.dead === true) {
+        return { controllerUuid: current.uuid, status: "dead", actions, reason };
+      }
+
       if (state.status === "pending") {
-        return { controllerUuid: current.uuid, status: "pending-initial", actions, reason };
+        const canResume = typeof this.#engine.resumePending === "function"
+          && (reason === "ready" || pendingRecoveryNeeded(current, state, reason));
+        if (!canResume) {
+          return { controllerUuid: current.uuid, status: "pending-initial", actions, reason };
+        }
+        const result = await this.#engine.resumePending(current, { reason });
+        transitions += 1;
+        actions.push({ type: "resume-pending", at: state.pendingCheck?.effectiveAt ?? horizon, status: result?.status ?? "unknown" });
+        if (terminalResult(result?.status)) return { controllerUuid: current.uuid, status: result.status, actions, reason };
+        if (result?.status === "pending") return { controllerUuid: current.uuid, status: "pending", actions, reason };
+        if (mode === "next") return { controllerUuid: current.uuid, status: "processed-next", actions, reason };
+        if (!continuationResult(result?.status)) return { controllerUuid: current.uuid, status: result?.status ?? "stopped", actions, reason };
+        continue;
       }
       if (!schedulableState(state)) {
         return { controllerUuid: current.uuid, status: "inactive", actions, reason };
@@ -355,7 +423,18 @@ export class AfflictionScheduler {
       // A player request or cancelled/manual GM roll must never be re-issued on
       // every world-time tick. It remains pending until explicitly resolved or retried.
       if (blockingPendingCheck(state)) {
-        return { controllerUuid: current.uuid, status: "pending-manual", actions, reason };
+        const canResume = typeof this.#engine.resumePending === "function" && pendingRecoveryNeeded(current, state, reason);
+        if (!canResume) {
+          return { controllerUuid: current.uuid, status: "pending-manual", actions, reason };
+        }
+        const result = await this.#engine.resumePending(current, { reason });
+        transitions += 1;
+        actions.push({ type: "resume-pending", at: state.pendingCheck?.effectiveAt ?? nextDue, status: result?.status ?? "unknown" });
+        if (terminalResult(result?.status)) return { controllerUuid: current.uuid, status: result.status, actions, reason };
+        if (result?.status === "pending") return { controllerUuid: current.uuid, status: "pending", actions, reason };
+        if (mode === "next") return { controllerUuid: current.uuid, status: "processed-next", actions, reason };
+        if (!continuationResult(result?.status)) return { controllerUuid: current.uuid, status: result?.status ?? "stopped", actions, reason };
+        continue;
       }
 
       const result = await this.#engine.process(current, { atTime: nextDue });

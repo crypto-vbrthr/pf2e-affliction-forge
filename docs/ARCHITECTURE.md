@@ -1,4 +1,4 @@
-# Architecture 0.1.26
+# Architecture 0.1.30
 
 ```text
 Affliction Template / Definition
@@ -207,7 +207,7 @@ Player-manual saves can outlive the original engine call. The controller stores 
 - resolved results per check
 - base revision for diagnostics
 
-A returned player result is accepted only when its request/check/user still matches the controller's pending state and Actor ownership.
+A returned player result is accepted only when its request/check/user still matches the controller's pending state and Actor ownership. Save processing and result acceptance are serialized per controller, and the persisted request is revalidated immediately before progression. World reload, GM authority recovery, and an unavailable player owner can resume the pending gate without discarding results that were already completed.
 
 ## Identification boundary
 
@@ -224,9 +224,15 @@ The concealment layer is a Foundry UI/runtime presentation boundary. The authori
 
 Lethal stage execution is audited separately from ordinary stage state. A successful Critical Forge `death` result stores the causing stage/category/timestamp and appends a runtime event; a prevented death effect records an immunity event without claiming cause of death.
 
+## Runtime concurrency and reconciliation boundary
+
+0.1.30 keeps one logical mutation stream per active controller. Affliction Engine save resolution and instance-service stage/identification/end mutations are serialized, while reconciliation uses revision snapshots and retries rather than writing stale generated output over a newer controller state. Reconciliation is also fault-isolated per controller/Actor and never replays instant mechanics. Multi-target application structurally commits all controller/persistent output before any irreversible instant damage/death executes.
+
+Generated stage-effect deletion hooks are coalesced, manually deleted controllers clean only their own generated output, and runtime discovery includes world Actors plus unlinked synthetic token Actors. Once `state.mortality.dead` records a successful lethal-stage outcome, automatic scheduler catch-up stops for that controller while the controller remains available for audit/GM management.
+
 ## Time boundary
 
-0.1.18 hardens the deliberately thin scheduler around the existing engine:
+The scheduler remains deliberately thin around the existing engine:
 
 ```text
 Foundry game.time.worldTime
