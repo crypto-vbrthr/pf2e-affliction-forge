@@ -19,6 +19,14 @@ export const AFFLICTION_REFERENCE_APPLICATION_MODES = Object.freeze([
   "automatic"
 ]);
 
+export const AFFLICTION_REFERENCE_HOST_ITEM_TYPES = Object.freeze([
+  "melee",
+  "weapon",
+  "action",
+  "feat",
+  "spell"
+]);
+
 function sourceOf(documentOrSource) {
   if (!documentOrSource || typeof documentOrSource !== "object") return {};
   return typeof documentOrSource.toObject === "function"
@@ -32,6 +40,35 @@ function text(value, fallback = "") {
 
 function boolean(value, fallback = true) {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function itemTypeOf(documentOrSource) {
+  return text(documentOrSource?.type);
+}
+
+export function isAfflictionReferenceHostItem(documentOrSource) {
+  return AFFLICTION_REFERENCE_HOST_ITEM_TYPES.includes(itemTypeOf(documentOrSource));
+}
+
+export function defaultAfflictionReferenceTriggerForHost(documentOrSource) {
+  const type = itemTypeOf(documentOrSource);
+  if (type === "melee" || type === "weapon") return "on-hit";
+  return "on-use";
+}
+
+export function defaultAfflictionReferenceApplicationForHost(_documentOrSource) {
+  return "prompt";
+}
+
+export function afflictionReferenceHostDefaults(documentOrSource) {
+  const type = itemTypeOf(documentOrSource);
+  const eligible = AFFLICTION_REFERENCE_HOST_ITEM_TYPES.includes(type);
+  return Object.freeze({
+    eligible,
+    itemType: type || null,
+    trigger: eligible ? defaultAfflictionReferenceTriggerForHost(documentOrSource) : "manual",
+    application: eligible ? defaultAfflictionReferenceApplicationForHost(documentOrSource) : "manual"
+  });
 }
 
 export function normalizeAfflictionReference(input = {}) {

@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const integration = readFileSync(join(root, "scripts/affliction/integration/affliction-external-integration.js"), "utf8");
+const hostReferenceUi = readFileSync(join(root, "scripts/affliction/integration/affliction-host-reference-ui.js"), "utf8");
+const referenceService = readFileSync(join(root, "scripts/affliction/integration/affliction-reference-service.js"), "utf8");
 const main = readFileSync(join(root, "scripts/main.js"), "utf8");
 const host = readFileSync(join(root, "scripts/affliction/forge/affliction-forge-app.js"), "utf8");
 const template = readFileSync(join(root, "templates/affliction-forge/affliction-forge-app.hbs"), "utf8");
@@ -50,4 +52,25 @@ test("Actor Directory entries are explicit Affliction drop targets", () => {
   assert.match(integration, /pf2e-affliction-actor-drop-target/);
   assert.match(integration, /AFFLICTION_DRAG_MIME/);
   assert.match(host, /AFFLICTION_DRAG_MIME/);
+});
+
+
+test("attack and ability Items expose Affliction reference drop zones", () => {
+  assert.match(referenceService, /AFFLICTION_REFERENCE_HOST_ITEM_TYPES/);
+  assert.match(referenceService, /"melee"/);
+  assert.match(referenceService, /"weapon"/);
+  assert.match(referenceService, /"action"/);
+  assert.match(referenceService, /"spell"/);
+  assert.match(hostReferenceUi, /pf2e-affliction-reference-panel/);
+  assert.match(hostReferenceUi, /pf2e-affliction-reference-drop-zone/);
+  assert.match(hostReferenceUi, /DialogV2/);
+  assert.match(hostReferenceUi, /references\?\.add/);
+  assert.match(main, /initializeAfflictionReferenceHostUi\(\)/);
+});
+
+test("Actor-sheet attack rows accept Affliction drops before generic Actor application", () => {
+  assert.match(hostReferenceUi, /\[data-item-id\]/);
+  assert.match(hostReferenceUi, /pf2e-affliction-reference-drop-target/);
+  assert.match(hostReferenceUi, /stopImmediatePropagation/);
+  assert.match(hostReferenceUi, /pf2e-affliction-reference-badge/);
 });

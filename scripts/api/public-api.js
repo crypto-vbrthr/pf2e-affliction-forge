@@ -35,14 +35,17 @@ import { createAfflictionLibraryService } from "../affliction/library/affliction
 import { createAfflictionApplicationService } from "../affliction/integration/affliction-application-service.js";
 import {
   AFFLICTION_REFERENCE_APPLICATION_MODES,
+  AFFLICTION_REFERENCE_HOST_ITEM_TYPES,
   AFFLICTION_REFERENCE_SCHEMA_VERSION,
   AFFLICTION_REFERENCE_TRIGGERS,
+  afflictionReferenceHostDefaults,
   addAfflictionReferenceToSource,
   addDocumentAfflictionReference,
   afflictionReferenceSummary,
   afflictionReferenceText,
   createAfflictionReference,
   findAfflictionReference,
+  isAfflictionReferenceHostItem,
   normalizeAfflictionReference,
   readAfflictionReferences,
   removeAfflictionReferenceFromSource,
@@ -108,7 +111,8 @@ export function createPublicApi() {
       checkCombineModes: () => [...CHECK_COMBINE_MODES],
       documentKinds: () => ({ ...DOCUMENT_KINDS }),
       referenceTriggers: () => [...AFFLICTION_REFERENCE_TRIGGERS],
-      referenceApplicationModes: () => [...AFFLICTION_REFERENCE_APPLICATION_MODES]
+      referenceApplicationModes: () => [...AFFLICTION_REFERENCE_APPLICATION_MODES],
+      referenceHostItemTypes: () => [...AFFLICTION_REFERENCE_HOST_ITEM_TYPES]
     }),
 
     definitions: Object.freeze({
@@ -202,7 +206,9 @@ export function createPublicApi() {
       addToSource: (source, reference) => addAfflictionReferenceToSource(source, reference),
       removeFromSource: (source, referenceId) => removeAfflictionReferenceFromSource(source, referenceId),
       toText: (referenceOrUuid, options = {}) => afflictionReferenceText(referenceOrUuid, options),
-      summary: (reference) => afflictionReferenceSummary(reference)
+      summary: (reference) => afflictionReferenceSummary(reference),
+      isHostItem: (documentOrSource) => isAfflictionReferenceHostItem(documentOrSource),
+      hostDefaults: (documentOrSource) => afflictionReferenceHostDefaults(documentOrSource)
     }),
 
     application: Object.freeze({

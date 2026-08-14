@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.33**
+Current development build: **0.1.34**
 
-Version **0.1.33** adds the external-consumer layer: Affliction Templates and rich-text references can be dragged directly onto Actor sheets or canvas tokens, attacks/abilities/spells can carry machine-readable Affliction references in their flags, and external modules can apply those references through one stable public application facade. Runtime progression still remains owned by the Affliction Engine after application.
+Version **0.1.34** adds direct attack and ability reference editing: Affliction Templates can be dropped onto eligible PF2e attack/ability Item sheets or directly onto embedded attack/ability rows on Actor sheets. The source Item stores only a stable Affliction reference plus trigger/application policy; runtime progression remains owned by the Affliction Engine after application.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -38,6 +38,7 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - read-only provider libraries with copy-to-world editing workflow and write protection through the public API
 - public `api.libraries` / `api.providers` contracts for content modules, library enable state, metadata, and filtered searches
 - machine-readable ability/spell/attack references under `flags.pf2e-affliction-forge.afflictionReferences`
+- direct drag-and-drop reference zones on melee, weapon, action, feat, and spell Item sheets, plus embedded Actor-sheet item rows
 - reference trigger/application metadata for host modules without coupling progression logic into those hosts
 - custom draggable `@Affliction[UUID]{Label}` rich-text links plus ordinary `@UUID[...]` drop compatibility
 - direct drag-and-drop from the Forge library, Item/compendium entries, and description links onto Actor sheets or canvas tokens
@@ -111,7 +112,7 @@ A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See
 
 ## Runtime boundary
 
-0.1.33 includes the hardened world-time scheduler, active-duration anchoring, player-save routing/recovery, identification visibility layer, public library/provider discovery, an explicit Active Afflictions runtime registry, revision-aware reconciliation, controller mutation serialization, and a scroll-safe controller manager. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
+0.1.34 includes the hardened world-time scheduler, active-duration anchoring, player-save routing/recovery, identification visibility layer, public library/provider discovery, an explicit Active Afflictions runtime registry, revision-aware reconciliation, controller mutation serialization, and a scroll-safe controller manager. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
 
 Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
 
@@ -122,4 +123,5 @@ Hidden controllers and unidentified stage-effect rows are now removed from non-G
 
 Active Affliction controllers own their generated persistent stage Items. Applying an Affliction no longer opens the controller manager automatically. The manager is an explicit GM diagnostic tool and exposes a runtime repair action. The public API also provides `api.instances.reconcile()`, `reconcileActor()`, and `reconcileAll()` to restore missing or stale generated stage output without replaying instant damage/death components.
 
+- 0.1.34: Affliction templates can be linked directly to attacks and abilities by dropping them onto eligible Item sheets or embedded Actor-sheet rows.
 - 0.1.33: Affliction templates can be dropped directly onto Actor Directory entries.

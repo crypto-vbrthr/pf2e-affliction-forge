@@ -7,7 +7,9 @@ installFoundryMock();
 const {
   addAfflictionReferenceToSource,
   afflictionReferenceText,
+  afflictionReferenceHostDefaults,
   createAfflictionReference,
+  isAfflictionReferenceHostItem,
   readAfflictionReferences,
   removeAfflictionReferenceFromSource,
   validateAfflictionReference,
@@ -61,4 +63,23 @@ test("reference collections round-trip and produce draggable description syntax"
     afflictionReferenceText("Compendium.curses.Item.moon", { label: "Mondfluch", syntax: "uuid" }),
     "@UUID[Compendium.curses.Item.moon]{Mondfluch}"
   );
+});
+
+
+test("attack and ability host defaults are stable and conservative", () => {
+  assert.equal(isAfflictionReferenceHostItem({ type: "melee" }), true);
+  assert.equal(isAfflictionReferenceHostItem({ type: "weapon" }), true);
+  assert.equal(isAfflictionReferenceHostItem({ type: "action" }), true);
+  assert.equal(isAfflictionReferenceHostItem({ type: "feat" }), true);
+  assert.equal(isAfflictionReferenceHostItem({ type: "spell" }), true);
+  assert.equal(isAfflictionReferenceHostItem({ type: "effect" }), false);
+
+  assert.deepEqual(afflictionReferenceHostDefaults({ type: "melee" }), {
+    eligible: true,
+    itemType: "melee",
+    trigger: "on-hit",
+    application: "prompt"
+  });
+  assert.equal(afflictionReferenceHostDefaults({ type: "spell" }).trigger, "on-use");
+  assert.equal(afflictionReferenceHostDefaults({ type: "effect" }).eligible, false);
 });

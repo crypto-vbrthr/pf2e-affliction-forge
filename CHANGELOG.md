@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.34 - Attack & Ability Affliction Drop Zones
+
+- adds dedicated Affliction reference panels to eligible PF2e `melee`, `weapon`, `action`, `feat`, and `spell` Item sheets
+- Affliction Templates can be dropped into the panel and are stored as stable `afflictionReferences` on the host Item rather than copied as embedded Items
+- dropping an Affliction onto an embedded eligible Item row on an Actor sheet links it to that attack/ability instead of applying the Affliction to the Actor
+- linked Actor-sheet rows receive a compact biohazard count badge and highlight as Affliction drop targets during drag-over
+- linking prompts for trigger (`on-hit`, `on-use`, `on-damage`, `failed-save`, etc.) and application policy (`manual`, `prompt`, `automatic`)
+- melee/weapon hosts default to `on-hit + prompt`; action/feat/spell hosts default to `on-use + prompt`
+- existing links can be opened, retargeted to a different trigger/application policy, or removed directly from the host Item sheet
+- read-only compendium Items show existing references without offering mutation/drop actions
+- extends the public reference API with host eligibility/default helpers and a supported host-item-type catalog
+- preserves the existing rule that references are metadata only: runtime progression begins only when the host or external integration calls `api.application`
+- adds regression coverage for host defaults, Item-sheet drop-zone wiring, and direct Actor-sheet attack-row drops
+
 ## 0.1.33 - Direct Actor Directory Drop
 
 - Affliction templates can now be dropped directly onto Actor entries in Foundry's Actors sidebar directory.

@@ -6,6 +6,7 @@ import {
   initializeAfflictionExternalRuntimeIntegration,
   initializeAfflictionTextIntegration
 } from "./affliction/integration/affliction-external-integration.js";
+import { initializeAfflictionReferenceHostUi } from "./affliction/integration/affliction-host-reference-ui.js";
 import { initializeAfflictionSaveRuntime } from "./affliction/runtime/affliction-save-runtime.js";
 import { initializeAfflictionVisibilityRuntime } from "./affliction/runtime/affliction-visibility-runtime.js";
 import { registerAfflictionForgeSettings } from "./settings.js";
@@ -39,6 +40,7 @@ Hooks.once("ready", async () => {
   initializeAfflictionTextIntegration();
   initializeAfflictionForgeUi();
   initializeAfflictionExternalRuntimeIntegration();
+  initializeAfflictionReferenceHostUi();
   initializeAfflictionSaveRuntime();
   initializeAfflictionVisibilityRuntime();
 

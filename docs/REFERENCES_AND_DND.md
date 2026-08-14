@@ -158,3 +158,28 @@ The facade delegates to the high-level Affliction Engine, so initial exposure sa
 ## Actor Directory drops
 
 Affliction Forge drag payloads can be dropped directly onto Actor entries in Foundry's Actors sidebar. The directory row is highlighted while the Affliction is over a valid Actor target. The drop is consumed by Affliction Forge and routed through `api.application.applyDropData(..., { application: "drag-drop-actor-directory" })`; it never embeds the template Item on the Actor. Actor-sheet and Canvas-token drops remain supported in parallel.
+
+
+## Attack and ability drop zones (0.1.34)
+
+Eligible PF2e Item hosts are `melee`, `weapon`, `action`, `feat`, and `spell`. Their Item sheets receive an Affliction reference panel. A GM can drop an Affliction Template onto that panel and choose the host trigger and application policy.
+
+The same operation works directly on embedded eligible Item rows on an Actor sheet. A drop on such a row is consumed before the generic Actor-sheet Affliction drop, so the Affliction becomes part of the attack/ability instead of being immediately applied to the Actor. Linked rows receive a compact biohazard count badge.
+
+Defaults are intentionally conservative:
+
+```text
+melee / weapon  -> on-hit + prompt
+action / feat   -> on-use + prompt
+spell           -> on-use + prompt
+```
+
+The Item stores only:
+
+```js
+flags["pf2e-affliction-forge"].afflictionReferences
+```
+
+No Affliction Template is embedded in the host Item or Actor. The reference panel may update the trigger/application policy or remove the link. Read-only compendium Items expose existing references but cannot be changed in place.
+
+This UI does not infer whether a native PF2e attack actually hit. The reference is the stable contract; a host integration that observes the trigger calls `api.application.applyItemReference(...)`. This keeps attack/chat workflow interpretation separate from Affliction progression.

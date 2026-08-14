@@ -1,4 +1,4 @@
-# Architecture 0.1.33
+# Architecture 0.1.34
 
 ```text
 Affliction Template / Definition
@@ -268,7 +268,7 @@ The main Forge has two host views: `Templates` for authoring/library work and `A
 
 ## External reference and application layer
 
-Version 0.1.33 adds a consumer-facing layer above the Affliction Engine. Host modules store machine-readable template references on their own Items or generated Item sources and call `api.application` only when the host-specific trigger is satisfied. The application facade records origin metadata and then delegates immediately to the existing high-level Affliction Engine.
+Version 0.1.34 adds a consumer-facing layer above the Affliction Engine. Host modules store machine-readable template references on their own Items or generated Item sources and call `api.application` only when the host-specific trigger is satisfied. The application facade records origin metadata and then delegates immediately to the existing high-level Affliction Engine.
 
 ```text
 Attack / Ability / Spell / Creature Forge
@@ -287,6 +287,29 @@ Drag & Drop is only another frontend to this same application boundary. Template
 The host Item is not marked as an Affliction Forge managed document merely because it carries references. Managed-document flags remain exclusive to the Affliction runtime/persistence document kinds.
 
 
-### Actor Directory drop integration (0.1.33)
+### Actor Directory drop integration (0.1.34)
 
 The external integration layer binds only to rendered Actor Directory roots and consumes the module-specific Affliction drag MIME payload in capture phase. Valid drops resolve the target Actor by directory entry id and route through the public Application Service. Unrelated Actor-directory drag operations are left untouched.
+
+
+## Attack/ability host reference UI (0.1.34)
+
+The host reference UI is an integration layer above `affliction-reference-service.js`. It does not apply Afflictions and does not own runtime progression. It only edits reference metadata on eligible PF2e Items.
+
+```text
+Affliction Template drag
+        ↓
+Item sheet panel or embedded Actor-sheet Item row
+        ↓
+reference configuration (trigger + application policy)
+        ↓
+flags.pf2e-affliction-forge.afflictionReferences
+        ↓
+later host trigger
+        ↓
+api.application
+        ↓
+Affliction Engine
+```
+
+Actor-sheet drop listeners run in the capture phase and consume a valid Affliction drop only when the pointer is over an eligible `data-item-id` row. Drops elsewhere on the Actor sheet continue to use the normal Actor-application path.

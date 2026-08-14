@@ -1748,3 +1748,154 @@
   background: color-mix(in srgb, var(--color-bg-option, #782e22) 24%, transparent) !important;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-border-highlight, #ff6400) 55%, transparent);
 }
+
+/* 0.1.34: Attack & Ability Affliction reference drop zones */
+.pf2e-affliction-reference-panel {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-border-light-primary, #736953) 70%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-bg-option, #2b2726) 76%, transparent);
+}
+
+.pf2e-affliction-reference-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.pf2e-affliction-reference-panel > header h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  border: 0;
+}
+
+.pf2e-affliction-reference-panel > header h3 i,
+.pf2e-affliction-reference-open i,
+.pf2e-affliction-reference-badge i,
+.pf2e-affliction-reference-drop-zone i {
+  color: #67bf72;
+}
+
+.pf2e-affliction-reference-count {
+  color: var(--color-text-secondary, #aaa4ac);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.pf2e-affliction-reference-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.pf2e-affliction-reference-empty {
+  margin: 0;
+}
+
+.pf2e-affliction-reference-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.4fr) minmax(8rem, 1fr) minmax(7rem, 0.9fr) 2rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--color-border-light-primary, #736953) 48%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--color-bg, #171513) 60%, transparent);
+}
+
+.pf2e-affliction-reference-row select,
+.pf2e-affliction-reference-config-dialog select {
+  width: 100%;
+  min-width: 0;
+}
+
+.pf2e-affliction-reference-open {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf2e-affliction-reference-remove {
+  width: 2rem !important;
+  min-width: 2rem !important;
+  height: 2rem !important;
+  padding: 0 !important;
+}
+
+.pf2e-affliction-reference-drop-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.7rem;
+  margin-top: 0.6rem;
+  padding: 0.6rem;
+  border: 1px dashed color-mix(in srgb, #67bf72 60%, var(--color-border-light-primary, #736953));
+  border-radius: 5px;
+  color: var(--color-text-secondary, #aaa4ac);
+  text-align: center;
+  transition: background-color 100ms ease, border-color 100ms ease, box-shadow 100ms ease;
+}
+
+.pf2e-affliction-reference-drop-zone.is-dragover {
+  border-color: #67bf72;
+  background: color-mix(in srgb, #67bf72 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #67bf72 50%, transparent);
+  color: var(--color-text-primary, #f0f0e8);
+}
+
+.pf2e-affliction-reference-drop-zone.is-readonly {
+  opacity: 0.68;
+}
+
+.pf2e-affliction-reference-config-dialog {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pf2e-affliction-reference-config-dialog label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.pf2e-affliction-reference-config-dialog .hint {
+  margin: 0;
+}
+
+.pf2e-affliction-reference-drop-target {
+  outline: 2px solid #67bf72 !important;
+  outline-offset: -2px;
+  background: color-mix(in srgb, #67bf72 10%, transparent) !important;
+}
+
+.pf2e-affliction-reference-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  width: auto;
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.32rem;
+  border: 1px solid color-mix(in srgb, #67bf72 50%, transparent);
+  border-radius: 999px;
+  color: var(--color-text-secondary, #aaa4ac);
+  font-size: 0.7rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .pf2e-affliction-reference-row {
+    grid-template-columns: 1fr 1fr 2rem;
+  }
+
+  .pf2e-affliction-reference-open {
+    grid-column: 1 / -1;
+  }
+}

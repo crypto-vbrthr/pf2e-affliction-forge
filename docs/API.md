@@ -1,4 +1,4 @@
-# Public API 0.1.33
+# Public API 0.1.34
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -524,3 +524,19 @@ Supported application paths:
 - drag the same template/reference forms directly onto a canvas token
 
 Actor-sheet Item drops are intercepted before Foundry creates the embedded Item. The inert template copy is cancelled and the Affliction Engine creates a real controller instance instead. Drag application is GM-only.
+
+
+## Reference host helpers (0.1.34)
+
+```js
+api.catalogs.referenceHostItemTypes();
+// ["melee", "weapon", "action", "feat", "spell"]
+
+api.references.isHostItem(item);
+
+api.references.hostDefaults(item);
+// melee/weapon -> { eligible: true, trigger: "on-hit", application: "prompt", ... }
+// action/feat/spell -> { eligible: true, trigger: "on-use", application: "prompt", ... }
+```
+
+These helpers expose the same eligibility/default contract used by the built-in Attack & Ability Affliction Drop Zones so external hosts such as Creature Forge can match the Forge UI without duplicating policy.
