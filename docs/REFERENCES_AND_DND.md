@@ -1,0 +1,156 @@
+# Affliction References, Drag & Drop, and External Application
+
+## Purpose
+
+Affliction Forge owns Affliction runtime progression. External systems such as Creature Forge, attacks, spells, hazards, or adventure modules should only describe **which Affliction Template is referenced** and **when their own trigger is satisfied**.
+
+A host never implements onset, stage progression, saving throws, world-time scheduling, stage effects, or recovery itself.
+
+```text
+Creature / Ability / Spell
+        ↓ reference + trigger metadata
+External Application API
+        ↓
+Affliction Engine
+        ↓
+Controller / Scheduler / Critical Forge Effect Engine
+```
+
+## Reference contract
+
+```js
+{
+  schemaVersion: 1,
+  id: "venom",
+  templateUuid: "Compendium.my-module.afflictions.Item.venom",
+  label: "Smaragdvipergift",
+  trigger: "on-hit",
+  application: "prompt",
+  enabled: true,
+  metadata: {}
+}
+```
+
+References on Foundry Items are stored in:
+
+```js
+flags["pf2e-affliction-forge"].afflictionReferences
+```
+
+The source Item is **not** an Affliction Forge managed document. `managed: true` remains exclusive to Templates, Controllers, and generated stage/residual effects.
+
+## Trigger metadata
+
+The reference trigger is descriptive metadata for the host:
+
+- `manual`
+- `on-use`
+- `on-hit`
+- `on-damage`
+- `failed-save`
+- `critical-failure`
+- `custom`
+
+Affliction Forge does not parse arbitrary PF2e attack/spell workflows to infer these triggers. The host that owns the ability decides when the trigger has happened and calls `api.application`.
+
+## Application policy metadata
+
+- `manual`: host surfaces the reference but does not automatically apply it
+- `prompt`: host should ask the GM/player before calling the application API
+- `automatic`: host may call the application API immediately once its trigger is satisfied
+
+An explicit `api.application.apply*()` call always means “apply now”; the policy is not reinterpreted inside the Affliction Engine.
+
+## Generated source example
+
+```js
+const source = afflictionApi.references.addToSource(abilitySource, {
+  id: "spore-rot",
+  templateUuid: generatedAffliction.uuid,
+  trigger: "failed-save",
+  application: "automatic"
+});
+```
+
+This lets Creature Forge prepare a valid ability Item source before the Item document exists.
+
+## Existing Item example
+
+```js
+await afflictionApi.references.add(abilityItem, {
+  id: "venom",
+  templateUuid: venom.uuid,
+  trigger: "on-hit",
+  application: "prompt"
+});
+```
+
+Later:
+
+```js
+await afflictionApi.application.applyItemReference(
+  abilityItem,
+  "venom",
+  targetActor,
+  { context: { attackDegree: "success" } }
+);
+```
+
+The created controller records source Item/Actor, reference id, trigger, application mode, and supplied host context in its origin metadata.
+
+## Rich-text references
+
+Normal Foundry links remain valid:
+
+```text
+@UUID[Compendium.my-module.afflictions.Item.venom]{Smaragdvipergift}
+```
+
+Affliction Forge additionally registers:
+
+```text
+@Affliction[Compendium.my-module.afflictions.Item.venom]{Smaragdvipergift}
+```
+
+The latter renders as a draggable Affliction link. For a GM, clicking it opens the template in Affliction Forge.
+
+## Drag & Drop
+
+### Actor sheet
+
+Dropping an Affliction Template Item onto an Actor sheet is intercepted in `preCreateItem`. The ordinary embedded template creation is cancelled synchronously and the definition is applied through the Affliction Engine. This prevents an inert Template Item from masquerading as an active case.
+
+Custom Affliction drag payloads from Forge library rows and `@Affliction` links use the `dropActorSheetData` hook and route to the same application facade.
+
+### Canvas token
+
+`dropCanvasData` accepts both Affliction Forge drag payloads and normal Item UUID drops. If the dropped Item is an Affliction Template and the coordinates lie on a token, the template is applied to that token's Actor.
+
+### Permissions
+
+Drag application is GM-only. A non-GM drop is intercepted/rejected rather than embedding an inert template by accident.
+
+## External application facade
+
+```js
+await api.application.apply({
+  templateUuid,
+  targets,
+  source: abilityItem,
+  application: "creature-forge",
+  context: {
+    attackDegree: "success",
+    damageApplied: true
+  }
+});
+```
+
+or:
+
+```js
+await api.application.applyReference(reference, targets, {
+  source: abilityItem
+});
+```
+
+The facade delegates to the high-level Affliction Engine, so initial exposure saves are processed immediately and all later progression belongs to the normal Controller/Scheduler runtime.

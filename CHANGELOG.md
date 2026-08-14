@@ -1,18 +1,30 @@
 # Changelog
 
+## 0.1.32
+
+### Drag & Drop, Ability References & External Application API
+
+- adds a first-class machine-readable Affliction reference contract for attacks, abilities, spells, generated Creature Forge content, and other Item sources
+- stores references under `flags.pf2e-affliction-forge.afflictionReferences` without turning the source Item itself into a managed Affliction document
+- adds reference trigger metadata (`manual`, `on-use`, `on-hit`, `on-damage`, `failed-save`, `critical-failure`, `custom`) and application-policy metadata (`manual`, `prompt`, `automatic`) for external consumers
+- adds public `api.references` helpers for create/validate/list/get/set/add/remove, source-level embedding, and description-link generation
+- adds public `api.application` as the canonical external application facade above `api.engine`, preserving source Item, source Actor, reference id, trigger, application mode, and host context in controller origin metadata
+- adds draggable `@Affliction[UUID]{Label}` rich-text references and keeps ordinary `@UUID[...]` Item links compatible with template drops
+- makes Affliction Forge library rows directly draggable
+- transforms a dropped Affliction Template on an Actor sheet into an engine-managed controller application instead of leaving an inert template Item embedded on the Actor
+- supports custom Affliction drag payloads on Actor sheets and both custom/reference Item drops directly onto canvas tokens
+- blocks non-GM drag application instead of allowing an inert Affliction Template to be embedded by accident
+- emits `pf2eAfflictionForgeApplied` after successful external application for loosely coupled consumer modules
+- adds dedicated reference/application documentation and regression coverage for reference persistence, drag payloads, external origin metadata, enrichers, Actor-sheet interception, and canvas-token drops
+
 ## 0.1.31
 
 ### Live Manager Synchronization & Runtime UI Refresh
 
-- keeps every open `Leiden verwalten` window synchronized with controller updates produced by the scheduler, save resolution, manual/runtime transitions, identification changes, and reconciliation
-- observes generated stage/residual Effect create/update/delete activity and coalesces related changes into one manager refresh
-- refreshes countdown/age labels when Foundry world time changes even if no controller document update is required
-- debounces live refreshes so one stage transition with several embedded-document changes does not cause a render storm
-- preserves the manager outer scroll position and event-log scroll position across automatic rerenders
-- cancels queued live refreshes before explicit manager actions render their committed result
-- closes an open manager cleanly when its controller is deleted and avoids stale UUID views
-- keeps live-sync hooks global and lightweight while only rerendering manager instances that are actually open
-- adds regression coverage for controller/stage-effect/world-time live synchronization, debounce, scroll preservation, and deletion handling
+- keeps an open controller manager synchronized with controller changes caused by scheduler, saves, identification changes, stage transitions, reconciliation, and lethal-stage metadata
+- refreshes displayed remaining time on world-time updates even when no transition occurs
+- debounces related Item updates into one manager refresh and preserves outer/event-log scroll positions
+- closes an open manager cleanly if its controller is deleted
 
 ## 0.1.30
 

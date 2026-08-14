@@ -333,6 +333,7 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     const host = this.element?.querySelector?.("[data-affliction-forge-editor-host]");
     if (!(host instanceof HTMLElement)) return;
     this.#bindLibraryFilter();
+    this.#bindTemplateDrag();
 
     const token = ++this.mountToken;
     void this.editor.mount(host).then(() => {
@@ -376,6 +377,27 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     if (search instanceof HTMLInputElement) search.addEventListener("input", apply);
     if (source instanceof HTMLSelectElement) source.addEventListener("change", apply);
     apply();
+  }
+
+  #bindTemplateDrag() {
+    for (const row of this.element?.querySelectorAll?.("[data-affliction-template-uuid]") ?? []) {
+      row.addEventListener("dragstart", (event) => {
+        const uuid = String(row.dataset?.afflictionTemplateUuid ?? "").trim();
+        if (!uuid || !event.dataTransfer) return;
+        try {
+          const template = this.library.find((entry) => entry.uuid === uuid);
+          const payload = this.#api().application.createDragData(uuid, {
+            label: template?.name ?? null
+          });
+          const json = JSON.stringify(payload);
+          event.dataTransfer.setData("text/plain", json);
+          try { event.dataTransfer.setData("application/json", json); } catch { /* Browser-dependent */ }
+          event.dataTransfer.effectAllowed = "copy";
+        } catch (error) {
+          console.warn(`${MODULE_ID} | Affliction template drag could not be initialized.`, error);
+        }
+      });
+    }
   }
 
   #bindActiveFilter() {

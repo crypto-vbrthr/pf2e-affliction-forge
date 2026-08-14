@@ -2,6 +2,10 @@ import { MODULE_ID } from "./constants.js";
 import { initializePublicApi } from "./api/public-api.js";
 import { getCriticalForgeCompatibility } from "./affliction/integration/critical-forge-adapter.js";
 import { initializeAfflictionForgeUi } from "./affliction/forge/affliction-forge.js";
+import {
+  initializeAfflictionExternalRuntimeIntegration,
+  initializeAfflictionTextIntegration
+} from "./affliction/integration/affliction-external-integration.js";
 import { initializeAfflictionSaveRuntime } from "./affliction/runtime/affliction-save-runtime.js";
 import { initializeAfflictionVisibilityRuntime } from "./affliction/runtime/affliction-visibility-runtime.js";
 import { registerAfflictionForgeSettings } from "./settings.js";
@@ -9,6 +13,7 @@ import { registerAfflictionForgeSettings } from "./settings.js";
 Hooks.once("init", () => {
   registerAfflictionForgeSettings();
   initializePublicApi();
+  initializeAfflictionTextIntegration();
 });
 
 Hooks.once("ready", async () => {
@@ -31,7 +36,9 @@ Hooks.once("ready", async () => {
     console.warn(`${MODULE_ID} | Critical Forge Embedded Effect Editor API is unavailable. Embedded Affliction Editor cannot mount stage Effect Editors.`);
   }
 
+  initializeAfflictionTextIntegration();
   initializeAfflictionForgeUi();
+  initializeAfflictionExternalRuntimeIntegration();
   initializeAfflictionSaveRuntime();
   initializeAfflictionVisibilityRuntime();
 

@@ -282,5 +282,11 @@
   "PF2E_AFFLICTION_FORGE.Runtime.SearchActive": "Search by Actor or Affliction …",
   "PF2E_AFFLICTION_FORGE.Runtime.RefreshActive": "Refresh Active Afflictions",
   "PF2E_AFFLICTION_FORGE.Runtime.NoActiveAfflictions": "There are currently no active Afflictions.",
-  "PF2E_AFFLICTION_FORGE.Runtime.ControllerRemoved": "The active affliction was removed. The manager window will close."
+  "PF2E_AFFLICTION_FORGE.Runtime.ControllerRemoved": "The active affliction was removed. The manager window will close.",
+  "PF2E_AFFLICTION_FORGE.Reference.Affliction": "Affliction",
+  "PF2E_AFFLICTION_FORGE.Reference.DragHint": "Drag onto an Actor or token to apply this Affliction.",
+  "PF2E_AFFLICTION_FORGE.Reference.GmOnlyApply": "Afflictions can only be applied by drag and drop by the GM.",
+  "PF2E_AFFLICTION_FORGE.Reference.DropApplied": "“{name}” was applied.",
+  "PF2E_AFFLICTION_FORGE.Reference.DropFailed": "The Affliction could not be applied by drag and drop.",
+  "PF2E_AFFLICTION_FORGE.Reference.DropNoToken": "Drop the Affliction directly onto a token."
 }

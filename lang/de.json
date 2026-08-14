@@ -282,5 +282,11 @@
   "PF2E_AFFLICTION_FORGE.Runtime.SearchActive": "Nach Actor oder Leiden suchen …",
   "PF2E_AFFLICTION_FORGE.Runtime.RefreshActive": "Aktive Leiden aktualisieren",
   "PF2E_AFFLICTION_FORGE.Runtime.NoActiveAfflictions": "Derzeit sind keine Leiden aktiv.",
-  "PF2E_AFFLICTION_FORGE.Runtime.ControllerRemoved": "Das aktive Leiden wurde entfernt. Das Verwaltungsfenster wird geschlossen."
+  "PF2E_AFFLICTION_FORGE.Runtime.ControllerRemoved": "Das aktive Leiden wurde entfernt. Das Verwaltungsfenster wird geschlossen.",
+  "PF2E_AFFLICTION_FORGE.Reference.Affliction": "Leiden",
+  "PF2E_AFFLICTION_FORGE.Reference.DragHint": "Auf einen Actor oder Token ziehen, um das Leiden anzuwenden.",
+  "PF2E_AFFLICTION_FORGE.Reference.GmOnlyApply": "Leiden können per Drag & Drop nur von der Spielleitung angewendet werden.",
+  "PF2E_AFFLICTION_FORGE.Reference.DropApplied": "„{name}“ wurde angewendet.",
+  "PF2E_AFFLICTION_FORGE.Reference.DropFailed": "Das Leiden konnte per Drag & Drop nicht angewendet werden.",
+  "PF2E_AFFLICTION_FORGE.Reference.DropNoToken": "Lege das Leiden direkt auf einem Token ab."
 }

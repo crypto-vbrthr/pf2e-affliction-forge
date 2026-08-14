@@ -27,7 +27,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
-  assert.equal(api.version, "0.1.31");
+  assert.equal(api.version, "0.1.32");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -48,6 +48,18 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.libraries.setEnabled, "function");
   assert.equal(typeof api.providers.register, "function");
   assert.equal(typeof api.providers.list, "function");
+  assert.equal(api.references.schemaVersion, 1);
+  assert.equal(typeof api.references.create, "function");
+  assert.equal(typeof api.references.list, "function");
+  assert.equal(typeof api.references.addToSource, "function");
+  assert.equal(typeof api.references.toText, "function");
+  assert.deepEqual(api.catalogs.referenceTriggers(), ["manual", "on-use", "on-hit", "on-damage", "failed-save", "critical-failure", "custom"]);
+  assert.deepEqual(api.catalogs.referenceApplicationModes(), ["manual", "prompt", "automatic"]);
+  assert.equal(typeof api.application.apply, "function");
+  assert.equal(typeof api.application.applyReference, "function");
+  assert.equal(typeof api.application.applyItemReference, "function");
+  assert.equal(typeof api.application.createDragData, "function");
+  assert.equal(typeof api.application.parseDropData, "function");
   assert.equal(typeof api.controllers.createState, "function");
   assert.equal(api.integration.criticalForge.compatibility().effectEditorAvailable, true);
   assert.equal(api.integration.criticalForge.compatibility().effectExecutionApiAvailable, true);

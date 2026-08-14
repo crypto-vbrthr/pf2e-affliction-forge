@@ -32,6 +32,25 @@ import {
 } from "../affliction/documents/affliction-item-adapter.js";
 import { createAfflictionTemplateService } from "../affliction/documents/affliction-template-service.js";
 import { createAfflictionLibraryService } from "../affliction/library/affliction-library-service.js";
+import { createAfflictionApplicationService } from "../affliction/integration/affliction-application-service.js";
+import {
+  AFFLICTION_REFERENCE_APPLICATION_MODES,
+  AFFLICTION_REFERENCE_SCHEMA_VERSION,
+  AFFLICTION_REFERENCE_TRIGGERS,
+  addAfflictionReferenceToSource,
+  addDocumentAfflictionReference,
+  afflictionReferenceSummary,
+  afflictionReferenceText,
+  createAfflictionReference,
+  findAfflictionReference,
+  normalizeAfflictionReference,
+  readAfflictionReferences,
+  removeAfflictionReferenceFromSource,
+  removeDocumentAfflictionReference,
+  setDocumentAfflictionReferences,
+  validateAfflictionReference,
+  withAfflictionReferences
+} from "../affliction/integration/affliction-reference-service.js";
 import {
   getDocumentKind,
   isAfflictionController,
@@ -69,6 +88,7 @@ export function createPublicApi() {
   const instanceService = createAfflictionInstanceService({ effectValidator });
   const afflictionEngine = createAfflictionEngine({ instanceService });
   const scheduler = createAfflictionScheduler({ engine: afflictionEngine, instanceService });
+  const applicationService = createAfflictionApplicationService({ engine: afflictionEngine, templateService });
   return Object.freeze({
     version: API_VERSION,
     moduleVersion: MODULE_VERSION,
@@ -86,7 +106,9 @@ export function createPublicApi() {
       identificationStates: () => [...IDENTIFICATION_STATES],
       durationUnits: () => [...DURATION_UNITS],
       checkCombineModes: () => [...CHECK_COMBINE_MODES],
-      documentKinds: () => ({ ...DOCUMENT_KINDS })
+      documentKinds: () => ({ ...DOCUMENT_KINDS }),
+      referenceTriggers: () => [...AFFLICTION_REFERENCE_TRIGGERS],
+      referenceApplicationModes: () => [...AFFLICTION_REFERENCE_APPLICATION_MODES]
     }),
 
     definitions: Object.freeze({
@@ -164,6 +186,33 @@ export function createPublicApi() {
       register: (provider) => libraryService.registerProvider(provider),
       unregister: (providerId) => libraryService.unregisterProvider(providerId),
       list: () => libraryService.providerList()
+    }),
+
+    references: Object.freeze({
+      schemaVersion: AFFLICTION_REFERENCE_SCHEMA_VERSION,
+      create: (options = {}) => createAfflictionReference(options),
+      normalize: (reference) => normalizeAfflictionReference(reference),
+      validate: (reference) => validateAfflictionReference(reference),
+      list: (documentOrSource) => readAfflictionReferences(documentOrSource),
+      get: (documentOrSource, referenceId) => findAfflictionReference(documentOrSource, referenceId),
+      set: (document, references = []) => setDocumentAfflictionReferences(document, references),
+      add: (document, reference) => addDocumentAfflictionReference(document, reference),
+      remove: (document, referenceId) => removeDocumentAfflictionReference(document, referenceId),
+      withReferences: (source, references = []) => withAfflictionReferences(source, references),
+      addToSource: (source, reference) => addAfflictionReferenceToSource(source, reference),
+      removeFromSource: (source, referenceId) => removeAfflictionReferenceFromSource(source, referenceId),
+      toText: (referenceOrUuid, options = {}) => afflictionReferenceText(referenceOrUuid, options),
+      summary: (reference) => afflictionReferenceSummary(reference)
+    }),
+
+    application: Object.freeze({
+      apply: (options = {}) => applicationService.apply(options),
+      applyReference: (referenceOrSource, targets, options = {}) => applicationService.applyReference(referenceOrSource, targets, options),
+      applyItemReference: (itemOrUuid, referenceId, targets, options = {}) => applicationService.applyItemReference(itemOrUuid, referenceId, targets, options),
+      resolveReference: (referenceOrSource, options = {}) => applicationService.resolveReference(referenceOrSource, options),
+      createDragData: (templateOrUuid, options = {}) => applicationService.createDragData(templateOrUuid, options),
+      parseDropData: (data = {}) => applicationService.parseDropData(data),
+      applyDropData: (data, target, options = {}) => applicationService.applyDropData(data, target, options)
     }),
 
     controllers: Object.freeze({

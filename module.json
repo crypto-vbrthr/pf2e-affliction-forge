@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.31 hardens runtime concurrency, interrupted saves, reconciliation, synthetic Actors, multi-target application, and lethal catch-up behavior.",
-  "version": "0.1.31",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.32 adds drag-and-drop application, machine-readable ability references, custom Affliction links, and a public external application API.",
+  "version": "0.1.32",
   "socket": true,
   "authors": [
     {

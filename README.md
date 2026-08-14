@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.31**
+Current development build: **0.1.32**
 
-Version **0.1.31** adds live synchronization to the controller manager. Open manager windows now follow scheduler progression, save state, stage output, identification changes, and world-time countdowns without manual reopening, while preserving scroll position and closing cleanly if the controller is removed.
+Version **0.1.32** adds the external-consumer layer: Affliction Templates and rich-text references can be dragged directly onto Actor sheets or canvas tokens, attacks/abilities/spells can carry machine-readable Affliction references in their flags, and external modules can apply those references through one stable public application facade. Runtime progression still remains owned by the Affliction Engine after application.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -37,6 +37,11 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - searchable multi-library template catalog with world, compendium, and registered external provider sources
 - read-only provider libraries with copy-to-world editing workflow and write protection through the public API
 - public `api.libraries` / `api.providers` contracts for content modules, library enable state, metadata, and filtered searches
+- machine-readable ability/spell/attack references under `flags.pf2e-affliction-forge.afflictionReferences`
+- reference trigger/application metadata for host modules without coupling progression logic into those hosts
+- custom draggable `@Affliction[UUID]{Label}` rich-text links plus ordinary `@UUID[...]` drop compatibility
+- direct drag-and-drop from the Forge library, Item/compendium entries, and description links onto Actor sheets or canvas tokens
+- public `api.references` and `api.application` contracts for Creature Forge and other external modules
 - Save, Save As, clone/copy, and live deletion synchronization across the library catalog
 - Embedded Affliction Editor and public UI API for future hosts such as Creature Forge
 - GM-authoritative world-time scheduler using `game.time.worldTime` / `updateWorldTime`
@@ -79,13 +84,34 @@ console.log(application.controllers); // surviving/pending active instances
 console.log(application.results);     // initial-resolution results
 ```
 
+For external attacks, abilities, spells, and generators, prefer the dedicated reference/application layer:
+
+```js
+const abilitySource = api.references.addToSource(source, {
+  id: "venom",
+  templateUuid: "Compendium.my-module.afflictions.Item.venom",
+  trigger: "on-hit",
+  application: "prompt"
+});
+
+await api.application.applyItemReference(abilityItem, "venom", targetActor, {
+  context: { attackDegree: "success" }
+});
+```
+
+A description can expose the same template as a draggable link:
+
+```text
+@Affliction[Compendium.my-module.afflictions.Item.venom]{Smaragdvipergift}
+```
+
 Low-level `api.instances.apply*()` methods remain available for integrations that explicitly need to create a controller without running the initial check.
 
-A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See `docs/API.md`, `docs/DATA_CONTRACT.md`, and `docs/EMBEDDED_EDITOR.md` for the public contracts.
+A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See `docs/API.md`, `docs/DATA_CONTRACT.md`, `docs/EMBEDDED_EDITOR.md`, `docs/LIBRARIES.md`, and `docs/REFERENCES_AND_DND.md` for the public contracts.
 
 ## Runtime boundary
 
-0.1.31 includes the hardened world-time scheduler, active-duration anchoring, player-save routing/recovery, identification visibility layer, public library/provider discovery, an explicit Active Afflictions runtime registry, revision-aware reconciliation, controller mutation serialization, and a scroll-safe controller manager. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
+0.1.32 includes the hardened world-time scheduler, active-duration anchoring, player-save routing/recovery, identification visibility layer, public library/provider discovery, an explicit Active Afflictions runtime registry, revision-aware reconciliation, controller mutation serialization, and a scroll-safe controller manager. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
 
 Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
 

@@ -1,4 +1,4 @@
-# Public API 0.1.31
+# Public API 0.1.32
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -383,3 +383,144 @@ await api.instances.reconcileAll({ cleanupOrphans: true });
 ```
 
 Reconciliation repairs controller-owned persistent stage output only. It never re-executes instant components such as damage or death. `reconcileActor()` now reports an additive `errors` array and continues past malformed controllers so healthy sibling instances can still repair. `reconcileAll()` likewise isolates Actor-level failures.
+
+## Ability / Spell / Attack Reference API
+
+Affliction references are machine-readable metadata for host Items and generated sources. They do not turn the host Item itself into an Affliction controller or template.
+
+```js
+const reference = api.references.create({
+  id: "venom",
+  templateUuid: "Compendium.my-module.afflictions.Item.venom",
+  label: "Smaragdvipergift",
+  trigger: "on-hit",
+  application: "prompt"
+});
+```
+
+Supported trigger metadata:
+
+```js
+api.catalogs.referenceTriggers();
+// ["manual", "on-use", "on-hit", "on-damage", "failed-save",
+//  "critical-failure", "custom"]
+```
+
+Supported application metadata:
+
+```js
+api.catalogs.referenceApplicationModes();
+// ["manual", "prompt", "automatic"]
+```
+
+These values describe the host's intended trigger policy. Affliction Forge does not inspect arbitrary attack or spell rolls to guess that a trigger occurred. The host module decides when its trigger is satisfied and then calls the external application API.
+
+Reference helpers:
+
+```js
+api.references.create(options)
+api.references.normalize(reference)
+api.references.validate(reference)
+api.references.list(documentOrSource)
+api.references.get(documentOrSource, referenceId)
+api.references.set(document, references)
+api.references.add(document, reference)
+api.references.remove(document, referenceId)
+api.references.withReferences(source, references)
+api.references.addToSource(source, reference)
+api.references.removeFromSource(source, referenceId)
+api.references.toText(referenceOrUuid, { label, syntax })
+api.references.summary(reference)
+```
+
+For generated Creature Forge content, `addToSource()` is usually preferable because the source can be prepared before the Foundry Item exists:
+
+```js
+const source = api.references.addToSource(abilitySource, {
+  id: "spore-rot",
+  templateUuid: afflictionTemplate.uuid,
+  trigger: "failed-save",
+  application: "automatic"
+});
+```
+
+References are stored under:
+
+```js
+flags["pf2e-affliction-forge"].afflictionReferences
+```
+
+The host Item is not marked `managed: true`; controller/template detection therefore remains unambiguous.
+
+## External Application API
+
+`api.application` is the preferred facade for external modules. It delegates actual creation and initial save processing to `api.engine`, but also records the host source and reference metadata in controller origin data.
+
+```js
+await api.application.apply({
+  templateUuid,
+  targets,
+  source: sourceItem,
+  application: "creature-forge",
+  context: { attackDegree: "success" }
+});
+```
+
+Apply a direct reference:
+
+```js
+await api.application.applyReference(reference, targets, {
+  source: sourceItem,
+  context: { attackDegree: "success" }
+});
+```
+
+Apply a named reference stored on an Item:
+
+```js
+await api.application.applyItemReference(abilityItem, "venom", targets, {
+  context: { attackDegree: "success" }
+});
+```
+
+Additional helpers:
+
+```js
+api.application.resolveReference(sourceOrReference, { referenceId })
+api.application.createDragData(templateUuid, options)
+api.application.parseDropData(data)
+api.application.applyDropData(data, target, options)
+```
+
+After a successful external application the module emits:
+
+```js
+Hooks.on("pf2eAfflictionForgeApplied", payload => {
+  // payload.templateUuid
+  // payload.reference
+  // payload.sourceUuid
+  // payload.application
+  // payload.result
+});
+```
+
+## Drag & Drop and Rich-Text References
+
+A Template can be exposed in a description with either a normal Foundry UUID link or the Affliction-specific draggable syntax:
+
+```text
+@UUID[Compendium.my-module.afflictions.Item.venom]{Smaragdvipergift}
+@Affliction[Compendium.my-module.afflictions.Item.venom]{Smaragdvipergift}
+```
+
+The `@Affliction` form is enriched into a draggable link and opens the template in Affliction Forge for GMs. Ordinary `@UUID` Item links remain useful and compatible.
+
+Supported application paths:
+
+- drag an Affliction Forge library row onto an Actor sheet
+- drag an Affliction Template Item/compendium entry onto an Actor sheet
+- drag a normal `@UUID` Affliction Template link onto an Actor sheet
+- drag an `@Affliction` link onto an Actor sheet
+- drag the same template/reference forms directly onto a canvas token
+
+Actor-sheet Item drops are intercepted before Foundry creates the embedded Item. The inert template copy is cancelled and the Affliction Engine creates a real controller instance instead. Drag application is GM-only.

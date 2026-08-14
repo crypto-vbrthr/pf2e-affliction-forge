@@ -1725,3 +1725,17 @@
 .affliction-controller-app .affliction-controller-footer {
   padding-bottom: 0.25rem;
 }
+
+/* 0.1.32: Drag & Drop / reference affordances */
+.affliction-forge-template-row[draggable="true"] {
+  cursor: grab;
+}
+
+.affliction-forge-template-row[draggable="true"]:active,
+.pf2e-affliction-reference-link[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.pf2e-affliction-reference-link {
+  white-space: nowrap;
+}

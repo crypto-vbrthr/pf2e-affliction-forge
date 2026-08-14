@@ -122,7 +122,7 @@
 
         <div class="affliction-forge-library-list">
           {{#each templates as |template|}}
-            <article class="affliction-forge-template-row {{#if template.active}}active{{/if}}" data-affliction-template-row data-library-id="{{template.libraryId}}" data-search="{{template.searchable}}">
+            <article class="affliction-forge-template-row {{#if template.active}}active{{/if}}" data-affliction-template-row data-affliction-template-uuid="{{template.uuid}}" data-library-id="{{template.libraryId}}" data-search="{{template.searchable}}" draggable="true" title="{{localize 'PF2E_AFFLICTION_FORGE.Reference.DragHint'}}">
               <button type="button" class="affliction-forge-template-open" data-action="openTemplate" data-template-uuid="{{template.uuid}}">
                 <img src="{{template.img}}" alt="">
                 <span class="affliction-forge-template-copy">
