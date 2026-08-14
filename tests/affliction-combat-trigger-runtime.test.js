@@ -265,3 +265,233 @@ test("saving-throw triggers can resolve their source Item from PF2e origin metad
     globalThis.fromUuidSync = previousFromUuidSync;
   }
 });
+
+function injuryPoisonWeapon({ charges = 1, referenceId = "injury-poison", onUpdate = null } = {}) {
+  const state = {
+    name: "Poisoned Sword",
+    type: "weapon",
+    flags: {
+      [MODULE_ID]: {
+        afflictionReferences: [{
+          schemaVersion: 1,
+          id: referenceId,
+          templateUuid: "Compendium.test.afflictions.Item.injuryPoison",
+          label: "Injury Poison",
+          trigger: "on-damage",
+          application: "automatic",
+          enabled: true,
+          delivery: { type: "injury-poison", charges },
+          metadata: {}
+        }]
+      }
+    }
+  };
+  const item = {
+    documentName: "Item",
+    uuid: `Actor.source.Item.${referenceId}`,
+    name: state.name,
+    type: state.type,
+    actor: { uuid: "Actor.source", sheet: { render() {} } },
+    toObject: () => structuredClone(state),
+    update: async (changes) => {
+      onUpdate?.(changes);
+      state.flags[MODULE_ID].afflictionReferences = structuredClone(changes[`flags.${MODULE_ID}.afflictionReferences`] ?? []);
+    }
+  };
+  return item;
+}
+
+test("injury poison waits for actual positive damage instead of applying on attack-roll success", async () => {
+  const target = targetActor();
+  const item = injuryPoisonWeapon({ charges: 1, referenceId: "wait-for-damage" });
+  let applications = 0;
+  modules.set(MODULE_ID, { api: { application: { applyItemReference: async () => { applications += 1; } } } });
+
+  const result = await processPf2eAfflictionTriggerMessage({
+    id: "injury-hit-only",
+    item,
+    target: { actor: target },
+    flags: { pf2e: { context: { type: "attack-roll", outcome: "success" } } }
+  }, { force: true });
+
+  assert.equal(result.reason, "no-matching-references");
+  assert.equal(applications, 0);
+  assert.equal(item.toObject().flags[MODULE_ID].afflictionReferences[0].delivery.charges, 1);
+});
+
+test("injury poison applies before its charge is consumed when weapon damage is actually applied", async () => {
+  const target = targetActor();
+  const order = [];
+  const item = injuryPoisonWeapon({ charges: 2, referenceId: "damage-poison", onUpdate: () => order.push("consume") });
+  modules.set(MODULE_ID, {
+    api: {
+      application: {
+        applyItemReference: async () => {
+          order.push("apply");
+          assert.equal(item.toObject().flags[MODULE_ID].afflictionReferences[0].delivery.charges, 2);
+          return { created: [{ id: "controller" }] };
+        }
+      }
+    }
+  });
+
+  const result = await processPf2eAfflictionTriggerMessage({
+    id: "injury-damage",
+    uuid: "ChatMessage.injury-damage",
+    item,
+    actor: target,
+    flags: {
+      pf2e: {
+        context: { type: "damage-taken" },
+        appliedDamage: {
+          isHealing: false,
+          isReverted: false,
+          shield: null,
+          persistent: [],
+          updates: [{ path: "system.attributes.hp.value", value: 5 }]
+        }
+      }
+    }
+  }, { force: true });
+
+  assert.equal(result.results[0].status, "applied");
+  assert.deepEqual(order, ["apply", "consume"]);
+  assert.equal(result.results[0].charge.before, 2);
+  assert.equal(result.results[0].charge.after, 1);
+  assert.equal(item.toObject().flags[MODULE_ID].afflictionReferences[0].delivery.charges, 1);
+});
+
+test("critical attack failure consumes injury poison without applying it, even without a target", async () => {
+  const item = injuryPoisonWeapon({ charges: 1, referenceId: "critfail-poison" });
+  let applications = 0;
+  modules.set(MODULE_ID, { api: { application: { applyItemReference: async () => { applications += 1; } } } });
+
+  const result = await processPf2eAfflictionTriggerMessage({
+    id: "injury-critical-failure",
+    item,
+    flags: { pf2e: { context: { type: "attack-roll", outcome: "criticalFailure" } } }
+  }, { force: true });
+
+  assert.equal(result.results[0].status, "consumed");
+  assert.equal(result.results[0].charge.depleted, true);
+  assert.equal(applications, 0);
+  assert.deepEqual(item.toObject().flags[MODULE_ID].afflictionReferences, []);
+});
+
+test("injury poison is not consumed by zero, reverted, or persistent-only damage application", async () => {
+  const target = targetActor();
+  const item = injuryPoisonWeapon({ charges: 2, referenceId: "no-direct-damage" });
+  let applications = 0;
+  modules.set(MODULE_ID, { api: { application: { applyItemReference: async () => { applications += 1; } } } });
+
+  const persistentOnly = await processPf2eAfflictionTriggerMessage({
+    id: "injury-persistent-only",
+    item,
+    actor: target,
+    flags: {
+      pf2e: {
+        context: { type: "damage-taken" },
+        appliedDamage: {
+          isHealing: false,
+          isReverted: false,
+          updates: [],
+          shield: null,
+          persistent: [{ formula: "1d6" }]
+        }
+      }
+    }
+  }, { force: true });
+
+  assert.equal(persistentOnly.reason, "no-matching-references");
+  assert.equal(applications, 0);
+  assert.equal(item.toObject().flags[MODULE_ID].afflictionReferences[0].delivery.charges, 2);
+});
+
+test("one remaining injury-poison charge cannot be spent by two concurrent damage messages", async () => {
+  const target = targetActor();
+  const item = injuryPoisonWeapon({ charges: 1, referenceId: "race-poison" });
+  let applications = 0;
+  modules.set(MODULE_ID, {
+    api: {
+      application: {
+        applyItemReference: async () => {
+          applications += 1;
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          return { created: [{ id: "controller" }] };
+        }
+      }
+    }
+  });
+
+  const makeMessage = (id) => ({
+    id,
+    item,
+    actor: target,
+    flags: {
+      pf2e: {
+        context: { type: "damage-taken" },
+        appliedDamage: {
+          isHealing: false,
+          isReverted: false,
+          shield: null,
+          persistent: [],
+          updates: [{ path: "system.attributes.hp.value", value: 3 }]
+        }
+      }
+    }
+  });
+
+  const [first, second] = await Promise.all([
+    processPf2eAfflictionTriggerMessage(makeMessage("race-1"), { force: true }),
+    processPf2eAfflictionTriggerMessage(makeMessage("race-2"), { force: true })
+  ]);
+
+  assert.equal(applications, 1);
+  assert.deepEqual(new Set([first.results[0].status, second.results[0].status]), new Set(["applied", "depleted"]));
+  assert.deepEqual(item.toObject().flags[MODULE_ID].afflictionReferences, []);
+});
+
+test("failed injury-poison application leaves the charge intact and the damage message retryable", async () => {
+  const target = targetActor();
+  const item = injuryPoisonWeapon({ charges: 1, referenceId: "retry-poison" });
+  let calls = 0;
+  modules.set(MODULE_ID, {
+    api: {
+      application: {
+        applyItemReference: async () => {
+          calls += 1;
+          if (calls === 1) throw new Error("temporary poison failure");
+          return { created: [{ id: "controller" }] };
+        }
+      }
+    }
+  });
+
+  const message = {
+    id: "retry-poison-damage",
+    item,
+    actor: target,
+    flags: {
+      pf2e: {
+        context: { type: "damage-taken" },
+        appliedDamage: {
+          isHealing: false,
+          isReverted: false,
+          shield: null,
+          persistent: [],
+          updates: [{ path: "system.attributes.hp.value", value: 2 }]
+        }
+      }
+    }
+  };
+
+  const first = await processPf2eAfflictionTriggerMessage(message, { force: true });
+  assert.equal(first.results[0].status, "error");
+  assert.equal(item.toObject().flags[MODULE_ID].afflictionReferences[0].delivery.charges, 1);
+
+  const second = await processPf2eAfflictionTriggerMessage(message, { force: true });
+  assert.equal(second.results[0].status, "applied");
+  assert.equal(second.results[0].charge.depleted, true);
+  assert.equal(calls, 2);
+  assert.deepEqual(item.toObject().flags[MODULE_ID].afflictionReferences, []);
+});

@@ -1,4 +1,4 @@
-# Architecture 0.1.42
+# Architecture 0.1.43
 
 ```text
 Affliction Template / Definition
@@ -335,11 +335,30 @@ Affliction Engine
 
 The adapter runs only on the authoritative active GM, deduplicates message/reference/target tuples, and treats PF2e `damage-taken` as the `on-damage` boundary so rolled damage is not confused with actually applied damage. Custom trigger types deliberately remain the responsibility of the external host and use the same public Application Service directly.
 
+### Injury-poison consumable reference path (0.1.42)
+
+Injury poison is modeled as a definition capability plus host-local consumable state. `AfflictionDefinition.delivery.injuryPoison` says that the template may be used as a coating; the remaining charge count is stored only on the concrete `AfflictionReference.delivery` attached to a `weapon` or `melee` Item. This keeps one template stateless while allowing multiple independently coated hosts.
+
+```text
+Poison template (delivery.injuryPoison = true)
+        ↓ drop on weapon / melee Item
+charge prompt (default 1)
+        ↓
+AfflictionReference.delivery = { type: "injury-poison", charges: N }
+        ↓
+PF2e attack criticalFailure ─────────────→ consume charge only
+PF2e direct positive damage → apply via Application Service → consume charge
+                                                        ↓
+                                              remove reference at 0
+```
+
+The combat runtime serializes the complete apply/consume transaction per source Item + reference, then re-reads the live host reference under that lock. This prevents the last remaining charge from poisoning two targets when separate damage messages arrive concurrently. Application occurs before charge mutation; a runtime application error leaves the charge intact and the message retryable.
+
 
 ## Contract/runtime hardening in 0.1.42
 
 - Runtime application now enforces one live controller per Actor + Affliction `definitionId`, including pending exposure/incubation reservations and concurrent apply calls.
-- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.42`).
+- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.43`).
 - Combat-trigger idempotency is committed only after a successful application or an intentional terminal decision; transient failures remain retryable.
 - Strict reconciliation can verify generated stage-effect content, not merely controller/stage ownership flags.
 - Identification updates use batch embedded-document updates when available and fall back to strict reconciliation after a partial failure.
@@ -348,3 +367,4 @@ The adapter runs only on the authoritative active GM, deduplicates message/refer
 - Controller-manager stage navigation is enabled only for active, nonlethal controllers; stage 0 remains reserved for initial exposure/onset state.
 - Controller-state validation enforces status/stage and pause-metadata invariants so malformed runtime states cannot be persisted by ordinary mutations.
 - A committed lethal result is terminal for engine progression and ordinary manual stage/pause/instant retry mutations; reconciliation, identification, inspection, and explicit end remain available for audit/cleanup.
+- Poison definitions can opt into injury-poison delivery. Charge state is host-local, positive weapon damage applies before consuming a charge, critical attack failure consumes without application, and the last charge removes the reference.

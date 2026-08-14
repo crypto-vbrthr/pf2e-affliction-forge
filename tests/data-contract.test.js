@@ -196,3 +196,37 @@ test("nested Critical Forge warning keys are localized when Foundry i18n is avai
     globalThis.game = previousGame;
   }
 });
+
+test("poison definitions can opt into injury-poison delivery without changing schema version", () => {
+  const definition = createAfflictionDefinition({
+    id: "test.injury-poison",
+    name: "Injury Poison",
+    afflictionType: "poison",
+    delivery: { injuryPoison: true }
+  });
+  assert.equal(definition.schemaVersion, 2);
+  assert.deepEqual(definition.delivery, { injuryPoison: true });
+  assert.equal(validateAfflictionDefinition(definition).valid, true);
+
+  const normalizedLegacy = normalizeAfflictionDefinition({
+    schemaVersion: 2,
+    id: "legacy.poison",
+    name: "Legacy Poison",
+    afflictionType: "poison",
+    checks: definition.checks,
+    stages: definition.stages
+  });
+  assert.deepEqual(normalizedLegacy.delivery, { injuryPoison: false });
+});
+
+test("injury-poison delivery is rejected for non-poison Afflictions", () => {
+  const definition = createAfflictionDefinition({
+    id: "test.bad-injury-poison",
+    name: "Bad Injury Poison",
+    afflictionType: "disease",
+    delivery: { injuryPoison: true }
+  });
+  const report = validateAfflictionDefinition(definition);
+  assert.equal(report.valid, false);
+  assert.ok(report.errors.some((issue) => issue.code === "delivery.injury-poison-type"));
+});

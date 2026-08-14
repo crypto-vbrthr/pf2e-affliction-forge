@@ -69,6 +69,14 @@ export function normalizeSavePolicy(value, fallback = createDefaultSavePolicy())
   };
 }
 
+
+function normalizeDelivery(value, afflictionType, fallback = { injuryPoison: false }) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    injuryPoison: afflictionType === "poison" && (source.injuryPoison ?? fallback?.injuryPoison) === true
+  };
+}
+
 function normalizeIdentification(value, fallback = { initialState: "identified" }) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const state = cleanString(source.initialState, fallback.initialState ?? "identified");
@@ -117,19 +125,22 @@ export function normalizeAfflictionDefinition(value = {}, { createDefaults = tru
     ? source.stages
     : (base.stages ?? []);
 
+  const afflictionType = cleanString(source.afflictionType, base.afflictionType ?? "disease").toLowerCase();
+
   return {
     schemaVersion: AFFLICTION_SCHEMA_VERSION,
     id: cleanString(source.id, base.id ?? ""),
     name: String(source.name ?? base.name ?? "").trim(),
     description: String(source.description ?? base.description ?? ""),
     img: cleanString(source.img, base.img ?? "icons/svg/biohazard.svg"),
-    afflictionType: cleanString(source.afflictionType, base.afflictionType ?? "disease").toLowerCase(),
+    afflictionType,
     level: finiteNumber(source.level, base.level ?? 1),
     rarity: cleanString(source.rarity, base.rarity ?? "common").toLowerCase(),
     traits: uniqueStrings(source.traits ?? base.traits),
     themes: uniqueStrings(source.themes ?? base.themes),
     saveDefaults: normalizeSavePolicy(source.saveDefaults, base.saveDefaults ?? createDefaultSavePolicy()),
     identification: normalizeIdentification(source.identification, base.identification ?? { initialState: "identified" }),
+    delivery: normalizeDelivery(source.delivery, afflictionType, base.delivery ?? { injuryPoison: false }),
     checks: checksSource.map(normalizeCheck),
     initialCheck: source.initialCheck === null
       ? null

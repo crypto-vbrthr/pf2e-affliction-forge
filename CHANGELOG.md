@@ -1,3 +1,15 @@
+# Changelog
+
+## 0.1.43
+
+### Final Release
+
+- promotes the fully reviewed 0.1.42 release-candidate code to the final 0.1.43 release without additional runtime changes
+- retains duplicate-Affliction protection: one live controller per Actor and Affliction `definitionId`, including pending exposure and incubation
+- retains charge-aware injury-poison coatings for weapons/attack Items, including default 1-charge attachment, positive-damage application-before-consumption, critical-failure consumption, depletion cleanup, concurrency protection, and visible Strike charge feedback
+- keeps public API compatibility at `0.1.0`, Affliction schema v2, Controller schema v2, and reference schema v1; no migration is required from the reviewed RC
+- updates module/package metadata, manifest download target, documentation, and release-contract tests to module version `0.1.43`
+
 ## 0.1.42
 
 ### Contract & Runtime Hardening
@@ -17,7 +29,14 @@
 - rejects semantically impossible controller status/stage combinations and blocks active-to-stage-0 transitions
 - treats a recorded lethal result as terminal across engine processing and manual stage/pause/instant-retry mutations
 - preserves existing Affliction/Controller schema v2; pause metadata is an optional additive runtime field
-- adds regression coverage for trigger retry, strict reconcile, pause/resume timing, pending-save pause rejection, and malformed library levels
+- adds poison-only `delivery.injuryPoison` authoring in the embedded Affliction Editor without changing Affliction schema v2
+- dropping an injury poison onto `weapon` or `melee` Items asks for a positive charge count and defaults to 1
+- stores injury-poison charges on the concrete host reference, not on the global Affliction template; reference schema remains v1 with additive delivery metadata
+- applies injury poison only after direct positive applied weapon/attack damage, then consumes exactly 1 charge; attack-roll critical failure consumes 1 charge without application
+- removes exhausted injury-poison references automatically and exposes remaining charges in the host reference panel
+- serializes injury-poison apply/consume transactions per host reference so a final charge cannot be spent twice by concurrent damage events
+- adds public injury-poison reference helpers and `pf2eAfflictionForgeChargeConsumed` runtime hook
+- adds regression coverage for trigger retry, strict reconcile, pause/resume timing, pending-save pause rejection, malformed library levels, injury-poison ordering, depletion, critical-failure consumption, and concurrent charge use
 
 ## 0.1.41
 
@@ -79,7 +98,6 @@
 - preserves Actor, Token, Actor Directory, Attack/Ability and custom Affliction drop behavior through the dedicated module MIME payload
 - adds regression tests for native rich-text drag payloads and custom-element plugin installation
 
-# Changelog
 
 ## 0.1.35 - Attack & Ability Host-Sheet Theme Integration
 
@@ -542,3 +560,8 @@
 - added public API 0.1.0 and `pf2eAfflictionForgeReady` hook
 - added Critical Forge compatibility diagnostics
 - added Node test suite for data, item, controller, and public API contracts
+
+### RC polish: injury-poison Strike visibility
+- Injury-poison charge prompts now persist an explicit HTML `value` attribute so the charge field is visibly prefilled with `1` when DialogV2 serializes its content.
+- PF2e character-sheet Strike rows now show each enabled injury poison attached to the Strike weapon, including its remaining charges.
+- The Strike coating indicator is informational and visible to players as well as GMs; attachment/editing remains GM-controlled.

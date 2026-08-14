@@ -102,3 +102,21 @@ test("plain textareas receive Affliction reference syntax without hijacking Pros
   assert.match(richTextDrop, /classList\?\.contains\("ProseMirror"\)/);
   assert.match(richTextDrop, /addEventListener\("drop"/);
 });
+
+test("injury poison host UI asks for charges and locks delivery semantics", () => {
+  assert.match(hostReferenceUi, /promptInjuryPoisonConfiguration/);
+  assert.match(hostReferenceUi, /name = "charges"/);
+  assert.match(hostReferenceUi, /chargeInput\.setAttribute\("value", initialCharges\)/);
+  assert.match(hostReferenceUi, /createInjuryPoisonReference/);
+  assert.match(hostReferenceUi, /isInjuryPoisonHostItem/);
+  assert.match(hostReferenceUi, /has-injury-poison/);
+});
+
+test("PC Strike rows expose attached injury poison and remaining charges", () => {
+  assert.match(hostReferenceUi, /injuryPoisonReferencesForStrikeAction/);
+  assert.match(hostReferenceUi, /\[data-strike\]\[data-action-index\]/);
+  assert.match(hostReferenceUi, /actor\?\.system\?\.actions\?\.\[index\]/);
+  assert.match(hostReferenceUi, /pf2e-affliction-strike-poisons/);
+  assert.match(hostReferenceUi, /PF2E_AFFLICTION_FORGE\.Reference\.StrikePoisonBadge/);
+  assert.match(hostReferenceUi, /decorateActorStrikePoisonBadges\(actor, root\)/);
+});

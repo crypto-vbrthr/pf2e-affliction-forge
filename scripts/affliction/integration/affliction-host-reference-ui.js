@@ -2,7 +2,11 @@ import { MODULE_ID } from "../../constants.js";
 import {
   afflictionReferenceHostDefaults,
   createAfflictionReference,
+  createInjuryPoisonReference,
+  injuryPoisonCharges,
   isAfflictionReferenceHostItem,
+  isInjuryPoisonHostItem,
+  isInjuryPoisonReference,
   readAfflictionReferences
 } from "./affliction-reference-service.js";
 import { readAfflictionDragEventData } from "./affliction-external-integration.js";
@@ -80,6 +84,79 @@ async function templateLabel(uuid, fallback = null) {
   }
 }
 
+async function templateDefinition(uuid) {
+  try {
+    return await api()?.templates?.read?.(uuid) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function isInjuryPoisonDefinition(definition) {
+  return definition?.afflictionType === "poison" && definition?.delivery?.injuryPoison === true;
+}
+
+function makeInjuryPoisonDialogContent({ charges = 1 } = {}) {
+  const root = document.createElement("div");
+  const wrapper = document.createElement("div");
+  wrapper.className = "pf2e-affliction-reference-config-dialog pf2e-affliction-injury-poison-dialog";
+
+  const chargeLabel = document.createElement("label");
+  const chargeText = document.createElement("span");
+  chargeText.textContent = localize("PF2E_AFFLICTION_FORGE.Reference.Charges");
+  const chargeInput = document.createElement("input");
+  chargeInput.type = "number";
+  chargeInput.name = "charges";
+  chargeInput.min = "1";
+  chargeInput.step = "1";
+  const initialCharges = String(Math.max(1, Number(charges) || 1));
+  // DialogV2 may serialize HTMLElement content before mounting it. Keep the
+  // HTML value attribute in sync with the live property so the visible field
+  // is still prefilled after serialization/mounting.
+  chargeInput.value = initialCharges;
+  chargeInput.setAttribute("value", initialCharges);
+  chargeLabel.append(chargeText, chargeInput);
+
+  const hint = document.createElement("p");
+  hint.className = "hint";
+  hint.textContent = localize("PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachHint");
+  wrapper.append(chargeLabel, hint);
+  root.append(wrapper);
+  return root;
+}
+
+async function promptInjuryPoisonConfiguration(item, parsed, existing, label) {
+  if (!isInjuryPoisonHostItem(item)) {
+    globalThis.ui?.notifications?.warn?.(localize("PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonHostRequired"));
+    return null;
+  }
+  const DialogV2 = globalThis.foundry?.applications?.api?.DialogV2;
+  let charges = 1;
+  if (DialogV2?.input) {
+    const form = await DialogV2.input({
+      window: {
+        title: format("PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachTitle", { item: item.name ?? "" })
+      },
+      content: makeInjuryPoisonDialogContent({ charges: 1 }),
+      ok: { label: localize("PF2E_AFFLICTION_FORGE.Reference.ApplyPoison") },
+      modal: true,
+      rejectClose: false
+    });
+    if (!form) return null;
+    charges = Number.parseInt(String(form.charges ?? "1"), 10);
+    if (!Number.isInteger(charges) || charges < 1) charges = 1;
+  }
+
+  return createInjuryPoisonReference({
+    id: existing?.id,
+    templateUuid: parsed.templateUuid,
+    label,
+    charges,
+    enabled: existing?.enabled ?? true,
+    metadata: existing?.metadata ?? {}
+  });
+}
+
 function makeReferenceDialogContent({ trigger, application }) {
   const root = document.createElement("div");
   const wrapper = document.createElement("div");
@@ -122,6 +199,10 @@ async function promptReferenceConfiguration(item, parsed) {
 
   const existing = readAfflictionReferences(item).find((reference) => reference.templateUuid === parsed.templateUuid) ?? null;
   const label = await templateLabel(parsed.templateUuid, parsed.label ?? existing?.label ?? null);
+  const definition = await templateDefinition(parsed.templateUuid);
+  if (isInjuryPoisonDefinition(definition)) {
+    return promptInjuryPoisonConfiguration(item, parsed, existing, label);
+  }
   const DialogV2 = globalThis.foundry?.applications?.api?.DialogV2;
   const initial = {
     trigger: existing?.trigger ?? defaults.trigger,
@@ -162,9 +243,13 @@ async function attachDroppedReference(item, parsed, { application = null } = {})
   const reference = await promptReferenceConfiguration(item, parsed);
   if (!reference) return false;
   await api()?.references?.add?.(item, reference);
-  globalThis.ui?.notifications?.info?.(format("PF2E_AFFLICTION_FORGE.Reference.Attached", {
+  const attachedKey = isInjuryPoisonReference(reference)
+    ? "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttached"
+    : "PF2E_AFFLICTION_FORGE.Reference.Attached";
+  globalThis.ui?.notifications?.info?.(format(attachedKey, {
     affliction: reference.label ?? localize("PF2E_AFFLICTION_FORGE.Reference.Affliction"),
-    item: item.name ?? ""
+    item: item.name ?? "",
+    charges: injuryPoisonCharges(reference) ?? ""
   }));
   try { await application?.render?.({ force: true }); } catch { application?.render?.(true); }
   item.actor?.sheet?.render?.(false);
@@ -259,11 +344,13 @@ async function renderItemReferencePanel(application, html) {
     nameButton.title = localize("PF2E_AFFLICTION_FORGE.Reference.OpenTemplate");
     nameButton.addEventListener("click", () => void openReferenceTemplate(reference));
 
+    const injuryPoison = isInjuryPoisonReference(reference);
+    if (injuryPoison) row.classList.add("has-injury-poison");
     const trigger = selectFor({
       name: "trigger",
       values: triggerValues,
       selected: reference.trigger,
-      disabled: !editable,
+      disabled: !editable || injuryPoison,
       kind: "trigger"
     });
     trigger.title = localize("PF2E_AFFLICTION_FORGE.Reference.TriggerLabel");
@@ -273,11 +360,36 @@ async function renderItemReferencePanel(application, html) {
       name: "application",
       values: applicationValues,
       selected: reference.application,
-      disabled: !editable,
+      disabled: !editable || injuryPoison,
       kind: "application"
     });
     applicationMode.title = localize("PF2E_AFFLICTION_FORGE.Reference.ApplicationLabel");
     applicationMode.addEventListener("change", () => void updateReference(item, reference.id, { application: applicationMode.value }, application));
+
+    let chargeControl = null;
+    if (injuryPoison) {
+      const chargeWrap = document.createElement("label");
+      chargeWrap.className = "pf2e-affliction-reference-charges";
+      chargeWrap.title = localize("PF2E_AFFLICTION_FORGE.Reference.Charges");
+      const chargeIcon = document.createElement("i");
+      chargeIcon.className = "fa-solid fa-droplet";
+      const chargeInput = document.createElement("input");
+      chargeInput.type = "number";
+      chargeInput.min = "1";
+      chargeInput.step = "1";
+      chargeInput.value = String(injuryPoisonCharges(reference) ?? 1);
+      chargeInput.disabled = !editable;
+      chargeInput.setAttribute("aria-label", localize("PF2E_AFFLICTION_FORGE.Reference.Charges"));
+      chargeInput.addEventListener("change", () => {
+        const charges = Math.max(1, Number.parseInt(chargeInput.value, 10) || 1);
+        chargeInput.value = String(charges);
+        void updateReference(item, reference.id, {
+          delivery: { type: "injury-poison", charges }
+        }, application);
+      });
+      chargeWrap.append(chargeIcon, chargeInput);
+      chargeControl = chargeWrap;
+    }
 
     const remove = document.createElement("button");
     remove.type = "button";
@@ -287,7 +399,9 @@ async function renderItemReferencePanel(application, html) {
     remove.setAttribute("aria-label", remove.title);
     remove.addEventListener("click", () => void removeReference(item, reference.id, application));
 
-    row.append(nameButton, trigger, applicationMode, remove);
+    row.append(nameButton, trigger, applicationMode);
+    if (chargeControl) row.append(chargeControl);
+    row.append(remove);
     list.append(row);
   }
 
@@ -363,11 +477,65 @@ function decorateActorReferenceRows(actor, root) {
   }
 }
 
+export function injuryPoisonReferencesForStrikeAction(actor, actionIndex) {
+  const index = Number.parseInt(String(actionIndex), 10);
+  if (!Number.isInteger(index) || index < 0) return [];
+  const action = actor?.system?.actions?.[index] ?? null;
+  const item = action?.item ?? null;
+  if (!isInjuryPoisonHostItem(item)) return [];
+  return readAfflictionReferences(item).filter((reference) => reference.enabled && isInjuryPoisonReference(reference));
+}
+
+function decorateActorStrikePoisonBadges(actor, root) {
+  if (typeof document === "undefined") return;
+  for (const row of root?.querySelectorAll?.("[data-strike][data-action-index]") ?? []) {
+    row.querySelector?.(".pf2e-affliction-strike-poisons")?.remove?.();
+    const references = injuryPoisonReferencesForStrikeAction(actor, row.dataset?.actionIndex);
+    if (references.length === 0) continue;
+
+    const section = row.querySelector?.(":scope > section") ?? row.querySelector?.("section") ?? null;
+    if (!section) continue;
+
+    const badges = document.createElement("div");
+    badges.className = "pf2e-affliction-strike-poisons";
+    badges.setAttribute("aria-label", localize("PF2E_AFFLICTION_FORGE.Reference.StrikePoisonSection"));
+
+    for (const reference of references) {
+      const charges = injuryPoisonCharges(reference) ?? 1;
+      const label = reference.label ?? localize("PF2E_AFFLICTION_FORGE.Reference.Affliction");
+      const badge = document.createElement("span");
+      badge.className = "pf2e-affliction-strike-poison";
+      badge.title = format("PF2E_AFFLICTION_FORGE.Reference.StrikePoisonBadgeTitle", {
+        affliction: label,
+        charges
+      });
+      const icon = document.createElement("i");
+      icon.className = "fa-solid fa-droplet";
+      badge.append(icon, document.createTextNode(` ${format("PF2E_AFFLICTION_FORGE.Reference.StrikePoisonBadge", {
+        affliction: label,
+        charges
+      })}`));
+      badges.append(badge);
+    }
+
+    // PF2e 8.4 renders the attack/damage controls in the first button-group.
+    // Place the poison status directly after it so it remains part of the
+    // Strike block and before auxiliary actions such as sheathe/drop.
+    const attackControls = section.querySelector?.(":scope > .button-group.tags") ?? section.querySelector?.(".button-group.tags");
+    if (attackControls?.insertAdjacentElement) attackControls.insertAdjacentElement("afterend", badges);
+    else section.append?.(badges);
+  }
+}
+
 export function installAfflictionActorSheetReferenceDropTargets(application, html) {
-  if (!globalThis.game?.user?.isGM) return false;
   const actor = actorDocument(application);
   const root = rootElement(html);
   if (!actor || !root) return false;
+
+  // The coating status is informational and should be visible to the actor's
+  // player as well as the GM. Editing/drop behavior remains GM-only below.
+  decorateActorStrikePoisonBadges(actor, root);
+  if (!globalThis.game?.user?.isGM) return true;
 
   decorateActorReferenceRows(actor, root);
   if (root.dataset?.[ACTOR_SHEET_BOUND] === "true") return true;

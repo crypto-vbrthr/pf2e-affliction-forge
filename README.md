@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.42**
+Current release: **0.1.43**
 
-Version **0.1.42** hardens the public and runtime contracts before the first release candidate: combat-trigger failures remain retryable, an Actor can hold only one live controller for a given Affliction `definitionId`, strict reconciliation can rebuild manually altered stage output, identification changes recover from partial updates, pause/resume freezes affliction clocks, controller stage navigation can no longer bypass exposure/onset gates or enter reserved stage 0, lethal controllers are terminal, level-bounded library searches reject malformed levels, and the public API now has its own compatibility version.
+Version **0.1.43** is the final release cut of the hardened 0.1.x runtime: combat-trigger failures remain retryable, an Actor can hold only one live controller for a given Affliction `definitionId`, strict reconciliation can rebuild manually altered stage output, identification changes recover from partial updates, pause/resume freezes affliction clocks, controller stage navigation cannot bypass exposure/onset gates or enter reserved stage 0, lethal controllers are terminal, level-bounded library searches reject malformed levels, and wound poisons can be attached to weapons/attack Items with consumable charges and visible Strike feedback. The public API remains compatibility version `0.1.0`.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -40,6 +40,8 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - machine-readable ability/spell/attack references under `flags.pf2e-affliction-forge.afflictionReferences`
 - direct drag-and-drop reference zones on melee, weapon, action, feat, and spell Item sheets, plus embedded Actor-sheet item rows
 - reference trigger/application metadata for host modules without coupling progression logic into those hosts
+- poison-only `delivery.injuryPoison` definition capability with charge-aware weapon/attack attachment; applying defaults to 1 charge
+- injury-poison runtime ordering: positive applied weapon damage applies the Affliction before consuming 1 charge, while an attack critical failure consumes 1 charge without application
 - native PF2e combat-trigger runtime for `on-use`, `on-hit`, `on-damage`, `failed-save`, and `critical-failure`, with GM prompt/automatic/manual application policies and per-message deduplication
 - custom draggable `@Affliction[UUID]{Label}` rich-text links plus native Foundry `Item` drag fallback for reliable ProseMirror insertion
 - direct drag-and-drop from the Forge library, Item/compendium entries, and description links onto Actor sheets or canvas tokens
@@ -99,6 +101,22 @@ const abilitySource = api.references.addToSource(source, {
 await api.application.applyItemReference(abilityItem, "venom", targetActor, {
   context: { attackDegree: "success" }
 });
+```
+
+Injury poisons are authored on the Affliction definition and become consumable only when attached to a weapon/attack Item:
+
+```js
+const poison = api.definitions.create({
+  name: "Smaragdvipergift",
+  afflictionType: "poison",
+  delivery: { injuryPoison: true }
+});
+
+const coating = api.references.createInjuryPoison({
+  templateUuid: poisonTemplate.uuid,
+  charges: 1
+});
+await api.references.add(weaponItem, coating);
 ```
 
 A description can expose the same template as a draggable link:

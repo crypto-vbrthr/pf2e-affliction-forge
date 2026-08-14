@@ -334,5 +334,18 @@
   "PF2E_AFFLICTION_FORGE.Runtime.PauseSuccess": "The affliction was paused.",
   "PF2E_AFFLICTION_FORGE.Runtime.ResumeSuccess": "The affliction has resumed.",
   "PF2E_AFFLICTION_FORGE.Runtime.Event.Paused": "Affliction paused",
-  "PF2E_AFFLICTION_FORGE.Runtime.Event.Resumed": "Affliction resumed"
+  "PF2E_AFFLICTION_FORGE.Runtime.Event.Resumed": "Affliction resumed",
+  "PF2E_AFFLICTION_FORGE.Editor.InjuryPoison": "Injury Poison",
+  "PF2E_AFFLICTION_FORGE.Editor.InjuryPoisonHint": "This poison can be applied to a weapon or attack. Applying it asks for the number of charges; the default is 1.",
+  "PF2E_AFFLICTION_FORGE.Reference.Charges": "Charges",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachHint": "The poison is applied when the attack actually deals damage, then 1 charge is consumed. A critical failure on the attack consumes 1 charge without applying the poison.",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonHostRequired": "Injury poisons can currently be applied only to weapons or real attack Items.",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachTitle": "Apply injury poison to “{item}”",
+  "PF2E_AFFLICTION_FORGE.Reference.ApplyPoison": "Apply poison",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttached": "Applied “{affliction}” to “{item}” with {charges} charge(s).",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonChargeConsumed": "“{affliction}” on “{item}”: 1 charge consumed, {charges} remaining.",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonDepleted": "“{affliction}” on “{item}”: last charge consumed; the poison was removed from the weapon.",
+  "PF2E_AFFLICTION_FORGE.Reference.StrikePoisonSection": "Injury poisons",
+  "PF2E_AFFLICTION_FORGE.Reference.StrikePoisonBadge": "{affliction} · {charges} charge(s)",
+  "PF2E_AFFLICTION_FORGE.Reference.StrikePoisonBadgeTitle": "Injury poison “{affliction}” on this weapon; remaining charges: {charges}."
 }

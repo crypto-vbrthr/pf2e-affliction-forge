@@ -28,7 +28,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
   assert.equal(api.version, "0.1.0");
-  assert.equal(api.moduleVersion, "0.1.42");
+  assert.equal(api.moduleVersion, "0.1.43");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -51,11 +51,14 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.providers.list, "function");
   assert.equal(api.references.schemaVersion, 1);
   assert.equal(typeof api.references.create, "function");
+  assert.equal(typeof api.references.createInjuryPoison, "function");
+  assert.equal(typeof api.references.consumeInjuryPoisonCharge, "function");
   assert.equal(typeof api.references.list, "function");
   assert.equal(typeof api.references.addToSource, "function");
   assert.equal(typeof api.references.toText, "function");
   assert.deepEqual(api.catalogs.referenceTriggers(), ["manual", "on-use", "on-hit", "on-damage", "failed-save", "critical-failure", "custom"]);
   assert.deepEqual(api.catalogs.referenceApplicationModes(), ["manual", "prompt", "automatic"]);
+  assert.deepEqual(api.catalogs.referenceDeliveryTypes(), ["injury-poison"]);
   assert.deepEqual(api.catalogs.referenceHostItemTypes(), ["melee", "weapon", "action", "feat", "spell"]);
   assert.equal(api.references.isHostItem({ type: "melee" }), true);
   assert.equal(api.references.hostDefaults({ type: "melee" }).trigger, "on-hit");

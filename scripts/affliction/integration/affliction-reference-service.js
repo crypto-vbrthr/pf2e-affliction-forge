@@ -27,6 +27,10 @@ export const AFFLICTION_REFERENCE_HOST_ITEM_TYPES = Object.freeze([
   "spell"
 ]);
 
+export const AFFLICTION_REFERENCE_DELIVERY_TYPES = Object.freeze([
+  "injury-poison"
+]);
+
 function sourceOf(documentOrSource) {
   if (!documentOrSource || typeof documentOrSource !== "object") return {};
   return typeof documentOrSource.toObject === "function"
@@ -42,12 +46,34 @@ function boolean(value, fallback = true) {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function positiveInteger(value, fallback = 1) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : fallback;
+}
+
 function itemTypeOf(documentOrSource) {
   return text(documentOrSource?.type);
 }
 
+function normalizeReferenceDelivery(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const type = text(value.type).toLowerCase();
+  if (!AFFLICTION_REFERENCE_DELIVERY_TYPES.includes(type)) return null;
+  if (type === "injury-poison") {
+    return {
+      type,
+      charges: positiveInteger(value.charges, 1)
+    };
+  }
+  return null;
+}
+
 export function isAfflictionReferenceHostItem(documentOrSource) {
   return AFFLICTION_REFERENCE_HOST_ITEM_TYPES.includes(itemTypeOf(documentOrSource));
+}
+
+export function isInjuryPoisonHostItem(documentOrSource) {
+  return ["weapon", "melee"].includes(itemTypeOf(documentOrSource));
 }
 
 export function defaultAfflictionReferenceTriggerForHost(documentOrSource) {
@@ -73,8 +99,16 @@ export function afflictionReferenceHostDefaults(documentOrSource) {
 
 export function normalizeAfflictionReference(input = {}) {
   const source = input && typeof input === "object" ? input : {};
-  const trigger = AFFLICTION_REFERENCE_TRIGGERS.includes(source.trigger) ? source.trigger : "manual";
-  const application = AFFLICTION_REFERENCE_APPLICATION_MODES.includes(source.application) ? source.application : "manual";
+  const delivery = normalizeReferenceDelivery(source.delivery);
+  // Injury poison has fixed runtime semantics. It is applied only after
+  // positive weapon damage and is consumed after application; a critical
+  // attack failure consumes a charge without applying the Affliction.
+  const trigger = delivery?.type === "injury-poison"
+    ? "on-damage"
+    : AFFLICTION_REFERENCE_TRIGGERS.includes(source.trigger) ? source.trigger : "manual";
+  const application = delivery?.type === "injury-poison"
+    ? "automatic"
+    : AFFLICTION_REFERENCE_APPLICATION_MODES.includes(source.application) ? source.application : "manual";
   return {
     schemaVersion: AFFLICTION_REFERENCE_SCHEMA_VERSION,
     id: text(source.id) || randomId("affliction-ref"),
@@ -83,6 +117,7 @@ export function normalizeAfflictionReference(input = {}) {
     trigger,
     application,
     enabled: boolean(source.enabled, true),
+    delivery,
     metadata: deepClone(source.metadata && typeof source.metadata === "object" ? source.metadata : {})
   };
 }
@@ -92,11 +127,23 @@ export function validateAfflictionReference(input = {}) {
   const reference = normalizeAfflictionReference(source);
   const errors = [];
   if (!reference.templateUuid) errors.push("templateUuid must be a non-empty string.");
+  if (source.schemaVersion != null && ![1, AFFLICTION_REFERENCE_SCHEMA_VERSION].includes(Number(source.schemaVersion))) {
+    errors.push(`Unsupported Affliction reference schema version: ${source.schemaVersion}`);
+  }
   if (source.trigger != null && !AFFLICTION_REFERENCE_TRIGGERS.includes(source.trigger)) {
     errors.push(`Unsupported trigger: ${source.trigger}`);
   }
   if (source.application != null && !AFFLICTION_REFERENCE_APPLICATION_MODES.includes(source.application)) {
     errors.push(`Unsupported application mode: ${source.application}`);
+  }
+  if (source.delivery != null) {
+    if (!source.delivery || typeof source.delivery !== "object" || Array.isArray(source.delivery)) {
+      errors.push("delivery must be an object or null.");
+    } else if (!AFFLICTION_REFERENCE_DELIVERY_TYPES.includes(text(source.delivery.type).toLowerCase())) {
+      errors.push(`Unsupported delivery type: ${source.delivery.type}`);
+    } else if (text(source.delivery.type).toLowerCase() === "injury-poison" && (!Number.isInteger(Number(source.delivery.charges)) || Number(source.delivery.charges) <= 0)) {
+      errors.push("Injury poison charges must be a positive integer.");
+    }
   }
   return Object.freeze({ valid: errors.length === 0, errors: Object.freeze(errors), reference: Object.freeze(reference) });
 }
@@ -105,6 +152,27 @@ export function createAfflictionReference(options = {}) {
   const report = validateAfflictionReference(options);
   if (!report.valid) throw new TypeError(`Invalid Affliction reference: ${report.errors.join(" ")}`);
   return deepClone(report.reference);
+}
+
+export function createInjuryPoisonReference(options = {}) {
+  return createAfflictionReference({
+    ...options,
+    trigger: "on-damage",
+    application: "automatic",
+    delivery: {
+      type: "injury-poison",
+      charges: positiveInteger(options.charges ?? options.delivery?.charges, 1)
+    }
+  });
+}
+
+export function isInjuryPoisonReference(referenceInput) {
+  return normalizeAfflictionReference(referenceInput).delivery?.type === "injury-poison";
+}
+
+export function injuryPoisonCharges(referenceInput) {
+  const reference = normalizeAfflictionReference(referenceInput);
+  return reference.delivery?.type === "injury-poison" ? reference.delivery.charges : null;
 }
 
 export function readAfflictionReferences(documentOrSource) {
@@ -167,6 +235,40 @@ export async function removeDocumentAfflictionReference(document, referenceId) {
   return references;
 }
 
+export async function consumeInjuryPoisonCharge(document, referenceId, { amount = 1 } = {}) {
+  if (!document?.update) throw new TypeError("A writable Foundry Item is required to consume an injury poison charge.");
+  const count = positiveInteger(amount, 1);
+  const references = readAfflictionReferences(document);
+  const index = references.findIndex((entry) => entry.id === text(referenceId));
+  if (index < 0 || !isInjuryPoisonReference(references[index])) {
+    return Object.freeze({ consumed: false, reason: "not-found", before: 0, after: 0, depleted: true, reference: null });
+  }
+
+  const reference = references[index];
+  const before = injuryPoisonCharges(reference) ?? 0;
+  const after = Math.max(0, before - count);
+  let updatedReference = null;
+  if (after <= 0) {
+    references.splice(index, 1);
+  } else {
+    updatedReference = createInjuryPoisonReference({
+      ...reference,
+      charges: after,
+      delivery: { ...reference.delivery, charges: after }
+    });
+    references[index] = updatedReference;
+  }
+  await setDocumentAfflictionReferences(document, references);
+  return Object.freeze({
+    consumed: true,
+    reason: null,
+    before,
+    after,
+    depleted: after <= 0,
+    reference: updatedReference ? Object.freeze(deepClone(updatedReference)) : null
+  });
+}
+
 export function afflictionReferenceText(referenceOrUuid, { label = null, syntax = "affliction" } = {}) {
   const reference = typeof referenceOrUuid === "string"
     ? normalizeAfflictionReference({ templateUuid: referenceOrUuid, label })
@@ -187,6 +289,7 @@ export function afflictionReferenceSummary(referenceInput) {
     label: reference.label,
     trigger: reference.trigger,
     application: reference.application,
-    enabled: reference.enabled
+    enabled: reference.enabled,
+    delivery: reference.delivery ? Object.freeze(deepClone(reference.delivery)) : null
   });
 }

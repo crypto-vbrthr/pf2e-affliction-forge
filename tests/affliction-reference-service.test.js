@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { installFoundryMock } from "./helpers/foundry-mock.js";
+import { MODULE_ID } from "../scripts/constants.js";
 
 installFoundryMock();
 
@@ -82,4 +83,65 @@ test("attack and ability host defaults are stable and conservative", () => {
   });
   assert.equal(afflictionReferenceHostDefaults({ type: "spell" }).trigger, "on-use");
   assert.equal(afflictionReferenceHostDefaults({ type: "effect" }).eligible, false);
+});
+
+test("injury-poison references carry consumable charges while preserving reference schema 1", async () => {
+  const {
+    createInjuryPoisonReference,
+    injuryPoisonCharges,
+    isInjuryPoisonHostItem,
+    isInjuryPoisonReference
+  } = await import("../scripts/affliction/integration/affliction-reference-service.js");
+
+  const reference = createInjuryPoisonReference({
+    templateUuid: "Item.viperVenom",
+    label: "Viper Venom",
+    charges: 3,
+    trigger: "on-hit",
+    application: "prompt"
+  });
+  assert.equal(reference.schemaVersion, 1);
+  assert.equal(reference.trigger, "on-damage");
+  assert.equal(reference.application, "automatic");
+  assert.deepEqual(reference.delivery, { type: "injury-poison", charges: 3 });
+  assert.equal(isInjuryPoisonReference(reference), true);
+  assert.equal(injuryPoisonCharges(reference), 3);
+  assert.equal(isInjuryPoisonHostItem({ type: "weapon" }), true);
+  assert.equal(isInjuryPoisonHostItem({ type: "melee" }), true);
+  assert.equal(isInjuryPoisonHostItem({ type: "spell" }), false);
+});
+
+test("injury-poison charge consumption decrements and removes the exhausted attachment", async () => {
+  const {
+    consumeInjuryPoisonCharge,
+    createInjuryPoisonReference,
+    readAfflictionReferences
+  } = await import("../scripts/affliction/integration/affliction-reference-service.js");
+
+  const state = {
+    flags: {
+      [MODULE_ID]: {
+        afflictionReferences: [createInjuryPoisonReference({
+          id: "coating",
+          templateUuid: "Item.poison",
+          charges: 2
+        })]
+      }
+    }
+  };
+  const item = {
+    type: "weapon",
+    toObject: () => structuredClone(state),
+    update: async (changes) => {
+      state.flags[MODULE_ID].afflictionReferences = structuredClone(changes[`flags.${MODULE_ID}.afflictionReferences`]);
+    }
+  };
+
+  const first = await consumeInjuryPoisonCharge(item, "coating");
+  assert.deepEqual({ before: first.before, after: first.after, depleted: first.depleted }, { before: 2, after: 1, depleted: false });
+  assert.equal(readAfflictionReferences(item)[0].delivery.charges, 1);
+
+  const second = await consumeInjuryPoisonCharge(item, "coating");
+  assert.deepEqual({ before: second.before, after: second.after, depleted: second.depleted }, { before: 1, after: 0, depleted: true });
+  assert.deepEqual(readAfflictionReferences(item), []);
 });

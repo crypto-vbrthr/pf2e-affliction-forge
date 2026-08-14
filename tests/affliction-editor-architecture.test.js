@@ -139,3 +139,19 @@ test("embedded editor exposes saving throw execution, visibility, and identifica
   assert.match(template, /data-affliction-field="identificationInitialState"/);
   assert.match(source, /#refreshRenderedInheritedSavePolicies/);
 });
+
+test("poison definitions expose an injury-poison delivery toggle in the embedded editor", async () => {
+  const definition = createAfflictionDefinition({
+    name: "Coating Poison",
+    afflictionType: "poison",
+    delivery: { injuryPoison: true }
+  });
+  const session = createAfflictionEditorSession(definition);
+  const api = { definitions: { validate: () => ({ valid: true, issues: [], errors: [], warnings: [] }) } };
+  const context = await prepareAfflictionEditorContext(session, { api });
+  assert.equal(context.isPoison, true);
+  assert.equal(context.injuryPoison, true);
+  assert.match(template, /data-affliction-field="injuryPoison"/);
+  assert.match(template, /data-poison-delivery-options/);
+  assert.match(source, /definition\.delivery\.injuryPoison/);
+});

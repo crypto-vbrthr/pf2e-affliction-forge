@@ -1,10 +1,16 @@
 import { MODULE_ID } from "../../constants.js";
-import { readAfflictionReferences } from "./affliction-reference-service.js";
+import {
+  consumeInjuryPoisonCharge,
+  findAfflictionReference,
+  isInjuryPoisonReference,
+  readAfflictionReferences
+} from "./affliction-reference-service.js";
 
 const MAX_PROCESSED_TRIGGER_KEYS = 500;
 let triggerRuntimeInitialized = false;
 const processedTriggerKeys = new Map();
 const inFlightTriggerKeys = new Set();
+const consumableReferenceQueues = new Map();
 
 function localize(key) {
   return globalThis.game?.i18n?.localize?.(key) ?? key;
@@ -134,6 +140,17 @@ function appliedPositiveDamage(message) {
   return hpDamage || shieldDamage || persistent;
 }
 
+function appliedDirectPositiveDamage(message) {
+  const applied = pf2eFlags(message)?.appliedDamage;
+  if (!applied || applied.isHealing === true || applied.isReverted === true) return false;
+  const updates = Array.isArray(applied.updates) ? applied.updates : [];
+  const hpDamage = updates.some((entry) =>
+    typeof entry?.path === "string" && entry.path.includes("system.attributes.hp.value") && Number(entry?.value) > 0
+  );
+  const shieldDamage = Number(applied?.shield?.damage ?? 0) > 0;
+  return hpDamage || shieldDamage;
+}
+
 function triggerLabels(triggers = []) {
   return [...new Set(triggers)].filter(Boolean);
 }
@@ -162,6 +179,7 @@ export async function inspectPf2eAfflictionTriggerMessage(message) {
       sourceItemUuid: null,
       targetActor: null,
       targetActorUuid: null,
+      directPositiveDamage: false,
       triggers: Object.freeze([])
     });
   }
@@ -208,12 +226,21 @@ export async function inspectPf2eAfflictionTriggerMessage(message) {
     targetTokenUuid: messageContext(message)?.target?.token ?? null,
     messageId: message?.id ?? null,
     messageUuid: message?.uuid ?? (message?.id ? `ChatMessage.${message.id}` : null),
+    directPositiveDamage: type === "damage-taken" && appliedDirectPositiveDamage(message),
     triggers: Object.freeze(uniqueTriggers)
   });
 }
 
+export function injuryPoisonReferenceAction(reference, event) {
+  if (!isInjuryPoisonReference(reference) || reference.enabled === false || !event) return null;
+  if (event.type === "attack-roll" && event.outcome === "criticalFailure") return "consume";
+  if (event.type === "damage-taken" && event.directPositiveDamage === true) return "apply-consume";
+  return null;
+}
+
 export function afflictionReferenceMatchesTrigger(reference, event) {
   if (!reference || reference.enabled === false || !event?.matched) return false;
+  if (isInjuryPoisonReference(reference)) return injuryPoisonReferenceAction(reference, event) !== null;
   if (["manual", "custom"].includes(reference.trigger)) return false;
   return event.triggers?.includes?.(reference.trigger) ?? false;
 }
@@ -243,6 +270,83 @@ function triggerKey(message, reference, event) {
     reference?.trigger ?? "trigger",
     event?.targetActorUuid ?? "no-target"
   ].join("|");
+}
+
+function consumableReferenceKey(event, reference) {
+  return [event?.sourceItemUuid ?? "source", reference?.id ?? "reference"].join("|");
+}
+
+async function withConsumableReferenceLock(key, task) {
+  const previous = consumableReferenceQueues.get(key) ?? Promise.resolve();
+  const current = previous.catch(() => undefined).then(task);
+  consumableReferenceQueues.set(key, current);
+  try {
+    return await current;
+  } finally {
+    if (consumableReferenceQueues.get(key) === current) consumableReferenceQueues.delete(key);
+  }
+}
+
+async function liveSourceItem(event) {
+  if (event?.sourceItem?.update) return event.sourceItem;
+  const resolved = await resolveUuid(event?.sourceItemUuid);
+  return resolved?.update ? resolved : event?.sourceItem ?? resolved ?? null;
+}
+
+function notifyChargeResult(reference, sourceItem, charge) {
+  if (!charge?.consumed) return;
+  const key = charge.depleted
+    ? "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonDepleted"
+    : "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonChargeConsumed";
+  globalThis.ui?.notifications?.info?.(format(key, {
+    affliction: reference?.label ?? localize("PF2E_AFFLICTION_FORGE.Reference.Affliction"),
+    item: sourceItem?.name ?? "",
+    charges: charge.after
+  }));
+}
+
+async function processInjuryPoisonReference(message, reference, event) {
+  const action = injuryPoisonReferenceAction(reference, event);
+  if (!action) return Object.freeze({ status: "not-applicable", result: null, charge: null, event });
+  const resourceKey = consumableReferenceKey(event, reference);
+  return withConsumableReferenceLock(resourceKey, async () => {
+    const sourceItem = await liveSourceItem(event);
+    if (!sourceItem?.update) throw new Error("Injury poison source Item is not writable.");
+    const current = findAfflictionReference(sourceItem, reference.id);
+    if (!current || !isInjuryPoisonReference(current)) {
+      return Object.freeze({ status: "depleted", result: null, charge: null, event });
+    }
+
+    const liveEvent = { ...event, sourceItem, sourceItemUuid: safeUuid(sourceItem) ?? event.sourceItemUuid };
+    if (action === "consume") {
+      const charge = await consumeInjuryPoisonCharge(sourceItem, current.id);
+      notifyChargeResult(current, sourceItem, charge);
+      globalThis.Hooks?.callAll?.("pf2eAfflictionForgeChargeConsumed", {
+        message, event: liveEvent, reference: current, charge, reason: "critical-failure"
+      });
+      sourceItem.actor?.sheet?.render?.(false);
+      sourceItem.parent?.sheet?.render?.(false);
+      return Object.freeze({ status: "consumed", result: null, charge, event: liveEvent });
+    }
+
+    if (!liveEvent.targetActor) {
+      notifyNoTarget(current, liveEvent);
+      return Object.freeze({ status: "no-target", result: null, charge: null, event: liveEvent });
+    }
+
+    // Rules ordering is intentional: first expose the target to the poison,
+    // then consume the coating charge. A failed runtime application remains
+    // retryable and therefore does not silently destroy the charge.
+    const result = await applyTriggeredReference(message, current, liveEvent);
+    const charge = await consumeInjuryPoisonCharge(sourceItem, current.id);
+    notifyChargeResult(current, sourceItem, charge);
+    globalThis.Hooks?.callAll?.("pf2eAfflictionForgeChargeConsumed", {
+      message, event: liveEvent, reference: current, charge, reason: "damage"
+    });
+    sourceItem.actor?.sheet?.render?.(false);
+    sourceItem.parent?.sheet?.render?.(false);
+    return Object.freeze({ status: "applied", result, charge, event: liveEvent });
+  });
 }
 
 async function templateLabel(reference) {
@@ -368,6 +472,34 @@ export async function processPf2eAfflictionTriggerMessage(message, { force = fal
     inFlightTriggerKeys.add(key);
 
     try {
+      if (isInjuryPoisonReference(reference)) {
+        try {
+          const poison = await processInjuryPoisonReference(message, reference, event);
+          if (["applied", "consumed", "depleted", "no-target"].includes(poison.status)) rememberProcessed(key);
+          results.push(Object.freeze({
+            reference,
+            status: poison.status,
+            result: poison.result,
+            charge: poison.charge ?? null
+          }));
+          if (poison.status === "applied") {
+            globalThis.Hooks?.callAll?.("pf2eAfflictionForgeTriggerApplied", {
+              message,
+              event: poison.event ?? event,
+              reference,
+              result: poison.result
+            });
+          }
+        } catch (error) {
+          console.error(`${MODULE_ID} | Injury-poison Affliction processing failed.`, error);
+          globalThis.ui?.notifications?.error?.(format("PF2E_AFFLICTION_FORGE.Trigger.ApplyFailed", {
+            affliction: await templateLabel(reference)
+          }));
+          results.push(Object.freeze({ reference, status: "error", result: null, charge: null, error }));
+        }
+        continue;
+      }
+
       if (!event.targetActor) {
         notifyNoTarget(reference, event);
         rememberProcessed(key);
@@ -416,7 +548,7 @@ export async function processPf2eAfflictionTriggerMessage(message, { force = fal
   }
 
   return Object.freeze({
-    handled: results.some((entry) => ["applied", "skipped", "manual", "no-target"].includes(entry.status)),
+    handled: results.some((entry) => ["applied", "consumed", "depleted", "skipped", "manual", "no-target"].includes(entry.status)),
     reason: null,
     event,
     results: Object.freeze(results)
@@ -440,6 +572,7 @@ export function afflictionCombatTriggerRuntimeStatus() {
     initialized: triggerRuntimeInitialized,
     authoritative: authoritativeGm(),
     processedKeys: processedTriggerKeys.size,
-    inFlightKeys: inFlightTriggerKeys.size
+    inFlightKeys: inFlightTriggerKeys.size,
+    consumableLocks: consumableReferenceQueues.size
   });
 }

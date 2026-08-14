@@ -75,6 +75,7 @@ export function createAfflictionDefinition({
   themes = [],
   saveDefaults = createDefaultSavePolicy(),
   identification = { initialState: "identified" },
+  delivery = { injuryPoison: false },
   checks = [createDefaultSaveCheck()],
   initialCheck = createDefaultInitialCheck(),
   onset = null,
@@ -97,6 +98,7 @@ export function createAfflictionDefinition({
     themes,
     saveDefaults,
     identification,
+    delivery,
     checks,
     initialCheck,
     onset,
@@ -131,7 +133,10 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
   stageEffectOwnership: "affliction-engine",
   templateItemType: "effect",
   templateRuleElements: "none",
-  activeDefinitionPolicy: "snapshot-on-application"
+  activeDefinitionPolicy: "snapshot-on-application",
+  deliveryCapabilities: {
+    injuryPoison: "weapon-or-melee-reference-with-consumable-charges"
+  }
 });
 
 // Kept as an import compatibility alias during the 0.1.x line.

@@ -68,6 +68,14 @@
         <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.ListHint"}}</small>
       </label>
 
+      <div class="affliction-editor-delivery-options" data-poison-delivery-options {{#unless isPoison}}hidden{{/unless}}>
+        <label class="affliction-editor-checkbox">
+          <input data-affliction-field="injuryPoison" type="checkbox" {{#if injuryPoison}}checked{{/if}}>
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.InjuryPoison"}}</span>
+        </label>
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.InjuryPoisonHint"}}</small>
+      </div>
+
       <label class="affliction-editor-field full-width">
         <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Description"}}</span>
         <textarea data-affliction-field="description" rows="4">{{definition.description}}</textarea>

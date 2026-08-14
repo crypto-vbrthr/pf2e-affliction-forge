@@ -286,6 +286,8 @@ export async function prepareAfflictionEditorContext(session, {
       visibilityOptions: optionList(SAVE_VISIBILITY_MODES, definition.saveDefaults.visibility, LABELS.visibility)
     },
     identificationOptions: optionList(IDENTIFICATION_STATES, definition.identification.initialState, LABELS.identification),
+    isPoison: definition.afflictionType === "poison",
+    injuryPoison: definition.delivery?.injuryPoison === true,
     checks: definition.checks.map((check, index) => ({
       ...check,
       index,
@@ -511,6 +513,12 @@ export class EmbeddedAfflictionEditor {
     definition.saveDefaults.execution = String(value('[data-affliction-field="saveDefaultExecution"]', definition.saveDefaults.execution));
     definition.saveDefaults.visibility = String(value('[data-affliction-field="saveDefaultVisibility"]', definition.saveDefaults.visibility));
     definition.identification.initialState = String(value('[data-affliction-field="identificationInitialState"]', definition.identification.initialState));
+    definition.delivery ??= { injuryPoison: false };
+    const injuryPoisonControl = root.querySelector('[data-affliction-field="injuryPoison"]');
+    definition.delivery.injuryPoison = definition.afflictionType === "poison" && Boolean(injuryPoisonControl?.checked);
+    const poisonOptions = root.querySelector("[data-poison-delivery-options]");
+    if (poisonOptions) poisonOptions.hidden = definition.afflictionType !== "poison";
+    if (definition.afflictionType !== "poison" && injuryPoisonControl) injuryPoisonControl.checked = false;
 
     this.#refreshRenderedInheritedSavePolicies();
 

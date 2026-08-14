@@ -41,6 +41,7 @@ import {
 } from "../affliction/integration/affliction-combat-trigger-runtime.js";
 import {
   AFFLICTION_REFERENCE_APPLICATION_MODES,
+  AFFLICTION_REFERENCE_DELIVERY_TYPES,
   AFFLICTION_REFERENCE_HOST_ITEM_TYPES,
   AFFLICTION_REFERENCE_SCHEMA_VERSION,
   AFFLICTION_REFERENCE_TRIGGERS,
@@ -49,9 +50,14 @@ import {
   addDocumentAfflictionReference,
   afflictionReferenceSummary,
   afflictionReferenceText,
+  consumeInjuryPoisonCharge,
   createAfflictionReference,
+  createInjuryPoisonReference,
   findAfflictionReference,
+  injuryPoisonCharges,
   isAfflictionReferenceHostItem,
+  isInjuryPoisonHostItem,
+  isInjuryPoisonReference,
   normalizeAfflictionReference,
   readAfflictionReferences,
   removeAfflictionReferenceFromSource,
@@ -118,6 +124,7 @@ export function createPublicApi() {
       documentKinds: () => ({ ...DOCUMENT_KINDS }),
       referenceTriggers: () => [...AFFLICTION_REFERENCE_TRIGGERS],
       referenceApplicationModes: () => [...AFFLICTION_REFERENCE_APPLICATION_MODES],
+      referenceDeliveryTypes: () => [...AFFLICTION_REFERENCE_DELIVERY_TYPES],
       referenceHostItemTypes: () => [...AFFLICTION_REFERENCE_HOST_ITEM_TYPES]
     }),
 
@@ -201,6 +208,7 @@ export function createPublicApi() {
     references: Object.freeze({
       schemaVersion: AFFLICTION_REFERENCE_SCHEMA_VERSION,
       create: (options = {}) => createAfflictionReference(options),
+      createInjuryPoison: (options = {}) => createInjuryPoisonReference(options),
       normalize: (reference) => normalizeAfflictionReference(reference),
       validate: (reference) => validateAfflictionReference(reference),
       list: (documentOrSource) => readAfflictionReferences(documentOrSource),
@@ -214,6 +222,10 @@ export function createPublicApi() {
       toText: (referenceOrUuid, options = {}) => afflictionReferenceText(referenceOrUuid, options),
       summary: (reference) => afflictionReferenceSummary(reference),
       isHostItem: (documentOrSource) => isAfflictionReferenceHostItem(documentOrSource),
+      isInjuryPoisonHost: (documentOrSource) => isInjuryPoisonHostItem(documentOrSource),
+      isInjuryPoison: (reference) => isInjuryPoisonReference(reference),
+      injuryPoisonCharges: (reference) => injuryPoisonCharges(reference),
+      consumeInjuryPoisonCharge: (document, referenceId, options = {}) => consumeInjuryPoisonCharge(document, referenceId, options),
       hostDefaults: (documentOrSource) => afflictionReferenceHostDefaults(documentOrSource)
     }),
 

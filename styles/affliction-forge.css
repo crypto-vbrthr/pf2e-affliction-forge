@@ -1985,3 +1985,80 @@
 .pf2e-affliction-reference-config-dialog select option:disabled {
   color: var(--pf2e-affliction-dialog-muted);
 }
+
+
+/* Injury-poison delivery and consumable charge controls */
+.affliction-editor-delivery-options {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+}
+
+.affliction-editor-delivery-options[hidden] {
+  display: none !important;
+}
+
+.affliction-editor-delivery-options small {
+  opacity: 0.72;
+}
+
+.pf2e-affliction-reference-row.has-injury-poison {
+  grid-template-columns: minmax(9rem, 1.4fr) minmax(8rem, 1fr) minmax(7rem, 0.9fr) minmax(4.5rem, 0.45fr) 2rem;
+}
+
+.pf2e-affliction-reference-charges {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.pf2e-affliction-reference-charges i {
+  opacity: 0.72;
+}
+
+.pf2e-affliction-reference-charges input,
+.pf2e-affliction-injury-poison-dialog input {
+  width: 100%;
+  min-width: 0;
+}
+
+.pf2e-affliction-reference-config-dialog input {
+  background: var(--pf2e-affliction-dialog-control-bg);
+  color: var(--pf2e-affliction-dialog-text);
+  border-color: var(--pf2e-affliction-dialog-border);
+}
+
+.pf2e-affliction-strike-poisons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.2rem;
+}
+
+.pf2e-affliction-strike-poison {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.12rem 0.35rem;
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.pf2e-affliction-strike-poison i {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 720px) {
+  .pf2e-affliction-reference-row.has-injury-poison {
+    grid-template-columns: 1fr 1fr 1fr 2rem;
+  }
+}

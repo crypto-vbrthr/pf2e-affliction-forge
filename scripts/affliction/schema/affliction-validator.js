@@ -115,6 +115,21 @@ function validateSavePolicy(report, policy, path, { nullable = false } = {}) {
   }
 }
 
+
+function validateDelivery(report, definition) {
+  const delivery = definition.delivery;
+  if (delivery == null) return; // Additive 0.1.x capability; legacy schema-v2 values normalize to false.
+  if (!isObject(delivery)) {
+    report.add({ severity: "error", code: "delivery.object", path: "delivery", message: "Delivery settings must be an object." });
+    return;
+  }
+  if (typeof delivery.injuryPoison !== "boolean") {
+    report.add({ severity: "error", code: "delivery.injury-poison", path: "delivery.injuryPoison", message: "injuryPoison must be a boolean." });
+  } else if (delivery.injuryPoison && definition.afflictionType !== "poison") {
+    report.add({ severity: "error", code: "delivery.injury-poison-type", path: "delivery.injuryPoison", message: "Only poison Afflictions can be marked as injury poison." });
+  }
+}
+
 function validateIdentification(report, identification) {
   if (!isObject(identification)) {
     report.add({ severity: "error", code: "identification.object", path: "identification", message: "Identification settings are required." });
@@ -206,6 +221,7 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
 
   validateSavePolicy(report, definition.saveDefaults, "saveDefaults");
   validateIdentification(report, definition.identification);
+  validateDelivery(report, definition);
 
   const checkIds = validateChecks(report, definition.checks);
   const stageCount = Array.isArray(definition.stages) ? definition.stages.length : 0;

@@ -26,6 +26,11 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
     initialState: "identified" // hidden | suspected | identified
   },
 
+  // Additive schema-v2 delivery capability. Only valid for afflictionType: "poison".
+  delivery: {
+    injuryPoison: false
+  },
+
   checks: [
     {
       id: "primary",
@@ -137,6 +142,27 @@ Version 0.1.18 executes this contract. `automatic` uses a PF2e roll without the 
 The template stores the start state. The controller stores the current runtime state, so identifying an affliction later does not require rewriting its template.
 
 Version 0.1.23 uses this as live controller state. Hidden controllers and unidentified stage-effect rows are concealed from non-GM Actor-sheet presentation; suspected controllers remain visible only under a generic identity; identified controllers restore authored presentation. Hidden/suspected save prompts omit the affliction identity and DC. Player-manual checks are requested directly on the selected owner's client through PF2e's native roll dialog.
+
+## Delivery capability: injury poison
+
+`delivery.injuryPoison` is an additive schema-v2 capability and defaults to `false`. It is valid only when `afflictionType === "poison"`. The definition itself never stores remaining charges. Charges belong to a concrete host reference, because the same poison can be applied independently to multiple weapons or attacks.
+
+When an injury poison is attached, the host reference stores:
+
+```js
+{
+  schemaVersion: 1,
+  templateUuid: "...",
+  trigger: "on-damage",
+  application: "automatic",
+  delivery: {
+    type: "injury-poison",
+    charges: 1
+  }
+}
+```
+
+The attachment dialog defaults to one charge but accepts any positive integer. At runtime, direct positive applied damage from the coated weapon/attack applies the poison first and consumes one charge second. An `attack-roll` critical failure consumes one charge without applying the poison. At zero charges the reference is removed from the host Item.
 
 ## Check gates and multiple saves
 

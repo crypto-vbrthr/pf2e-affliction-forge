@@ -334,5 +334,18 @@
   "PF2E_AFFLICTION_FORGE.Runtime.PauseSuccess": "Das Leiden wurde pausiert.",
   "PF2E_AFFLICTION_FORGE.Runtime.ResumeSuccess": "Das Leiden wird fortgesetzt.",
   "PF2E_AFFLICTION_FORGE.Runtime.Event.Paused": "Leiden pausiert",
-  "PF2E_AFFLICTION_FORGE.Runtime.Event.Resumed": "Leiden fortgesetzt"
+  "PF2E_AFFLICTION_FORGE.Runtime.Event.Resumed": "Leiden fortgesetzt",
+  "PF2E_AFFLICTION_FORGE.Editor.InjuryPoison": "Verwundungsgift",
+  "PF2E_AFFLICTION_FORGE.Editor.InjuryPoisonHint": "Dieses Gift kann auf eine Waffe oder einen Angriff aufgetragen werden. Beim Auftragen wird die Anzahl der Ladungen abgefragt; Standard ist 1.",
+  "PF2E_AFFLICTION_FORGE.Reference.Charges": "Ladungen",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachHint": "Das Gift wird bei tatsächlich verursachtem Schaden angewendet und anschließend um 1 Ladung reduziert. Ein kritischer Fehlschlag des Angriffs verbraucht 1 Ladung, ohne das Gift anzuwenden.",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonHostRequired": "Verwundungsgifte können derzeit nur auf Waffen oder echte Angriffs-Items aufgetragen werden.",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachTitle": "Verwundungsgift auf „{item}“ auftragen",
+  "PF2E_AFFLICTION_FORGE.Reference.ApplyPoison": "Gift auftragen",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttached": "„{affliction}“ wurde mit {charges} Ladung(en) auf „{item}“ aufgetragen.",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonChargeConsumed": "„{affliction}“ auf „{item}“: 1 Ladung verbraucht, {charges} verbleibend.",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonDepleted": "„{affliction}“ auf „{item}“: letzte Ladung verbraucht; das Gift wurde von der Waffe entfernt.",
+  "PF2E_AFFLICTION_FORGE.Reference.StrikePoisonSection": "Verwundungsgifte",
+  "PF2E_AFFLICTION_FORGE.Reference.StrikePoisonBadge": "{affliction} · {charges} Ladung(en)",
+  "PF2E_AFFLICTION_FORGE.Reference.StrikePoisonBadgeTitle": "Verwundungsgift „{affliction}“ auf dieser Waffe; verbleibende Ladungen: {charges}."
 }

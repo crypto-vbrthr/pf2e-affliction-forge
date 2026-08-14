@@ -1,4 +1,4 @@
-# Public API 0.1.0 (module 0.1.42)
+# Public API 0.1.0 (module 0.1.43)
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -188,7 +188,7 @@ Stage 0 is reserved for initial exposure/onset runtime state. An already active 
 
 ### API compatibility version
 
-`api.version` is now independent from the module release number. Module `0.1.42` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
+`api.version` is now independent from the module release number. Module `0.1.43` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
 
 ### Pause / resume semantics
 
@@ -439,6 +439,7 @@ Reference helpers:
 
 ```js
 api.references.create(options)
+api.references.createInjuryPoison({ templateUuid, label, charges })
 api.references.normalize(reference)
 api.references.validate(reference)
 api.references.list(documentOrSource)
@@ -451,6 +452,9 @@ api.references.addToSource(source, reference)
 api.references.removeFromSource(source, referenceId)
 api.references.toText(referenceOrUuid, { label, syntax })
 api.references.summary(reference)
+api.references.isInjuryPoison(reference)
+api.references.injuryPoisonCharges(reference)
+api.references.consumeInjuryPoisonCharge(item, referenceId)
 ```
 
 For generated Creature Forge content, `addToSource()` is usually preferable because the source can be prepared before the Foundry Item exists:
@@ -561,6 +565,26 @@ api.references.hostDefaults(item);
 
 These helpers expose the same eligibility/default contract used by the built-in Attack & Ability Affliction Drop Zones so external hosts such as Creature Forge can match the Forge UI without duplicating policy.
 
+### Injury-poison attachments (0.1.42)
+
+A poison definition can opt into injury-poison delivery with `delivery.injuryPoison = true`. Dropping such a template onto a `weapon` or `melee` host opens a dedicated charge prompt with a default of `1`; trigger and application policy are then fixed to `on-damage + automatic`.
+
+```js
+api.catalogs.referenceDeliveryTypes();
+// ["injury-poison"]
+
+api.references.isInjuryPoisonHost(weaponItem);
+
+const reference = api.references.createInjuryPoison({
+  templateUuid: poisonTemplate.uuid,
+  label: poisonTemplate.name,
+  charges: 3
+});
+await api.references.add(weaponItem, reference);
+```
+
+Remaining charges live on the host reference, not on the Affliction template. Direct positive PF2e `damage-taken` from that host applies the poison through `api.application.applyItemReference()` and only then decrements the charge. An `attack-roll` `criticalFailure` decrements the charge without application. The last charge removes the reference. Resource mutation is serialized per source Item/reference so one final charge cannot be spent twice by concurrent messages.
+
 ## Rich-text reference insertion
 
 `api.references.toText()` remains the canonical formatter used by the 0.1.39 ProseMirror drop integration:
@@ -592,6 +616,8 @@ Built-in mappings:
 attack-roll success/criticalSuccess -> on-use + on-hit
 attack-roll failure                 -> on-use only
 damage-taken with positive applied damage -> on-damage
+injury poison + direct positive damage -> apply poison, then consume 1 charge
+injury poison + attack criticalFailure -> consume 1 charge only
 saving-throw failure                -> failed-save
 saving-throw criticalFailure        -> failed-save + critical-failure
 spell-cast / supported Item-use     -> on-use
