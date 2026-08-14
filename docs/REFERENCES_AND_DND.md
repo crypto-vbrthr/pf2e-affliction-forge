@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Affliction Forge owns Affliction runtime progression. External systems such as Creature Forge, attacks, spells, hazards, or adventure modules should only describe **which Affliction Template is referenced** and **when their own trigger is satisfied**.
+Affliction Forge owns Affliction runtime progression. Host Items describe **which Affliction Template is referenced** and **which semantic trigger applies**. Version 0.1.39 can evaluate those references directly for supported native PF2e chat workflows. External systems such as Creature Forge, hazards, or adventure modules can still call the public Application API explicitly for custom workflows.
 
 A host never implements onset, stage progression, saving throws, world-time scheduling, stage effects, or recovery itself.
 
@@ -51,7 +51,7 @@ The reference trigger is descriptive metadata for the host:
 - `critical-failure`
 - `custom`
 
-Affliction Forge does not parse arbitrary PF2e attack/spell workflows to infer these triggers. The host that owns the ability decides when the trigger has happened and calls `api.application`.
+For native PF2e chat workflows, Affliction Forge 0.1.39 evaluates the supported triggers itself. Custom/nonstandard host workflows remain explicit: the host decides when its custom trigger has happened and calls `api.application`.
 
 ## Application policy metadata
 
@@ -182,7 +182,46 @@ flags["pf2e-affliction-forge"].afflictionReferences
 
 No Affliction Template is embedded in the host Item or Actor. The reference panel may update the trigger/application policy or remove the link. Read-only compendium Items expose existing references but cannot be changed in place.
 
-This UI does not infer whether a native PF2e attack actually hit. The reference is the stable contract; a host integration that observes the trigger calls `api.application.applyItemReference(...)`. This keeps attack/chat workflow interpretation separate from Affliction progression.
+The reference remains the stable contract. Starting with 0.1.39, the native PF2e combat-trigger runtime can observe supported PF2e ChatMessages and call `api.application.applyItemReference(...)` itself. External integrations still use the same method when their workflow cannot be represented by the built-in trigger classifier.
+
+
+## Native PF2e combat trigger runtime (0.1.39)
+
+The authoritative active GM listens to newly created PF2e ChatMessages and converts supported PF2e message context into semantic Affliction trigger events. The runtime operates on PF2e message flags/origin metadata, not on rendered chat-card DOM.
+
+Current mapping:
+
+```text
+PF2e attack-roll
+├── on-use              always when a target can be resolved
+└── on-hit              success or criticalSuccess
+
+PF2e damage-taken
+└── on-damage           only after positive damage was actually applied
+
+PF2e saving-throw
+├── failed-save         failure or criticalFailure
+└── critical-failure    criticalFailure only
+
+PF2e spell-cast / supported host Item-use card
+└── on-use
+```
+
+`on-damage` intentionally waits for PF2e's post-application `damage-taken` message. A damage roll by itself is not sufficient because resistance, immunity, shields, healing/reversal, or zero effective damage can change what actually happened to the target.
+
+For saving throws the runtime resolves the source Item from the PF2e message Item/origin/context data. If a source Item or target Actor cannot be resolved, no Affliction is guessed or applied.
+
+Reference application modes are enforced by the runtime:
+
+```text
+manual     -> trigger is recognized, no automatic application
+prompt     -> authoritative GM receives a confirmation dialog
+automatic  -> reference is applied immediately
+```
+
+Every successful application still routes through `api.application.applyItemReference(...)`, so controller creation, initial exposure saves, onset, scheduling, stage effects, and audit metadata remain in the existing Affliction Engine. Trigger processing is deduplicated per ChatMessage/reference/target and only the authoritative active GM commits applications.
+
+Public inspection/processing helpers are exposed under `api.triggers`; external modules do not need to reproduce PF2e chat parsing when the built-in mapping is sufficient.
 
 ## Rich-text drop insertion (0.1.36)
 

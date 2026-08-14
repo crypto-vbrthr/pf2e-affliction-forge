@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.38 hardens the attack/ability reference configuration dialog for readable native select menus across Foundry themes.",
-  "version": "0.1.38",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.39 evaluates linked Affliction triggers against PF2e attack, applied-damage, and saving-throw chat workflows.",
+  "version": "0.1.39",
   "socket": true,
   "authors": [
     {

@@ -1,4 +1,4 @@
-# Architecture 0.1.38
+# Architecture 0.1.39
 
 ```text
 Affliction Template / Definition
@@ -313,3 +313,22 @@ Affliction Engine
 ```
 
 Actor-sheet drop listeners run in the capture phase and consume a valid Affliction drop only when the pointer is over an eligible `data-item-id` row. Drops elsewhere on the Actor sheet continue to use the normal Actor-application path.
+
+
+## Native PF2e combat trigger runtime (0.1.39)
+
+`affliction-combat-trigger-runtime.js` is an integration adapter between PF2e ChatMessage semantics and the existing reference/application layer. It does not own Affliction progression.
+
+```text
+PF2e ChatMessage
+        ↓ context/origin/target
+Combat Trigger Runtime
+        ↓ semantic trigger match
+AfflictionReference
+        ↓ manual | prompt | automatic
+api.application.applyItemReference()
+        ↓
+Affliction Engine
+```
+
+The adapter runs only on the authoritative active GM, deduplicates message/reference/target tuples, and treats PF2e `damage-taken` as the `on-damage` boundary so rolled damage is not confused with actually applied damage. Custom trigger types deliberately remain the responsibility of the external host and use the same public Application Service directly.

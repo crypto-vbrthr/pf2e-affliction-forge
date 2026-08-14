@@ -313,5 +313,13 @@
   "PF2E_AFFLICTION_FORGE.Reference.Application.manual": "Manual only",
   "PF2E_AFFLICTION_FORGE.Reference.Application.prompt": "Prompt",
   "PF2E_AFFLICTION_FORGE.Reference.Application.automatic": "Automatic",
-  "PF2E_AFFLICTION_FORGE.Reference.TextDropHint": "Drag into a rich-text editor to insert a clickable Affliction link."
+  "PF2E_AFFLICTION_FORGE.Reference.TextDropHint": "Drag into a rich-text editor to insert a clickable Affliction link.",
+  "PF2E_AFFLICTION_FORGE.Trigger.PromptTitle": "Apply affliction: {affliction}",
+  "PF2E_AFFLICTION_FORGE.Trigger.PromptText": "{source} satisfied the “{trigger}” trigger against {target}. Apply {affliction}?",
+  "PF2E_AFFLICTION_FORGE.Trigger.PromptHint": "Automatic application skips this confirmation. Manual-only references do not apply when the trigger is detected.",
+  "PF2E_AFFLICTION_FORGE.Trigger.Apply": "Apply affliction",
+  "PF2E_AFFLICTION_FORGE.Trigger.Skip": "Skip",
+  "PF2E_AFFLICTION_FORGE.Trigger.UnknownTarget": "Unknown target",
+  "PF2E_AFFLICTION_FORGE.Trigger.NoTarget": "{source}: The “{trigger}” trigger was detected, but PF2e did not provide an unambiguous target. The affliction was not applied automatically.",
+  "PF2E_AFFLICTION_FORGE.Trigger.ApplyFailed": "{affliction} could not be applied by the combat trigger."
 }

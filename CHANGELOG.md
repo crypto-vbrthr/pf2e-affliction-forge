@@ -1,3 +1,20 @@
+## 0.1.39
+
+### Native PF2e Combat Trigger Evaluation
+
+- evaluates stored Affliction references against native PF2e ChatMessage context on the authoritative active GM
+- maps attack rolls to `on-use` and successful/critical attacks to `on-hit`
+- maps PF2e post-application `damage-taken` messages to `on-damage` only when positive damage was actually applied
+- maps failed saves to `failed-save` and critical failures additionally to `critical-failure`
+- supports `on-use` for PF2e spell-use and supported Item-use chat workflows when a target can be resolved
+- enforces reference application policy: `manual` records no automatic action, `prompt` asks the GM, and `automatic` applies immediately
+- routes every triggered application through the existing public Application Service and Affliction Engine
+- resolves save-source Items from PF2e Item/origin/context metadata rather than rendered chat-card DOM
+- deduplicates per message/reference/target and bounds the runtime dedupe cache
+- adds public `api.triggers.inspectMessage()`, `matches()`, `processMessage()`, and `status()` helpers
+- emits `pf2eAfflictionForgeTriggerApplied` after a successful trigger-driven application
+- adds regression coverage for attack hits/misses, applied damage, healing/reversal, failed/critical saves, origin resolution, automatic application, deduplication, and manual policy
+
 ## 0.1.38
 
 ### Attack & Ability Reference Dialog Theme Hardening

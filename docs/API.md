@@ -1,4 +1,4 @@
-# Public API 0.1.38
+# Public API 0.1.39
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -413,7 +413,7 @@ api.catalogs.referenceApplicationModes();
 // ["manual", "prompt", "automatic"]
 ```
 
-These values describe the host's intended trigger policy. Affliction Forge does not inspect arbitrary attack or spell rolls to guess that a trigger occurred. The host module decides when its trigger is satisfied and then calls the external application API.
+These values describe the host's intended trigger policy. Starting with 0.1.39, Affliction Forge can evaluate supported native PF2e ChatMessages directly. Custom/nonstandard workflows still call the external application API explicitly.
 
 Reference helpers:
 
@@ -543,7 +543,7 @@ These helpers expose the same eligibility/default contract used by the built-in 
 
 ## Rich-text reference insertion
 
-`api.references.toText()` remains the canonical formatter used by the 0.1.38 ProseMirror drop integration:
+`api.references.toText()` remains the canonical formatter used by the 0.1.39 ProseMirror drop integration:
 
 ```js
 const link = api.references.toText(templateUuid, {
@@ -553,3 +553,28 @@ const link = api.references.toText(templateUuid, {
 ```
 
 External modules do not need to implement editor drop handling themselves when they use Affliction Forge drag payloads created through `api.application.createDragData()`.
+
+
+### Native PF2e trigger runtime (0.1.39)
+
+```js
+const event = await api.triggers.inspectMessage(chatMessage);
+const matches = api.triggers.matches(reference, event);
+const result = await api.triggers.processMessage(chatMessage);
+const status = api.triggers.status();
+```
+
+`inspectMessage()` maps supported PF2e message context to semantic trigger names without applying anything. `processMessage()` is the high-level authoritative-GM path used by the automatic `createChatMessage` hook and enforces each reference's `manual | prompt | automatic` application policy.
+
+Built-in mappings:
+
+```text
+attack-roll success/criticalSuccess -> on-use + on-hit
+attack-roll failure                 -> on-use only
+damage-taken with positive applied damage -> on-damage
+saving-throw failure                -> failed-save
+saving-throw criticalFailure        -> failed-save + critical-failure
+spell-cast / supported Item-use     -> on-use
+```
+
+A matching application is routed through `api.application.applyItemReference(...)`; trigger evaluation never implements Affliction progression itself.

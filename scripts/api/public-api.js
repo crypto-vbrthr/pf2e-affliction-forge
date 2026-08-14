@@ -34,6 +34,12 @@ import { createAfflictionTemplateService } from "../affliction/documents/afflict
 import { createAfflictionLibraryService } from "../affliction/library/affliction-library-service.js";
 import { createAfflictionApplicationService } from "../affliction/integration/affliction-application-service.js";
 import {
+  afflictionCombatTriggerRuntimeStatus,
+  afflictionReferenceMatchesTrigger,
+  inspectPf2eAfflictionTriggerMessage,
+  processPf2eAfflictionTriggerMessage
+} from "../affliction/integration/affliction-combat-trigger-runtime.js";
+import {
   AFFLICTION_REFERENCE_APPLICATION_MODES,
   AFFLICTION_REFERENCE_HOST_ITEM_TYPES,
   AFFLICTION_REFERENCE_SCHEMA_VERSION,
@@ -219,6 +225,13 @@ export function createPublicApi() {
       createDragData: (templateOrUuid, options = {}) => applicationService.createDragData(templateOrUuid, options),
       parseDropData: (data = {}) => applicationService.parseDropData(data),
       applyDropData: (data, target, options = {}) => applicationService.applyDropData(data, target, options)
+    }),
+
+    triggers: Object.freeze({
+      inspectMessage: (message) => inspectPf2eAfflictionTriggerMessage(message),
+      matches: (reference, event) => afflictionReferenceMatchesTrigger(reference, event),
+      processMessage: (message, options = {}) => processPf2eAfflictionTriggerMessage(message, options),
+      status: () => afflictionCombatTriggerRuntimeStatus()
     }),
 
     controllers: Object.freeze({

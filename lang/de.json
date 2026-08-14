@@ -313,5 +313,13 @@
   "PF2E_AFFLICTION_FORGE.Reference.Application.manual": "Nur manuell",
   "PF2E_AFFLICTION_FORGE.Reference.Application.prompt": "Nachfragen",
   "PF2E_AFFLICTION_FORGE.Reference.Application.automatic": "Automatisch",
-  "PF2E_AFFLICTION_FORGE.Reference.TextDropHint": "In einen Rich-Text-Editor ziehen, um einen anklickbaren Leiden-Link einzufügen."
+  "PF2E_AFFLICTION_FORGE.Reference.TextDropHint": "In einen Rich-Text-Editor ziehen, um einen anklickbaren Leiden-Link einzufügen.",
+  "PF2E_AFFLICTION_FORGE.Trigger.PromptTitle": "Leiden anwenden: {affliction}",
+  "PF2E_AFFLICTION_FORGE.Trigger.PromptText": "{source} hat den Auslöser „{trigger}“ gegen {target} erfüllt. Soll {affliction} angewendet werden?",
+  "PF2E_AFFLICTION_FORGE.Trigger.PromptHint": "Bei „Automatisch“ wird diese Rückfrage übersprungen. „Nur manuell“ führt bei einem erkannten Trigger keine Anwendung aus.",
+  "PF2E_AFFLICTION_FORGE.Trigger.Apply": "Leiden anwenden",
+  "PF2E_AFFLICTION_FORGE.Trigger.Skip": "Überspringen",
+  "PF2E_AFFLICTION_FORGE.Trigger.UnknownTarget": "Unbekanntes Ziel",
+  "PF2E_AFFLICTION_FORGE.Trigger.NoTarget": "{source}: Der Auslöser „{trigger}“ wurde erkannt, aber PF2e liefert kein eindeutiges Ziel. Das Leiden wurde nicht automatisch angewendet.",
+  "PF2E_AFFLICTION_FORGE.Trigger.ApplyFailed": "{affliction} konnte über den Kampf-Trigger nicht angewendet werden."
 }
