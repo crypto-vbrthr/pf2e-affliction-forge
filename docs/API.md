@@ -1,4 +1,4 @@
-# Public API 0.1.35
+# Public API 0.1.37
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -540,3 +540,16 @@ api.references.hostDefaults(item);
 ```
 
 These helpers expose the same eligibility/default contract used by the built-in Attack & Ability Affliction Drop Zones so external hosts such as Creature Forge can match the Forge UI without duplicating policy.
+
+## Rich-text reference insertion
+
+`api.references.toText()` remains the canonical formatter used by the 0.1.37 ProseMirror drop integration:
+
+```js
+const link = api.references.toText(templateUuid, {
+  label: "Smaragdvipergift"
+});
+// @Affliction[...]{Smaragdvipergift}
+```
+
+External modules do not need to implement editor drop handling themselves when they use Affliction Forge drag payloads created through `api.application.createDragData()`.

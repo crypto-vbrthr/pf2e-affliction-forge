@@ -79,3 +79,24 @@ test("Actor-sheet attack rows accept Affliction drops before generic Actor appli
   assert.match(hostReferenceUi, /stopImmediatePropagation/);
   assert.match(hostReferenceUi, /pf2e-affliction-reference-badge/);
 });
+
+test("Affliction drags can be inserted into ProseMirror rich-text editors as @Affliction references", () => {
+  const richTextDrop = readFileSync(join(root, "scripts/affliction/integration/affliction-rich-text-drop.js"), "utf8");
+  assert.match(richTextDrop, /createProseMirrorEditor/);
+  assert.match(richTextDrop, /handleDrop/);
+  assert.match(richTextDrop, /state\.tr\.insertText/);
+  assert.match(richTextDrop, /posAtCoords/);
+  assert.match(richTextDrop, /references\?\.toText/);
+  assert.match(richTextDrop, /getDragEventData/);
+  assert.match(richTextDrop, /fromUuidSync/);
+  assert.match(richTextDrop, /@Affliction\[/);
+  assert.match(main, /initializeAfflictionRichTextDropIntegration\(\)/);
+});
+
+test("plain textareas receive Affliction reference syntax without hijacking ProseMirror DOM", () => {
+  const richTextDrop = readFileSync(join(root, "scripts/affliction/integration/affliction-rich-text-drop.js"), "utf8");
+  assert.match(richTextDrop, /setRangeText/);
+  assert.match(richTextDrop, /contenteditable/);
+  assert.match(richTextDrop, /classList\?\.contains\("ProseMirror"\)/);
+  assert.match(richTextDrop, /addEventListener\("drop"/);
+});

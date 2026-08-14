@@ -31,10 +31,20 @@ function notify(level, key, data = null) {
 function writeDragData(event, payload) {
   const transfer = event?.dataTransfer;
   if (!transfer || !payload) return false;
-  const json = JSON.stringify(payload);
-  transfer.setData("text/plain", json);
-  try { transfer.setData("application/json", json); } catch { /* Browser-dependent */ }
-  try { transfer.setData(AFFLICTION_DRAG_MIME, json); } catch { /* Browser-dependent */ }
+  const afflictionJson = JSON.stringify(payload);
+
+  // Keep the module-specific payload in its own MIME type for Affliction Forge
+  // drop targets, but advertise a native Foundry Item payload as text/plain.
+  // ProseMirror's built-in ContentLink plugin understands Document drag data,
+  // so this provides a robust rich-text fallback even if a custom PM plugin is
+  // not available in a particular sheet/editor implementation.
+  const nativeItemJson = payload.templateUuid
+    ? JSON.stringify({ type: "Item", uuid: payload.templateUuid })
+    : afflictionJson;
+
+  transfer.setData("text/plain", nativeItemJson);
+  try { transfer.setData("application/json", afflictionJson); } catch { /* Browser-dependent */ }
+  try { transfer.setData(AFFLICTION_DRAG_MIME, afflictionJson); } catch { /* Browser-dependent */ }
   transfer.effectAllowed = "copy";
   return true;
 }
@@ -196,7 +206,8 @@ async function enrichAfflictionReference(match, options = {}) {
   const icon = document.createElement("i");
   icon.className = "fa-solid fa-biohazard";
   anchor.append(icon, document.createTextNode(` ${label}`));
-  anchor.title = localize("PF2E_AFFLICTION_FORGE.Reference.DragHint");
+  anchor.title = `${localize("PF2E_AFFLICTION_FORGE.Reference.OpenTemplate")} · ${localize("PF2E_AFFLICTION_FORGE.Reference.DragHint")}`;
+  anchor.setAttribute("aria-label", `${label}: ${localize("PF2E_AFFLICTION_FORGE.Reference.OpenTemplate")}`);
 
   anchor.addEventListener("dragstart", (event) => {
     try {

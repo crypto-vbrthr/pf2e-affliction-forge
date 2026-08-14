@@ -1,3 +1,15 @@
+## 0.1.37
+
+### Rich Text Drop Compatibility Hardening
+
+- fixes Affliction drops doing nothing in Foundry v14 editable ProseMirror documents
+- advertises a native Foundry `Item` drag payload through `text/plain` while retaining the semantic Affliction payload in the module MIME type
+- lets Foundry's native ProseMirror ContentLink plugin provide a reliable fallback when the custom Affliction ProseMirror plugin is unavailable or ordered after core plugins
+- also listens for the v14 `<prose-mirror>` custom element `plugins` configuration event in addition to the global `createProseMirrorEditor` hook
+- broadens ProseMirror Plugin constructor discovery across hook state and plugin records
+- preserves Actor, Token, Actor Directory, Attack/Ability and custom Affliction drop behavior through the dedicated module MIME payload
+- adds regression tests for native rich-text drag payloads and custom-element plugin installation
+
 # Changelog
 
 ## 0.1.35 - Attack & Ability Host-Sheet Theme Integration

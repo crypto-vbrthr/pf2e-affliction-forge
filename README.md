@@ -40,7 +40,7 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - machine-readable ability/spell/attack references under `flags.pf2e-affliction-forge.afflictionReferences`
 - direct drag-and-drop reference zones on melee, weapon, action, feat, and spell Item sheets, plus embedded Actor-sheet item rows
 - reference trigger/application metadata for host modules without coupling progression logic into those hosts
-- custom draggable `@Affliction[UUID]{Label}` rich-text links plus ordinary `@UUID[...]` drop compatibility
+- custom draggable `@Affliction[UUID]{Label}` rich-text links plus native Foundry `Item` drag fallback for reliable ProseMirror insertion
 - direct drag-and-drop from the Forge library, Item/compendium entries, and description links onto Actor sheets or canvas tokens
 - public `api.references` and `api.application` contracts for Creature Forge and other external modules
 - Save, Save As, clone/copy, and live deletion synchronization across the library catalog

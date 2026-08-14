@@ -7,6 +7,7 @@ import {
   initializeAfflictionTextIntegration
 } from "./affliction/integration/affliction-external-integration.js";
 import { initializeAfflictionReferenceHostUi } from "./affliction/integration/affliction-host-reference-ui.js";
+import { initializeAfflictionRichTextDropIntegration } from "./affliction/integration/affliction-rich-text-drop.js";
 import { initializeAfflictionSaveRuntime } from "./affliction/runtime/affliction-save-runtime.js";
 import { initializeAfflictionVisibilityRuntime } from "./affliction/runtime/affliction-visibility-runtime.js";
 import { registerAfflictionForgeSettings } from "./settings.js";
@@ -15,6 +16,7 @@ Hooks.once("init", () => {
   registerAfflictionForgeSettings();
   initializePublicApi();
   initializeAfflictionTextIntegration();
+  initializeAfflictionRichTextDropIntegration();
 });
 
 Hooks.once("ready", async () => {

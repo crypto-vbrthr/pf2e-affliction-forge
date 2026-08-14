@@ -389,10 +389,11 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
           const payload = this.#api().application.createDragData(uuid, {
             label: template?.name ?? null
           });
-          const json = JSON.stringify(payload);
-          event.dataTransfer.setData("text/plain", json);
-          try { event.dataTransfer.setData("application/json", json); } catch { /* Browser-dependent */ }
-          try { event.dataTransfer.setData(AFFLICTION_DRAG_MIME, json); } catch { /* Browser-dependent */ }
+          const afflictionJson = JSON.stringify(payload);
+          const nativeItemJson = JSON.stringify({ type: "Item", uuid });
+          event.dataTransfer.setData("text/plain", nativeItemJson);
+          try { event.dataTransfer.setData("application/json", afflictionJson); } catch { /* Browser-dependent */ }
+          try { event.dataTransfer.setData(AFFLICTION_DRAG_MIME, afflictionJson); } catch { /* Browser-dependent */ }
           event.dataTransfer.effectAllowed = "copy";
         } catch (error) {
           console.warn(`${MODULE_ID} | Affliction template drag could not be initialized.`, error);

@@ -183,3 +183,32 @@ flags["pf2e-affliction-forge"].afflictionReferences
 No Affliction Template is embedded in the host Item or Actor. The reference panel may update the trigger/application policy or remove the link. Read-only compendium Items expose existing references but cannot be changed in place.
 
 This UI does not infer whether a native PF2e attack actually hit. The reference is the stable contract; a host integration that observes the trigger calls `api.application.applyItemReference(...)`. This keeps attack/chat workflow interpretation separate from Affliction progression.
+
+## Rich-text drop insertion (0.1.36)
+
+An Affliction drag payload can be dropped directly into Foundry's ProseMirror editors. The Forge installs a small editor plugin through the `createProseMirrorEditor` hook and inserts canonical source text through a ProseMirror transaction at the actual drop position:
+
+```text
+@Affliction[Compendium.my-module.afflictions.Item.venom]{Smaragdvipergift}
+```
+
+The source syntax is intentionally stored rather than bespoke HTML. When the containing description, Journal entry, ability text, or chat content is rendered, the normal Affliction text enricher turns it into the existing clickable/draggable content link. Clicking the enriched link opens the Affliction Template in the Forge for a GM, while drag operations retain the normal Actor/Token/reference semantics.
+
+The same drag payload therefore remains context-sensitive:
+
+```text
+Drop on Actor/Token        -> apply Affliction
+Drop on attack/ability     -> store afflictionReference
+Drop in rich text          -> insert @Affliction[...] link
+```
+
+Textarea/plain-content fallbacks insert the same source syntax and emit normal input/change events. ProseMirror DOM is never modified directly; its transaction is the source of truth so the editor can persist the change correctly.
+
+### 0.1.37 native ProseMirror fallback
+
+Affliction drags now carry two coordinated representations:
+
+- `application/x-pf2e-affliction-forge`: the semantic Affliction payload used by Forge drop targets
+- `text/plain`: a native Foundry `{ type: "Item", uuid }` drag payload understood by the core ProseMirror ContentLink plugin
+
+This makes drops into Foundry v14 rich-text editors robust even when the custom Affliction ProseMirror plugin cannot claim the drop. Forge-owned drop targets always prefer the dedicated Affliction MIME payload.
