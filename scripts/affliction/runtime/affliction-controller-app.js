@@ -1,4 +1,5 @@
-import { IDENTIFICATION_STATES, MODULE_ID } from "../../constants.js";
+import { DOCUMENT_KINDS, IDENTIFICATION_STATES, MODULE_ID } from "../../constants.js";
+import { getAfflictionFlags } from "../documents/affliction-flags.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
 
@@ -63,10 +64,44 @@ function runtimeEventLabel(event) {
 }
 
 const apps = new Map();
+let liveSyncInstalled = false;
+
+function scheduleManagerRefreshForDocument(item, { deleted = false } = {}) {
+  const flags = getAfflictionFlags(item);
+  if (!flags?.managed) return;
+
+  if (flags.documentKind === DOCUMENT_KINDS.CONTROLLER) {
+    const app = apps.get(item.uuid);
+    if (!app) return;
+    if (deleted) app.handleControllerDeleted();
+    else app.scheduleLiveRefresh("controller");
+    return;
+  }
+
+  if (![DOCUMENT_KINDS.STAGE_EFFECT, DOCUMENT_KINDS.RESIDUAL_EFFECT].includes(flags.documentKind)) return;
+  const controllerUuid = flags.controllerUuid;
+  if (!controllerUuid) return;
+  apps.get(controllerUuid)?.scheduleLiveRefresh("generated-effect");
+}
+
+function installLiveSyncHooks() {
+  if (liveSyncInstalled) return;
+  liveSyncInstalled = true;
+  Hooks.on("createItem", (item) => scheduleManagerRefreshForDocument(item));
+  Hooks.on("updateItem", (item) => scheduleManagerRefreshForDocument(item));
+  Hooks.on("deleteItem", (item) => scheduleManagerRefreshForDocument(item, { deleted: true }));
+  Hooks.on("updateWorldTime", () => {
+    for (const app of apps.values()) app.scheduleLiveRefresh("world-time");
+  });
+}
+
 
 export class AfflictionControllerApp extends HandlebarsApplicationMixin(ApplicationV2) {
   controllerUuid;
   resizeObserver = null;
+  liveRefreshTimer = null;
+  liveRefreshReasons = new Set();
+  controllerDeleted = false;
 
   static DEFAULT_OPTIONS = {
     id: "pf2e-affliction-controller",
@@ -218,8 +253,66 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
     });
   }
 
+  #captureScrollState() {
+    if (!(this.element instanceof HTMLElement)) return null;
+    const shell = this.element.querySelector(".affliction-controller-shell");
+    const eventLog = this.element.querySelector(".affliction-controller-events ol");
+    return {
+      shellTop: shell instanceof HTMLElement ? shell.scrollTop : 0,
+      eventLogTop: eventLog instanceof HTMLElement ? eventLog.scrollTop : 0
+    };
+  }
+
+  #restoreScrollState(snapshot) {
+    if (!snapshot || !(this.element instanceof HTMLElement)) return;
+    const shell = this.element.querySelector(".affliction-controller-shell");
+    const eventLog = this.element.querySelector(".affliction-controller-events ol");
+    if (shell instanceof HTMLElement) shell.scrollTop = snapshot.shellTop ?? 0;
+    if (eventLog instanceof HTMLElement) eventLog.scrollTop = snapshot.eventLogTop ?? 0;
+  }
+
+  #cancelLiveRefresh() {
+    if (this.liveRefreshTimer !== null) clearTimeout(this.liveRefreshTimer);
+    this.liveRefreshTimer = null;
+    this.liveRefreshReasons.clear();
+  }
+
+  scheduleLiveRefresh(reason = "runtime") {
+    if (this.controllerDeleted) return;
+    this.liveRefreshReasons.add(reason);
+    if (this.liveRefreshTimer !== null) clearTimeout(this.liveRefreshTimer);
+    this.liveRefreshTimer = setTimeout(() => {
+      this.liveRefreshTimer = null;
+      void this.#performLiveRefresh();
+    }, 75);
+  }
+
+  async #performLiveRefresh() {
+    if (this.controllerDeleted) return;
+    const snapshot = this.#captureScrollState();
+    this.liveRefreshReasons.clear();
+    try {
+      await this.#controller();
+      await this.render({ force: true });
+      this.#restoreScrollState(snapshot);
+    } catch {
+      await this.handleControllerDeleted({ notify: false });
+    }
+  }
+
+  async handleControllerDeleted({ notify = true } = {}) {
+    if (this.controllerDeleted) return;
+    this.controllerDeleted = true;
+    this.#cancelLiveRefresh();
+    if (notify && game.user?.isGM) {
+      ui.notifications.info(localize("PF2E_AFFLICTION_FORGE.Runtime.ControllerRemoved"));
+    }
+    await this.close({ force: true });
+  }
+
   async close(options = {}) {
     apps.delete(this.controllerUuid);
+    this.#cancelLiveRefresh();
     this.resizeObserver?.disconnect?.();
     this.resizeObserver = null;
     return super.close(options);
@@ -227,11 +320,14 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
 
   async #rerenderAfter(action) {
     await action;
+    this.#cancelLiveRefresh();
+    const snapshot = this.#captureScrollState();
     try {
       await this.#controller();
       await this.render({ force: true });
+      this.#restoreScrollState(snapshot);
     } catch {
-      await this.close({ force: true });
+      await this.handleControllerDeleted({ notify: false });
     }
   }
 
@@ -312,6 +408,8 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
     });
     if (!confirmed) return;
     try {
+      this.controllerDeleted = true;
+      this.#cancelLiveRefresh();
       await this.#api().instances.end(this.controllerUuid);
       ui.notifications.info(localize("PF2E_AFFLICTION_FORGE.Runtime.Ended"));
       await this.close({ force: true });
@@ -323,6 +421,7 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
 }
 
 export async function openAfflictionController(controllerOrUuid, options = {}) {
+  installLiveSyncHooks();
   if (!game.user?.isGM) {
     ui.notifications.warn(localize("PF2E_AFFLICTION_FORGE.Forge.GmOnly"));
     return null;

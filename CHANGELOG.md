@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.31
+
+### Live Manager Synchronization & Runtime UI Refresh
+
+- keeps every open `Leiden verwalten` window synchronized with controller updates produced by the scheduler, save resolution, manual/runtime transitions, identification changes, and reconciliation
+- observes generated stage/residual Effect create/update/delete activity and coalesces related changes into one manager refresh
+- refreshes countdown/age labels when Foundry world time changes even if no controller document update is required
+- debounces live refreshes so one stage transition with several embedded-document changes does not cause a render storm
+- preserves the manager outer scroll position and event-log scroll position across automatic rerenders
+- cancels queued live refreshes before explicit manager actions render their committed result
+- closes an open manager cleanly when its controller is deleted and avoids stale UUID views
+- keeps live-sync hooks global and lightweight while only rerendering manager instances that are actually open
+- adds regression coverage for controller/stage-effect/world-time live synchronization, debounce, scroll preservation, and deletion handling
+
 ## 0.1.30
 
 ### Runtime Review & Edge-Case Hardening

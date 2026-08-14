@@ -176,3 +176,18 @@ test("manual stage-effect delete storms are coalesced before reconciliation", ()
 test("active-affliction discovery uses the same world plus synthetic-token actor universe as reconciliation", () => {
   assert.match(runtime, /async listAll\(\)[\s\S]*runtimeActorCollection\(\)/);
 });
+
+
+test("controller manager live-syncs runtime changes without losing scroll state", () => {
+  assert.match(manager, /installLiveSyncHooks/);
+  assert.match(manager, /Hooks\.on\("updateItem"/);
+  assert.match(manager, /Hooks\.on\("createItem"/);
+  assert.match(manager, /Hooks\.on\("deleteItem"/);
+  assert.match(manager, /Hooks\.on\("updateWorldTime"/);
+  assert.match(manager, /scheduleLiveRefresh/);
+  assert.match(manager, /setTimeout[\s\S]*75/);
+  assert.match(manager, /#captureScrollState/);
+  assert.match(manager, /#restoreScrollState/);
+  assert.match(manager, /eventLogTop/);
+  assert.match(manager, /handleControllerDeleted/);
+});

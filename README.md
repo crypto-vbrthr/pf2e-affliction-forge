@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.30**
+Current development build: **0.1.31**
 
-Version **0.1.30** is the runtime review and edge-case hardening pass. It serializes controller mutations and save resolution, recovers interrupted interactive saves, includes synthetic token Actors in runtime discovery, makes reconciliation stale-safe and fault-isolated, protects multi-target application from irreversible partial damage, and stops automatic catch-up once a lethal Affliction has actually killed its target.
+Version **0.1.31** adds live synchronization to the controller manager. Open manager windows now follow scheduler progression, save state, stage output, identification changes, and world-time countdowns without manual reopening, while preserving scroll position and closing cleanly if the controller is removed.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -85,7 +85,7 @@ A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See
 
 ## Runtime boundary
 
-0.1.30 includes the hardened world-time scheduler, active-duration anchoring, player-save routing/recovery, identification visibility layer, public library/provider discovery, an explicit Active Afflictions runtime registry, revision-aware reconciliation, controller mutation serialization, and a scroll-safe controller manager. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
+0.1.31 includes the hardened world-time scheduler, active-duration anchoring, player-save routing/recovery, identification visibility layer, public library/provider discovery, an explicit Active Afflictions runtime registry, revision-aware reconciliation, controller mutation serialization, and a scroll-safe controller manager. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
 
 Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
 

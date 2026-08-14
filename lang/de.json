@@ -281,5 +281,6 @@
   "PF2E_AFFLICTION_FORGE.Runtime.ActiveAfflictions": "aktive Leiden",
   "PF2E_AFFLICTION_FORGE.Runtime.SearchActive": "Nach Actor oder Leiden suchen …",
   "PF2E_AFFLICTION_FORGE.Runtime.RefreshActive": "Aktive Leiden aktualisieren",
-  "PF2E_AFFLICTION_FORGE.Runtime.NoActiveAfflictions": "Derzeit sind keine Leiden aktiv."
+  "PF2E_AFFLICTION_FORGE.Runtime.NoActiveAfflictions": "Derzeit sind keine Leiden aktiv.",
+  "PF2E_AFFLICTION_FORGE.Runtime.ControllerRemoved": "Das aktive Leiden wurde entfernt. Das Verwaltungsfenster wird geschlossen."
 }

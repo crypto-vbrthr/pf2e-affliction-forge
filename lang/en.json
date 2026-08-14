@@ -281,5 +281,6 @@
   "PF2E_AFFLICTION_FORGE.Runtime.ActiveAfflictions": "active Afflictions",
   "PF2E_AFFLICTION_FORGE.Runtime.SearchActive": "Search by Actor or Affliction …",
   "PF2E_AFFLICTION_FORGE.Runtime.RefreshActive": "Refresh Active Afflictions",
-  "PF2E_AFFLICTION_FORGE.Runtime.NoActiveAfflictions": "There are currently no active Afflictions."
+  "PF2E_AFFLICTION_FORGE.Runtime.NoActiveAfflictions": "There are currently no active Afflictions.",
+  "PF2E_AFFLICTION_FORGE.Runtime.ControllerRemoved": "The active affliction was removed. The manager window will close."
 }
