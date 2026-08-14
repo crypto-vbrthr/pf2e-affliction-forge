@@ -1949,3 +1949,39 @@
     grid-column: 1 / -1;
   }
 }
+
+/* 0.1.38: DialogV2 uses Foundry's dark application chrome rather than the
+ * parchment palette of PF2e item sheets. Native Chromium <select> popups do
+ * not reliably inherit translucent host surfaces, so give this modal an
+ * explicit dark color scheme and option palette. The in-sheet reference panel
+ * above remains theme-adaptive. */
+.pf2e-affliction-reference-config-dialog {
+  --pf2e-affliction-dialog-control-bg: var(--color-cool-4, #2b2933);
+  --pf2e-affliction-dialog-option-bg: var(--color-cool-5, #1f1e26);
+  --pf2e-affliction-dialog-text: var(--color-light-1, #f4ead8);
+  --pf2e-affliction-dialog-muted: var(--color-light-4, #b9b0a2);
+  --pf2e-affliction-dialog-border: color-mix(in srgb, var(--pf2e-affliction-dialog-text) 34%, transparent);
+}
+
+.pf2e-affliction-reference-config-dialog select {
+  color-scheme: dark;
+  background: var(--pf2e-affliction-dialog-control-bg);
+  color: var(--pf2e-affliction-dialog-text);
+  border-color: var(--pf2e-affliction-dialog-border);
+}
+
+.pf2e-affliction-reference-config-dialog select:hover,
+.pf2e-affliction-reference-config-dialog select:focus {
+  color: var(--pf2e-affliction-dialog-text);
+  background: color-mix(in srgb, var(--pf2e-affliction-dialog-control-bg) 88%, white 12%);
+}
+
+.pf2e-affliction-reference-config-dialog select option,
+.pf2e-affliction-reference-config-dialog select optgroup {
+  background-color: var(--pf2e-affliction-dialog-option-bg);
+  color: var(--pf2e-affliction-dialog-text);
+}
+
+.pf2e-affliction-reference-config-dialog select option:disabled {
+  color: var(--pf2e-affliction-dialog-muted);
+}

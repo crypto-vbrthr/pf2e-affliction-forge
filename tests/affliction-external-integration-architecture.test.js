@@ -68,6 +68,8 @@ test("attack and ability Items expose Affliction reference drop zones", () => {
   assert.match(hostCss, /host-sheet theme integration/);
   assert.match(hostCss, /--pf2e-affliction-reference-surface:\s*color-mix\(in srgb, currentColor/);
   assert.match(hostCss, /\.pf2e-affliction-reference-panel select[\s\S]*?color:\s*inherit/);
+  assert.match(hostCss, /\.pf2e-affliction-reference-config-dialog select[\s\S]*?color-scheme:\s*dark/);
+  assert.match(hostCss, /\.pf2e-affliction-reference-config-dialog select option[\s\S]*?background-color:/);
   assert.match(hostReferenceUi, /DialogV2/);
   assert.match(hostReferenceUi, /references\?\.add/);
   assert.match(main, /initializeAfflictionReferenceHostUi\(\)/);

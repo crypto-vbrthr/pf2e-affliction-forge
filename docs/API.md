@@ -1,4 +1,4 @@
-# Public API 0.1.37
+# Public API 0.1.38
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -543,7 +543,7 @@ These helpers expose the same eligibility/default contract used by the built-in 
 
 ## Rich-text reference insertion
 
-`api.references.toText()` remains the canonical formatter used by the 0.1.37 ProseMirror drop integration:
+`api.references.toText()` remains the canonical formatter used by the 0.1.38 ProseMirror drop integration:
 
 ```js
 const link = api.references.toText(templateUuid, {

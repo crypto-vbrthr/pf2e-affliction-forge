@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.37 hardens rich-text drag-and-drop by advertising native Foundry Item drag data to ProseMirror while preserving Affliction Forge semantic drag data.",
-  "version": "0.1.37",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.38 hardens the attack/ability reference configuration dialog for readable native select menus across Foundry themes.",
+  "version": "0.1.38",
   "socket": true,
   "authors": [
     {

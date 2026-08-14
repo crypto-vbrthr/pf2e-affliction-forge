@@ -1,3 +1,12 @@
+## 0.1.38
+
+### Attack & Ability Reference Dialog Theme Hardening
+
+- improved contrast of trigger/application selects in the attach-reference dialog
+- added a dark native color scheme for the Foundry modal so Chromium renders the opened option list with matching background/text colors
+- explicitly themed option and optgroup foreground/background colors, including selected and disabled entries
+- kept the host-sheet reference panel theme-adaptive and unchanged
+
 ## 0.1.37
 
 ### Rich Text Drop Compatibility Hardening
