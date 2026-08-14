@@ -56,6 +56,141 @@ function finiteTime(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+
+const RUNTIME_EVENT_LIMIT = 50;
+const GENERIC_AFFLICTION_IMG = "icons/svg/biohazard.svg";
+
+function localize(key, fallback = key) {
+  const value = globalThis.game?.i18n?.localize?.(key);
+  return value && value !== key ? value : fallback;
+}
+
+function formatMessage(key, data, fallback) {
+  const value = globalThis.game?.i18n?.format?.(key, data);
+  if (value && value !== key) return value;
+  return typeof fallback === "function" ? fallback(data) : (fallback ?? key);
+}
+
+function escapeHtml(value) {
+  if (typeof globalThis.foundry?.utils?.escapeHTML === "function") return foundry.utils.escapeHTML(String(value ?? ""));
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+export function runtimePresentation(definitionInput, state = {}) {
+  const definition = normalizeAfflictionDefinition(definitionInput);
+  const identification = state.identification?.state ?? "identified";
+  if (identification === "hidden") {
+    return Object.freeze({
+      identification,
+      controllerName: localize("PF2E_AFFLICTION_FORGE.Runtime.HiddenControllerName", "Unidentified Affliction"),
+      controllerImg: GENERIC_AFFLICTION_IMG,
+      controllerDescription: "",
+      stageEffectName: localize("PF2E_AFFLICTION_FORGE.Runtime.HiddenStageEffectName", "Unidentified Effect"),
+      stageEffectImg: GENERIC_AFFLICTION_IMG,
+      showControllerTokenIcon: false,
+      showStageTokenIcon: false,
+      hideControllerFromPlayers: true,
+      hideStageEffectsFromPlayers: true
+    });
+  }
+  if (identification === "suspected") {
+    return Object.freeze({
+      identification,
+      controllerName: localize("PF2E_AFFLICTION_FORGE.Runtime.SuspectedControllerName", "Suspected Affliction"),
+      controllerImg: GENERIC_AFFLICTION_IMG,
+      controllerDescription: localize("PF2E_AFFLICTION_FORGE.Runtime.SuspectedControllerDescription", "Something is wrong, but the affliction has not been identified."),
+      stageEffectName: localize("PF2E_AFFLICTION_FORGE.Runtime.SuspectedStageEffectName", "Unidentified Affliction Effect"),
+      stageEffectImg: GENERIC_AFFLICTION_IMG,
+      showControllerTokenIcon: true,
+      showStageTokenIcon: false,
+      hideControllerFromPlayers: false,
+      hideStageEffectsFromPlayers: true
+    });
+  }
+  return Object.freeze({
+    identification: "identified",
+    controllerName: definition.name,
+    controllerImg: definition.img,
+    controllerDescription: definition.description ?? "",
+    stageEffectName: null,
+    stageEffectImg: null,
+    showControllerTokenIcon: true,
+    showStageTokenIcon: true,
+    hideControllerFromPlayers: false,
+    hideStageEffectsFromPlayers: false
+  });
+}
+
+function appendRuntimeEvent(state, event = {}) {
+  state.events = Array.isArray(state.events) ? state.events : [];
+  const entry = {
+    id: randomId("affliction-event"),
+    type: String(event.type ?? "event"),
+    at: finiteTime(event.at) ?? nowWorldTime(),
+    stageNumber: Number.isInteger(event.stageNumber) ? event.stageNumber : null,
+    stageId: typeof event.stageId === "string" ? event.stageId : null,
+    data: event.data && typeof event.data === "object" ? deepClone(event.data) : {}
+  };
+  state.events.push(entry);
+  if (state.events.length > RUNTIME_EVENT_LIMIT) state.events.splice(0, state.events.length - RUNTIME_EVENT_LIMIT);
+  return entry;
+}
+
+function stageEventData(stage) {
+  return stage ? { stageName: stage.name ?? "", stageNumber: stage.number, stageId: stage.id } : {};
+}
+
+async function createRuntimeChatMessage({ actor, definition, state, stage, type, category = null }) {
+  const ChatMessage = globalThis.ChatMessage;
+  if (!ChatMessage?.create) return null;
+  const identification = state.identification?.state ?? "identified";
+  const actorName = escapeHtml(actor?.name ?? "Actor");
+  const afflictionName = escapeHtml(definition.name);
+  const stageName = escapeHtml(stage?.name ?? `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage", "Stage")} ${stage?.number ?? ""}`);
+
+  let content;
+  let whisper;
+  if (type === "death") {
+    if (identification === "identified") {
+      content = `<p><strong>${actorName}</strong>: ${formatMessage("PF2E_AFFLICTION_FORGE.Runtime.DeathChatIdentified", { affliction: afflictionName, stage: stageName }, () => `${afflictionName} (${stageName}) causes death.`)}</p>`;
+    } else {
+      content = `<p><strong>${actorName}</strong>: ${formatMessage("PF2E_AFFLICTION_FORGE.Runtime.DeathChatHidden", { affliction: afflictionName, stage: stageName }, () => `${afflictionName} (${stageName}) caused death.`)}</p>`;
+      const recipients = ChatMessage.getWhisperRecipients?.("GM") ?? [];
+      whisper = recipients.map((user) => user?.id ?? user).filter(Boolean);
+    }
+  } else if (type === "death-resisted") {
+    content = `<p><strong>${actorName}</strong>: ${formatMessage("PF2E_AFFLICTION_FORGE.Runtime.DeathResistedChat", { affliction: afflictionName, stage: stageName }, () => `A death effect from ${afflictionName} (${stageName}) was prevented by immunity.`)}</p>`;
+    const recipients = ChatMessage.getWhisperRecipients?.("GM") ?? [];
+    whisper = recipients.map((user) => user?.id ?? user).filter(Boolean);
+  } else {
+    return null;
+  }
+
+  try {
+    return await ChatMessage.create({
+      content,
+      speaker: ChatMessage.getSpeaker?.({ actor }) ?? {},
+      ...(whisper?.length ? { whisper } : {}),
+      flags: {
+        [MODULE_ID]: {
+          runtimeEvent: type,
+          instanceId: state.instanceId,
+          stageNumber: stage?.number ?? null,
+          category
+        }
+      }
+    });
+  } catch (error) {
+    console.warn(`${MODULE_ID} | Runtime chat message could not be created.`, error);
+    return null;
+  }
+}
+
 /**
  * Derive the earliest valid due time from the Affliction definition and runtime
  * state. `nextCheckAt` is treated as a persisted schedule override/cache, but it
@@ -146,7 +281,8 @@ function controllerItemSource(definition, state, {
   sourceDefinitionVersion = null,
   origin = {}
 } = {}) {
-  const unidentified = state.identification?.state !== "identified";
+  const presentation = runtimePresentation(definition, state);
+  const unidentified = presentation.identification !== "identified";
   const flags = buildControllerFlags({
     definitionSnapshot: definition,
     instanceId: state.instanceId,
@@ -157,19 +293,19 @@ function controllerItemSource(definition, state, {
   });
 
   return {
-    name: definition.name,
+    name: presentation.controllerName,
     type: "effect",
-    img: definition.img,
+    img: presentation.controllerImg,
     system: {
-      description: { value: definition.description ?? "", gm: "" },
+      description: { value: presentation.controllerDescription, gm: definition.description ?? "" },
       rules: [],
       slug: null,
-      traits: { value: [...definition.traits], otherTags: [...definition.themes] },
-      level: { value: definition.level },
+      traits: { value: unidentified ? [] : [...definition.traits], otherTags: unidentified ? [] : [...definition.themes] },
+      level: { value: unidentified ? 0 : definition.level },
       duration: { value: -1, unit: "unlimited", expiry: null, sustained: false },
       start: { value: 0, initiative: null },
       badge: null,
-      tokenIcon: { show: !unidentified },
+      tokenIcon: { show: presentation.showControllerTokenIcon },
       unidentified
     },
     flags
@@ -181,7 +317,7 @@ function stageDescriptor(definition, stageNumber) {
   return definition.stages?.[stageNumber - 1] ?? null;
 }
 
-function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemplateUuid }) {
+function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemplateUuid, identifiedPresentation = null }) {
   return {
     managed: true,
     documentKind: DOCUMENT_KINDS.STAGE_EFFECT,
@@ -192,7 +328,8 @@ function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemp
     controllerUuid,
     sourceTemplateUuid: sourceTemplateUuid ?? null,
     stageId: stage.id,
-    stageNumber: stage.number
+    stageNumber: stage.number,
+    identifiedPresentation: identifiedPresentation ? deepClone(identifiedPresentation) : null
   };
 }
 
@@ -214,6 +351,19 @@ function buildRuntimeStageEffectDefinition(stage, state) {
     afflictionInstanceId: state.instanceId,
     afflictionStageId: stage.id
   };
+  if (state.identification?.state !== "identified") {
+    const genericLabel = state.identification?.state === "suspected"
+      ? localize("PF2E_AFFLICTION_FORGE.Runtime.SuspectedStageEffectName", "Unidentified Affliction Effect")
+      : localize("PF2E_AFFLICTION_FORGE.Runtime.HiddenStageEffectName", "Unidentified Effect");
+    runtimeEffect.name = genericLabel;
+    runtimeEffect.img = GENERIC_AFFLICTION_IMG;
+    runtimeEffect.description = "";
+    runtimeEffect.components = (runtimeEffect.components ?? []).map((component) => {
+      const next = deepClone(component);
+      if (typeof next.label === "string" && next.label.trim()) next.label = genericLabel;
+      return next;
+    });
+  }
   return runtimeEffect;
 }
 
@@ -232,22 +382,35 @@ async function buildStageEffectSources({ actor, controller, definition, state, s
   });
   const list = Array.isArray(sources) ? sources : [sources];
   const sourceTemplateUuid = getAfflictionFlags(controller)?.sourceTemplateUuid ?? null;
-  const unidentified = state.identification?.state !== "identified";
+  const presentation = runtimePresentation(definition, state);
+  const unidentified = presentation.identification !== "identified";
 
   return list.filter(Boolean).map((source) => {
     const result = deepClone(source);
+    const identifiedPresentation = {
+      name: stage.effect?.name ?? result.name ?? stage.name ?? `${definition.name} · ${stage.number}`,
+      img: stage.effect?.img ?? result.img ?? definition.img,
+      description: stage.effect?.description ?? result.system?.description?.value ?? ""
+    };
     result.flags ??= {};
     result.flags[MODULE_ID] = stageEffectFlags({
       definition,
       state,
       stage,
       controllerUuid: controller.uuid,
-      sourceTemplateUuid
+      sourceTemplateUuid,
+      identifiedPresentation
     });
     result.system ??= {};
     result.system.unidentified = unidentified;
     result.system.tokenIcon ??= {};
-    result.system.tokenIcon.show = !unidentified;
+    result.system.tokenIcon.show = presentation.showStageTokenIcon;
+    if (unidentified) {
+      result.name = presentation.stageEffectName;
+      result.img = presentation.stageEffectImg;
+      result.system.description ??= { value: "", gm: "" };
+      result.system.description.value = "";
+    }
     return result;
   });
 }
@@ -311,6 +474,77 @@ async function executeStageInstantEffectsSafely(context) {
   }
 }
 
+
+async function recordInstantExecutionResults({ actor, controller, definition, stage, results, at = nowWorldTime() }) {
+  const deathResults = (Array.isArray(results) ? results : []).filter((result) => result?.kind === "death");
+  if (deathResults.length === 0) return controller;
+
+  const flags = getAfflictionFlags(controller);
+  const state = deepClone(flags?.state ?? {});
+  let changed = false;
+  for (const result of deathResults) {
+    const category = result.category === "death-effect" ? "death-effect" : "direct";
+    if (result.applied === true) {
+      state.mortality = {
+        dead: true,
+        at: finiteTime(at) ?? nowWorldTime(),
+        stageNumber: stage?.number ?? state.currentStage ?? null,
+        stageId: stage?.id ?? null,
+        category,
+        afflictionName: definition.name,
+        stageName: stage?.name ?? ""
+      };
+      appendRuntimeEvent(state, {
+        type: "death",
+        at,
+        stageNumber: stage?.number ?? null,
+        stageId: stage?.id ?? null,
+        data: { category, ...stageEventData(stage) }
+      });
+      await createRuntimeChatMessage({ actor, definition, state, stage, type: "death", category });
+      globalThis.Hooks?.callAll?.("pf2eAfflictionForgeDeath", {
+        controllerUuid: controller.uuid,
+        actorUuid: actor.uuid,
+        instanceId: state.instanceId,
+        category,
+        stageNumber: stage?.number ?? null,
+        stageId: stage?.id ?? null
+      });
+      changed = true;
+    } else if (result.immune === true) {
+      appendRuntimeEvent(state, {
+        type: "death-resisted",
+        at,
+        stageNumber: stage?.number ?? null,
+        stageId: stage?.id ?? null,
+        data: { category, ...stageEventData(stage) }
+      });
+      await createRuntimeChatMessage({ actor, definition, state, stage, type: "death-resisted", category });
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    state.revision = Number(state.revision ?? 0) + 1;
+    await updateController(controller, definition, state);
+  }
+  return controller;
+}
+
+async function recordInstantExecutionResultsSafely(context) {
+  try {
+    return await recordInstantExecutionResults(context);
+  } catch (error) {
+    console.error(`${MODULE_ID} | Affliction instant-result audit logging failed.`, error);
+    globalThis.Hooks?.callAll?.("pf2eAfflictionForgeRuntimeAuditFailed", {
+      controllerUuid: context?.controller?.uuid ?? null,
+      stageNumber: context?.stage?.number ?? null,
+      error
+    });
+    return context?.controller ?? null;
+  }
+}
+
 function stageEffectItems(actor, instanceId) {
   return itemCollection(actor).filter((item) => {
     const flags = getAfflictionFlags(item);
@@ -366,11 +600,17 @@ async function updateController(controller, definition, state) {
     ...deepClone(previous),
     state: deepClone(state)
   };
-  const unidentified = state.identification?.state !== "identified";
+  const presentation = runtimePresentation(definition, state);
+  const unidentified = presentation.identification !== "identified";
   await controller.update({
+    name: presentation.controllerName,
+    img: presentation.controllerImg,
     system: {
+      description: { value: presentation.controllerDescription, gm: definition.description ?? "" },
+      traits: { value: unidentified ? [] : [...definition.traits], otherTags: unidentified ? [] : [...definition.themes] },
+      level: { value: unidentified ? 0 : definition.level },
       unidentified,
-      tokenIcon: { show: !unidentified }
+      tokenIcon: { show: presentation.showControllerTokenIcon }
     },
     flags: { [MODULE_ID]: moduleFlags }
   }, { render: false });
@@ -412,6 +652,18 @@ export class AfflictionInstanceService {
   inspect(controller) {
     if (!isAfflictionController(controller)) return null;
     return descriptor(controller);
+  }
+
+  async presentation(controllerOrUuid) {
+    const controller = await this.get(controllerOrUuid);
+    const flags = getAfflictionFlags(controller);
+    return runtimePresentation(flags.definitionSnapshot, flags.state ?? {});
+  }
+
+  async events(controllerOrUuid) {
+    const controller = await this.get(controllerOrUuid);
+    const state = getAfflictionFlags(controller)?.state ?? {};
+    return deepClone(Array.isArray(state.events) ? state.events : []);
   }
 
   async listForActor(actorOrUuid) {
@@ -475,6 +727,19 @@ export class AfflictionInstanceService {
               ? dueAt(definition.onset, appliedAt)
               : dueAt(definition.stages?.[0]?.duration, appliedAt)
         });
+        appendRuntimeEvent(state, { type: "applied", at: appliedAt });
+        if (initialStage > 0) {
+          const firstStage = stageDescriptor(definition, initialStage);
+          appendRuntimeEvent(state, {
+            type: "stage-entered",
+            at: appliedAt,
+            stageNumber: initialStage,
+            stageId: firstStage?.id ?? null,
+            data: stageEventData(firstStage)
+          });
+        } else if (initialStatus === "incubating") {
+          appendRuntimeEvent(state, { type: "onset-started", at: appliedAt });
+        }
         const [controller] = await actor.createEmbeddedDocuments("Item", [controllerItemSource(definition, state, {
           sourceTemplateUuid,
           sourceDefinitionVersion,
@@ -495,7 +760,8 @@ export class AfflictionInstanceService {
             // other future instant components are irreversible, so a failed
             // execution must never roll the controller back to a phase whose
             // persistent effects have already been replaced.
-            await executeStageInstantEffectsSafely({ actor, controller, definition, state, stage });
+            const instantResults = await executeStageInstantEffectsSafely({ actor, controller, definition, state, stage });
+            await recordInstantExecutionResultsSafely({ actor, controller, definition, state, stage, results: instantResults, at: appliedAt });
           }
           controllers.push(controller);
         } catch (error) {
@@ -553,6 +819,11 @@ export class AfflictionInstanceService {
     state.pendingCheck = null;
     state.onsetTargetStage = Math.max(1, Math.min(definition.stages.length, Math.trunc(Number(targetStage) || 1)));
     state.lastCheck = lastCheck == null ? state.lastCheck ?? null : deepClone(lastCheck);
+    appendRuntimeEvent(state, {
+      type: "onset-started",
+      at: startedAt,
+      data: { targetStage: state.onsetTargetStage }
+    });
     state.revision = Number(state.revision ?? 0) + 1;
     await updateController(controller, definition, state);
     return controller;
@@ -599,9 +870,17 @@ export class AfflictionInstanceService {
         previous.activeStageEffectUuids ?? []
       );
       if (lastCheck !== undefined) next.lastCheck = lastCheck == null ? null : deepClone(lastCheck);
+      appendRuntimeEvent(next, {
+        type: "stage-renewed",
+        at: enteredAt,
+        stageNumber,
+        stageId: stage?.id ?? null,
+        data: stageEventData(stage)
+      });
       await updateController(controller, definition, next);
       if (executeInstant && stage) {
-        await executeStageInstantEffectsSafely({ actor, controller, definition, state: next, stage });
+        const instantResults = await executeStageInstantEffectsSafely({ actor, controller, definition, state: next, stage });
+        await recordInstantExecutionResultsSafely({ actor, controller, definition, state: next, stage, results: instantResults, at: enteredAt });
       }
       return controller;
     }
@@ -634,13 +913,21 @@ export class AfflictionInstanceService {
       }
       const next = buildTransitionState(previous, definition, stageNumber, enteredAt, created.map((item) => item.uuid));
       if (lastCheck !== undefined) next.lastCheck = lastCheck == null ? null : deepClone(lastCheck);
+      appendRuntimeEvent(next, {
+        type: refreshPersistent && previous.currentStage === stageNumber ? "stage-reapplied" : (stageNumber > 0 ? "stage-entered" : "stage-cleared"),
+        at: enteredAt,
+        stageNumber: stageNumber > 0 ? stageNumber : null,
+        stageId: stage?.id ?? null,
+        data: { fromStage: previous.currentStage ?? 0, ...stageEventData(stage) }
+      });
       await updateController(controller, definition, next);
 
       // Commit persistent state first. Instant effects such as damage are
       // irreversible, so execution failures are reported but never cause the
       // phase transition to roll back.
       if (executeInstant && stage) {
-        await executeStageInstantEffectsSafely({ actor, controller, definition, state: next, stage });
+        const instantResults = await executeStageInstantEffectsSafely({ actor, controller, definition, state: next, stage });
+        await recordInstantExecutionResultsSafely({ actor, controller, definition, state: next, stage, results: instantResults, at: enteredAt });
       }
       return controller;
     } catch (error) {
@@ -687,7 +974,9 @@ export class AfflictionInstanceService {
     const state = deepClone(flags.state);
     const stage = stageDescriptor(definition, state.currentStage);
     if (!stage || state.status !== "active") return [];
-    return executeStageInstantEffects({ actor, controller, definition, state, stage });
+    const results = await executeStageInstantEffects({ actor, controller, definition, state, stage });
+    await recordInstantExecutionResultsSafely({ actor, controller, definition, state, stage, results, at: nowWorldTime() });
+    return results;
   }
 
   async setIdentification(controllerOrUuid, identificationState, {
@@ -701,21 +990,37 @@ export class AfflictionInstanceService {
     const flags = getAfflictionFlags(controller);
     const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
     const state = deepClone(flags.state);
+    const previousIdentification = state.identification?.state ?? "identified";
     state.identification = {
       state: identificationState,
       identifiedAt: identificationState === "identified" ? changedAt : null,
       identifiedBy: identificationState === "identified" ? identifiedBy : null
     };
+    appendRuntimeEvent(state, {
+      type: "identification-changed",
+      at: changedAt,
+      stageNumber: state.currentStage > 0 ? state.currentStage : null,
+      data: { from: previousIdentification, to: identificationState, identifiedBy }
+    });
     state.revision = Number(state.revision ?? 0) + 1;
     await updateController(controller, definition, state);
 
+    const presentation = runtimePresentation(definition, state);
     const unidentified = identificationState !== "identified";
     const stageItems = stageEffectItems(actor, state.instanceId);
     for (const item of stageItems) {
+      const itemFlags = getAfflictionFlags(item) ?? {};
+      const identifiedPresentation = itemFlags.identifiedPresentation ?? {};
       await item.update({
+        name: unidentified ? presentation.stageEffectName : (identifiedPresentation.name ?? item.name),
+        img: unidentified ? presentation.stageEffectImg : (identifiedPresentation.img ?? item.img),
         system: {
+          description: {
+            value: unidentified ? "" : (identifiedPresentation.description ?? item.system?.description?.value ?? ""),
+            gm: item.system?.description?.gm ?? ""
+          },
           unidentified,
-          tokenIcon: { show: !unidentified }
+          tokenIcon: { show: presentation.showStageTokenIcon }
         }
       }, { render: false });
     }
@@ -735,6 +1040,11 @@ export class AfflictionInstanceService {
     state.activeStageEffectUuids = [];
     state.pendingCheck = null;
     state.onsetTargetStage = null;
+    appendRuntimeEvent(state, {
+      type: reason === "recovered" ? "recovered" : "ended",
+      at: nowWorldTime(),
+      data: { reason }
+    });
     state.revision = Number(state.revision ?? 0) + 1;
 
     await removeStageEffects(actor, flags.state);

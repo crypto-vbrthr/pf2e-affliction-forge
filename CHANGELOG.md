@@ -1,13 +1,30 @@
 # Changelog
 
+## 0.1.23
+
+### Visibility & Identification Runtime Hardening
+
+- adds runtime presentation policies for `hidden`, `suspected`, and `identified` controller states
+- hidden controller Items now use a generic identity and no player-facing token icon; suspected controllers use a generic visible identity; identified controllers restore the authored name, image, description, traits, and level
+- generated stage Effect Items retain their identified presentation privately in module flags while hidden/suspected runtime presentation uses generic names/images and no token icon
+- non-GM Actor-sheet renders conceal hidden controllers and all hidden/suspected stage-effect rows through Foundry's generic application render hooks
+- changing identification at runtime immediately updates both controller and generated stage-effect presentation
+- adds a bounded runtime event log to active controller state and exposes it through `api.instances.events()`
+- adds `api.instances.presentation()` for consumers that need the resolved runtime visibility policy
+- successful Critical Forge `death` execution records cause-of-death metadata on the controller, including stage, category, affliction name, and world-time timestamp
+- lethal-stage execution emits a dedicated `pf2eAfflictionForgeDeath` hook and creates an identification-safe chat message: public only when identified, otherwise GM-only
+- death-effect immunity results are recorded as audit events and GM-only chat messages without marking the affliction as the cause of death
+- controller manager now shows a lethal-stage summary and a scrollable newest-first runtime event log
+- runtime audit/chat failures are isolated from the committed stage transition so irreversible instant mechanics are never rolled back by logging failures
+
 ## 0.1.22
 
-- makes the whispered save-request `ChatMessage` the primary cross-client transport for player-manual saving throws
-- automatically opens PF2e's native saving-throw dialog when the targeted player receives a new request document
-- tags player-requested PF2e rolls with the unique Affliction request id and check id
-- lets the authoritative GM resolve the pending Affliction directly from the synchronized PF2e roll `ChatMessage`, without depending on a module-socket result packet
-- retains the package socket request/result path as a best-effort fallback and keeps the request card as an explicit retry control
-- adds regression coverage for ChatMessage-backed prompt delivery and GM-side tagged roll resolution
+### ChatMessage-backed Player Save Transport
+
+- makes the synchronized whispered save-request ChatMessage the primary transport for opening the PF2e saving-throw dialog on the selected player's client
+- tags the resulting PF2e roll with a unique request/controller/check identity so the authoritative GM can resolve it without relying on socket result delivery
+- keeps the module socket and manual-save correlation as fallbacks
+- fixes the online-player case where only the request card appeared and the subsequent saving throw did not advance the affliction
 
 ## 0.1.21
 

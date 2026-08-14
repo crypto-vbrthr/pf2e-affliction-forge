@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.22**
+Current development build: **0.1.23**
 
-Version **0.1.22** hardens player-manual saves against socket availability. The authoritative GM creates a whispered save-request ChatMessage for one active owner; reception of that synchronized document directly opens PF2e's native saving-throw dialog on the player client. The resulting PF2e roll is tagged with the Affliction request id, allowing the authoritative GM to resolve the pending check directly from the synchronized roll ChatMessage. The module socket remains only as an optional low-latency fallback.
+Version **0.1.23** hardens runtime identification and visibility. Hidden controllers and unidentified stage-effect rows are removed from non-GM Actor-sheet presentation, suspected afflictions use generic player-facing identity, identified afflictions restore their authored names and descriptions, and lethal stage execution records an explicit cause-of-death/audit event on the controller. Player-manual saving throws continue to use the synchronized ChatMessage/direct PF2e dialog workflow introduced in 0.1.22.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -19,7 +19,7 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - onset, maximum duration metadata, stage duration, and narrative stage descriptions
 - optional Critical Forge `EffectDefinition` per stage
 - persistent inert PF2e `effect` Items for Affliction Templates
-- active controller Items with definition snapshots, instance IDs, stage state, pending checks, and last-check history
+- active controller Items with definition snapshots, instance IDs, stage state, pending checks, last-check history, bounded runtime events, and lethal-stage mortality audit data
 - generated, instance-scoped persistent stage effects through Critical Forge's public Effect Engine API
 - instant stage mechanics through Critical Forge `api.effects.execute()`, including one-shot damage and immediate death
 - same-stage interval resolution that preserves persistent stage Items while rerunning instant mechanics
@@ -31,6 +31,9 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - whispered player-save cards retained as audit/retry fallback
 - public and GM-only result routing
 - hidden/suspected save requests that do not reveal the affliction identity or DC in the request text
+- player-facing identification presentation: hidden controllers concealed, suspected controllers generic, identified controllers fully restored
+- hidden/suspected stage-effect rows concealed from non-GM Actor-sheet presentation
+- lethal-stage cause-of-death record, GM/public-safe chat messaging, and controller runtime event log
 - searchable world/compendium template library with Save, Save As, clone/copy, and live deletion synchronization
 - Embedded Affliction Editor and public UI API for future hosts such as Creature Forge
 - GM-authoritative world-time scheduler using `game.time.worldTime` / `updateWorldTime`
@@ -71,8 +74,8 @@ A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See
 
 ## Runtime boundary
 
-0.1.22 includes the hardened world-time scheduler and runtime clock anchoring. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
+0.1.23 includes the hardened world-time scheduler, runtime clock anchoring, player-save routing, and identification visibility layer. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
 
 Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
 
-Strict player-sheet concealment of hidden controllers is still a later hardening block. Hidden/suspected save prompts already avoid exposing the affliction name and DC in their rendered request text.
+Hidden controllers and unidentified stage-effect rows are now removed from non-GM Actor-sheet presentation through Foundry render hooks. Suspected controllers remain visible under a generic identity, while identified controllers restore their authored identity. This is a UI/runtime concealment boundary, not a cryptographic security boundary against a technically privileged client inspecting raw document data.

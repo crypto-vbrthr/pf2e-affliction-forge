@@ -136,7 +136,7 @@ Version 0.1.18 executes this contract. `automatic` uses a PF2e roll without the 
 
 The template stores the start state. The controller stores the current runtime state, so identifying an affliction later does not require rewriting its template.
 
-Version 0.1.22 uses this as live controller state. PF2e `unidentified` / token-icon presentation is updated on controller/stage Items, and hidden/suspected player save prompts omit the affliction identity and DC. Player-manual checks are now requested directly on the selected owner's client through PF2e's native roll dialog. Strict removal of hidden controller Items from non-GM Actor-sheet presentation remains a later hardening block.
+Version 0.1.23 uses this as live controller state. Hidden controllers and unidentified stage-effect rows are concealed from non-GM Actor-sheet presentation; suspected controllers remain visible only under a generic identity; identified controllers restore authored presentation. Hidden/suspected save prompts omit the affliction identity and DC. Player-manual checks are requested directly on the selected owner's client through PF2e's native roll dialog.
 
 ## Check gates and multiple saves
 
@@ -247,9 +247,9 @@ flags["pf2e-affliction-forge"] = {
 }
 ```
 
-Generated stage-effect Item(s) use `documentKind: "affliction-stage-effect"` and carry the same `instanceId`, `controllerUuid`, `stageId`, and `stageNumber`. This source tagging is the authoritative cleanup boundary.
+Generated stage-effect Item(s) use `documentKind: "affliction-stage-effect"` and carry the same `instanceId`, `controllerUuid`, `stageId`, and `stageNumber`. They also retain an `identifiedPresentation` snapshot so runtime identification changes can restore the authored stage-effect name/image/description without recompiling the stage. This source tagging remains the authoritative cleanup boundary.
 
-Automatic and manual save checks, progression, instant stage mechanics, world-time due-event discovery, historical catch-up, and maximum-duration enforcement are live in 0.1.18. Dedicated turn-specific scheduling and strict non-GM controller concealment remain later runtime work.
+Automatic and manual save checks, progression, instant stage mechanics, world-time due-event discovery, historical catch-up, maximum-duration enforcement, non-GM Actor-sheet concealment, and lethal-stage audit logging are live in 0.1.23. Dedicated turn-specific scheduling remains later runtime work.
 
 
 ## Pending-check runtime shape
@@ -315,3 +315,10 @@ After a gate fully resolves, `lastCheck` records the decision that produced the 
 ```
 
 This is diagnostic/audit state. The current stage and active generated-effect UUIDs remain authoritative for runtime behavior.
+
+
+### Runtime events and mortality
+
+`state.events` is a bounded newest-preserving audit history (maximum 50 entries) containing world-time timestamp, event type, optional stage identity, and event-specific data. It is runtime metadata only and does not alter progression.
+
+`state.mortality` remains `null` unless Critical Forge reports that a `death` instant component was actually applied. A death-effect immunity result creates a `death-resisted` event but does not populate mortality, so the Affliction Forge never claims a blocked death effect as the cause of death.

@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.22 uses synchronized ChatMessages as a socket-independent player-save prompt/result transport while retaining the module socket as a fallback.",
-  "version": "0.1.22",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.23 hardens runtime identification visibility, generic player-facing presentation, and lethal-stage audit logging.",
+  "version": "0.1.23",
   "socket": true,
   "authors": [
     {

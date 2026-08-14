@@ -3,6 +3,7 @@ import { initializePublicApi } from "./api/public-api.js";
 import { getCriticalForgeCompatibility } from "./affliction/integration/critical-forge-adapter.js";
 import { initializeAfflictionForgeUi } from "./affliction/forge/affliction-forge.js";
 import { initializeAfflictionSaveRuntime } from "./affliction/runtime/affliction-save-runtime.js";
+import { initializeAfflictionVisibilityRuntime } from "./affliction/runtime/affliction-visibility-runtime.js";
 import { registerAfflictionForgeSettings } from "./settings.js";
 
 Hooks.once("init", () => {
@@ -32,6 +33,7 @@ Hooks.once("ready", () => {
 
   initializeAfflictionForgeUi();
   initializeAfflictionSaveRuntime();
+  initializeAfflictionVisibilityRuntime();
   api?.scheduler?.start?.();
 
   Hooks.callAll("pf2eAfflictionForgeReady", api);

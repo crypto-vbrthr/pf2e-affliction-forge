@@ -148,6 +148,8 @@ api.instances.applyTemplate(templateOrUuid, targets, options)
 api.instances.applyDefinition(definition, targets, options)
 api.instances.get(controllerOrUuid)
 api.instances.inspect(controller)
+api.instances.presentation(controllerOrUuid)
+api.instances.events(controllerOrUuid)
 api.instances.listForActor(actorOrUuid)
 api.instances.setStage(controllerOrUuid, stageNumber, options)
 api.instances.advance(controllerOrUuid, delta, options)
@@ -294,3 +296,13 @@ Hooks.once("pf2eAfflictionForgeReady", (api) => {
   // Consumer module registration can begin here.
 });
 ```
+
+
+### Runtime presentation and event audit
+
+```js
+const presentation = await api.instances.presentation(controllerUuid);
+const events = await api.instances.events(controllerUuid);
+```
+
+`presentation()` resolves the current `hidden | suspected | identified` policy into player-facing controller/stage identity and concealment behavior. `events()` returns a deep-cloned bounded audit log for the active controller. Successful lethal-stage execution also stores `state.mortality` and emits `pf2eAfflictionForgeDeath`.

@@ -25,6 +25,8 @@ export function createAfflictionControllerState(definition, {
   pendingCheck = null,
   onsetTargetStage = definition?.onset && !definition?.initialCheck ? 1 : null,
   lastCheck = null,
+  events = [],
+  mortality = null,
   recoverySuccesses = 0,
   revision = 1
 } = {}) {
@@ -47,6 +49,8 @@ export function createAfflictionControllerState(definition, {
     pendingCheck: pendingCheck == null ? null : deepClone(pendingCheck),
     onsetTargetStage: onsetTargetStage == null ? null : Math.max(1, Math.trunc(Number(onsetTargetStage) || 1)),
     lastCheck: lastCheck == null ? null : deepClone(lastCheck),
+    events: Array.isArray(events) ? deepClone(events) : [],
+    mortality: mortality == null ? null : deepClone(mortality),
     revision
   };
 }
@@ -63,6 +67,8 @@ export function validateAfflictionControllerState(state, definition = null) {
     if (!Array.isArray(state.activeStageEffectUuids)) errors.push("activeStageEffectUuids must be an array.");
     if (state.pendingCheck !== null && state.pendingCheck !== undefined && (typeof state.pendingCheck !== "object" || Array.isArray(state.pendingCheck))) errors.push("pendingCheck must be an object or null.");
     if (state.lastCheck !== null && state.lastCheck !== undefined && (typeof state.lastCheck !== "object" || Array.isArray(state.lastCheck))) errors.push("lastCheck must be an object or null.");
+    if (state.events !== undefined && !Array.isArray(state.events)) errors.push("events must be an array when present.");
+    if (state.mortality !== null && state.mortality !== undefined && (typeof state.mortality !== "object" || Array.isArray(state.mortality))) errors.push("mortality must be an object or null.");
     if (!Number.isInteger(state.recoverySuccesses) || state.recoverySuccesses < 0) errors.push("recoverySuccesses must be a non-negative integer.");
     if (!Number.isInteger(state.revision) || state.revision < 1) errors.push("revision must be a positive integer.");
     if (state.onsetTargetStage !== null && state.onsetTargetStage !== undefined && (!Number.isInteger(state.onsetTargetStage) || state.onsetTargetStage < 1)) errors.push("onsetTargetStage must be a positive integer or null.");

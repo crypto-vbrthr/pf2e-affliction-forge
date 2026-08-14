@@ -78,6 +78,37 @@
     </button>
   </section>
 
+
+  {{#if mortality}}
+  <section class="affliction-controller-mortality">
+    <div class="affliction-controller-mortality-icon"><i class="fa-solid fa-skull"></i></div>
+    <div>
+      <small>{{localize "PF2E_AFFLICTION_FORGE.Runtime.DeathCause"}}</small>
+      <strong>{{mortality.stageLabel}}</strong>
+      <span>{{mortality.categoryLabel}}{{#if mortality.ageLabel}} · {{mortality.ageLabel}}{{/if}}</span>
+    </div>
+  </section>
+  {{/if}}
+
+  <section class="affliction-controller-events">
+    <header>
+      <strong>{{localize "PF2E_AFFLICTION_FORGE.Runtime.EventLog"}}</strong>
+      <small>{{localize "PF2E_AFFLICTION_FORGE.Runtime.EventLogHint"}}</small>
+    </header>
+    {{#if runtimeEvents.length}}
+      <ol>
+        {{#each runtimeEvents as |event|}}
+          <li class="{{#if event.important}}important{{/if}} {{#if event.lethal}}lethal{{/if}}">
+            <span>{{event.label}}</span>
+            <small>{{event.ageLabel}}</small>
+          </li>
+        {{/each}}
+      </ol>
+    {{else}}
+      <p class="affliction-controller-events-empty">{{localize "PF2E_AFFLICTION_FORGE.Runtime.EventLogEmpty"}}</p>
+    {{/if}}
+  </section>
+
   <footer class="affliction-controller-footer">
     <div class="affliction-controller-source">
       {{#if sourceTemplateUuid}}

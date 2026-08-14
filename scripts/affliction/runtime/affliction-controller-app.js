@@ -17,6 +17,50 @@ function formatDueAt(timestamp) {
   return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.DueDays", { value: Math.ceil(seconds / 86400) });
 }
 
+
+function formatEventAge(timestamp) {
+  if (!Number.isFinite(timestamp)) return "";
+  const now = Number(game.time?.worldTime ?? 0);
+  const seconds = Math.max(0, now - timestamp);
+  if (seconds < 1) return localize("PF2E_AFFLICTION_FORGE.Runtime.EventNow");
+  if (seconds < 60) return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.EventSecondsAgo", { value: Math.floor(seconds) });
+  if (seconds < 3600) return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.EventMinutesAgo", { value: Math.floor(seconds / 60) });
+  if (seconds < 86400) return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.EventHoursAgo", { value: Math.floor(seconds / 3600) });
+  return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.EventDaysAgo", { value: Math.floor(seconds / 86400) });
+}
+
+function identificationLabel(value) {
+  const key = { hidden: "PF2E_AFFLICTION_FORGE.Identification.Hidden", suspected: "PF2E_AFFLICTION_FORGE.Identification.Suspected", identified: "PF2E_AFFLICTION_FORGE.Identification.Identified" }[value];
+  return key ? localize(key) : String(value ?? "");
+}
+
+function runtimeEventLabel(event) {
+  const stageNumber = event.stageNumber ?? event.data?.stageNumber ?? null;
+  const stageName = event.data?.stageName ?? "";
+  const stage = stageNumber
+    ? `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage")} ${stageNumber}${stageName ? ` · ${stageName}` : ""}`
+    : "";
+  switch (event.type) {
+    case "applied": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.Applied");
+    case "onset-started": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.OnsetStarted");
+    case "stage-entered": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.StageEntered", { stage });
+    case "stage-renewed": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.StageRenewed", { stage });
+    case "stage-reapplied": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.StageReapplied", { stage });
+    case "stage-cleared": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.StageCleared");
+    case "identification-changed": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.IdentificationChanged", { state: identificationLabel(event.data?.to) });
+    case "death": {
+      const category = localize(event.data?.category === "death-effect"
+        ? "PF2E_AFFLICTION_FORGE.Runtime.DeathCategory.DeathEffect"
+        : "PF2E_AFFLICTION_FORGE.Runtime.DeathCategory.Direct");
+      return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.Death", { stage, category });
+    }
+    case "death-resisted": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.DeathResisted", { stage });
+    case "recovered": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.Recovered");
+    case "ended": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.Ended");
+    default: return event.type;
+  }
+}
+
 const apps = new Map();
 
 export class AfflictionControllerApp extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -99,6 +143,23 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
         value,
         label: localize({ hidden: "PF2E_AFFLICTION_FORGE.Identification.Hidden", suspected: "PF2E_AFFLICTION_FORGE.Identification.Suspected", identified: "PF2E_AFFLICTION_FORGE.Identification.Identified" }[value]),
         selected: state.identification?.state === value
+      })),
+      mortality: state.mortality?.dead ? {
+        dead: true,
+        stageLabel: state.mortality.stageNumber
+          ? `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage")} ${state.mortality.stageNumber}${state.mortality.stageName ? ` · ${state.mortality.stageName}` : ""}`
+          : localize("PF2E_AFFLICTION_FORGE.Runtime.NoStage"),
+        categoryLabel: localize(state.mortality.category === "death-effect"
+          ? "PF2E_AFFLICTION_FORGE.Runtime.DeathCategory.DeathEffect"
+          : "PF2E_AFFLICTION_FORGE.Runtime.DeathCategory.Direct"),
+        ageLabel: formatEventAge(state.mortality.at)
+      } : null,
+      runtimeEvents: [...(Array.isArray(state.events) ? state.events : [])].reverse().map((event) => ({
+        id: event.id,
+        label: runtimeEventLabel(event),
+        ageLabel: formatEventAge(event.at),
+        important: ["death", "death-resisted"].includes(event.type),
+        lethal: event.type === "death"
       }))
     };
   }

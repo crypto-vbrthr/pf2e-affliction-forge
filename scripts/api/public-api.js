@@ -181,6 +181,8 @@ export function createPublicApi() {
       applyDefinition: (definition, targets, options = {}) => instanceService.applyDefinition(definition, targets, options),
       get: (controllerOrUuid) => instanceService.get(controllerOrUuid),
       inspect: (controller) => instanceService.inspect(controller),
+      presentation: (controllerOrUuid) => instanceService.presentation(controllerOrUuid),
+      events: (controllerOrUuid) => instanceService.events(controllerOrUuid),
       listForActor: (actorOrUuid) => instanceService.listForActor(actorOrUuid),
       setStage: (controllerOrUuid, stage, options = {}) => instanceService.setStage(controllerOrUuid, stage, options),
       advance: (controllerOrUuid, delta = 1, options = {}) => instanceService.advance(controllerOrUuid, delta, options),

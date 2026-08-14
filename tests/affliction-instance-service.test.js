@@ -620,3 +620,65 @@ test("integrated world-time flow honors one-minute onset and stage durations aft
   assert.equal(flags.state.stageEnteredAt, 1120);
   assert.equal(flags.state.nextCheckAt, 1180);
 });
+
+test("runtime identification presentation conceals hidden afflictions and restores identified stage metadata", async () => {
+  const actor = new FakeActor("heroVisibility", "Visibility Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Geheime Fäule",
+    description: "Die wahre Beschreibung.",
+    initialCheck: null,
+    identification: { initialState: "hidden" },
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effect: effect("visibility.stage1", "Geheime Fäule · Phase 1")
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  let stageEffect = actor.items.find(isAfflictionStageEffect);
+  assert.equal(controller.name, "Unidentified Affliction");
+  assert.equal(controller.img, "icons/svg/biohazard.svg");
+  assert.equal(controller.system.tokenIcon.show, false);
+  assert.equal(stageEffect.name, "Unidentified Effect");
+  assert.equal(stageEffect.system.tokenIcon.show, false);
+
+  await service.setIdentification(controller, "suspected", { changedAt: 1100 });
+  assert.equal(controller.name, "Suspected Affliction");
+  assert.equal(controller.system.tokenIcon.show, true);
+  stageEffect = actor.items.find(isAfflictionStageEffect);
+  assert.equal(stageEffect.name, "Unidentified Affliction Effect");
+  assert.equal(stageEffect.system.tokenIcon.show, false);
+
+  await service.setIdentification(controller, "identified", { changedAt: 1200 });
+  assert.equal(controller.name, "Geheime Fäule");
+  assert.equal(controller.system.description.value, "Die wahre Beschreibung.");
+  stageEffect = actor.items.find(isAfflictionStageEffect);
+  assert.equal(stageEffect.name, "Geheime Fäule · Phase 1");
+  assert.equal(stageEffect.system.tokenIcon.show, true);
+  assert.equal(getAfflictionFlags(controller).state.events.at(-1).type, "identification-changed");
+});
+
+test("successful lethal stage execution records cause of death and a runtime audit event", async () => {
+  instantExecutions.length = 0;
+  const actor = new FakeActor("heroDeathAudit", "Death Audit Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Endfäule",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      name: "Organversagen",
+      effect: deathOnlyEffect("death.audit", "Endfäule · Organversagen", "death-effect")
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor, { appliedAt: 1500 });
+  const state = getAfflictionFlags(controller).state;
+  assert.equal(state.mortality.dead, true);
+  assert.equal(state.mortality.stageNumber, 1);
+  assert.equal(state.mortality.stageName, "Organversagen");
+  assert.equal(state.mortality.category, "death-effect");
+  assert.equal(state.mortality.afflictionName, "Endfäule");
+  assert.equal(state.events.some((entry) => entry.type === "death"), true);
+});

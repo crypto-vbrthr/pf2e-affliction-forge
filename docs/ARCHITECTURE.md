@@ -1,4 +1,4 @@
-# Architecture 0.1.18
+# Architecture 0.1.23
 
 ```text
 Affliction Template / Definition
@@ -22,6 +22,8 @@ Affliction Template / Definition
             │      ├── current stage/runtime state
             │      ├── pending check state
             │      ├── last-check audit snapshot
+            │      ├── bounded runtime event log
+            │      ├── lethal-stage mortality audit data
             │      └── identification state
             │
             └── Critical Forge Effect Engine
@@ -193,15 +195,18 @@ A returned player result is accepted only when its request/check/user still matc
 
 ## Identification boundary
 
-`hidden` and `suspected` already affect runtime presentation and save requests:
+Runtime presentation is resolved from the controller's current identification state:
 
-- controller/stage Items use PF2e unidentified presentation and hide token icons
-- hidden/suspected player save-request text does not reveal the affliction name
-- hidden/suspected player save-request text does not display the DC
-- player-manual checks are executed on the selected owner's client through PF2e's native Statistic roll dialog; the synchronized request/roll ChatMessages are the primary correlation transport; the module socket is only a fallback
-- instant-damage breakdown labels use a generic unidentified-affliction label instead of the hidden affliction name
+- `hidden`: generic controller identity is stored, token icon is disabled, and the controller plus generated stage-effect rows are concealed from non-GM Actor-sheet renders
+- `suspected`: a generic suspected-affliction controller remains visible, while generated stage-effect rows stay concealed so stage mechanics do not identify the source
+- `identified`: authored name, image, description, traits, level, token icon, and generated stage-effect presentation are restored
+- hidden/suspected player save-request text never reveals the affliction name or DC
+- player-manual checks execute on the selected owner's client through PF2e's native Statistic roll dialog; synchronized request/roll ChatMessages are the primary correlation transport and the module socket is a fallback
+- instant-damage/death labels use generic unidentified-affliction wording until identification
 
-Strict removal of the controller from non-GM Actor-sheet presentation remains a later hardening block.
+The concealment layer is a Foundry UI/runtime presentation boundary. The authoritative controller still snapshots the definition on the Actor, so it should not be treated as cryptographic secrecy from a technically privileged client capable of inspecting raw document data.
+
+Lethal stage execution is audited separately from ordinary stage state. A successful Critical Forge `death` result stores the causing stage/category/timestamp and appends a runtime event; a prevented death effect records an immunity event without claiming cause of death.
 
 ## Time boundary
 

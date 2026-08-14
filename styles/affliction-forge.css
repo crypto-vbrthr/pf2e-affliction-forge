@@ -1260,3 +1260,91 @@
 .pf2e-affliction-save-request button {
   margin-top: 0.15rem;
 }
+
+/* 0.1.23 runtime visibility and audit log */
+.affliction-controller-mortality,
+.affliction-controller-events {
+  border: 1px solid rgba(120, 120, 120, 0.45);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.08);
+  padding: 0.7rem;
+}
+
+.affliction-controller-mortality {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  border-color: color-mix(in srgb, var(--color-level-error, #b52b2b) 70%, transparent);
+  background: color-mix(in srgb, var(--color-level-error, #b52b2b) 10%, transparent);
+}
+
+.affliction-controller-mortality-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  font-size: 1.4rem;
+  background: color-mix(in srgb, var(--color-level-error, #b52b2b) 22%, transparent);
+}
+
+.affliction-controller-mortality > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.affliction-controller-events {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.affliction-controller-events header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.affliction-controller-events header small,
+.affliction-controller-events li small {
+  opacity: 0.68;
+}
+
+.affliction-controller-events ol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 180px;
+  margin: 0;
+  padding: 0 0.15rem 0 1.35rem;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.affliction-controller-events li {
+  padding: 0.3rem 0.4rem;
+  border-radius: 4px;
+}
+
+.affliction-controller-events li.important {
+  background: rgba(140, 100, 35, 0.12);
+}
+
+.affliction-controller-events li.lethal {
+  background: color-mix(in srgb, var(--color-level-error, #b52b2b) 12%, transparent);
+  font-weight: 600;
+}
+
+.affliction-controller-events li > span,
+.affliction-controller-events li > small {
+  display: block;
+}
+
+.affliction-controller-events-empty {
+  margin: 0;
+  opacity: 0.7;
+}
