@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.24
+
+### Maximum Active Duration Semantics
+
+- changes `maximumDuration` runtime semantics to PF2e-style active duration: onset/incubation time is excluded
+- adds `activeStartedAt` to controller runtime state and anchors it exactly once when the first effective stage becomes active
+- preserves `activeStartedAt` across later stage changes, same-stage renewals, reapplication, and catch-up processing
+- makes `controllerMaximumDurationAt()` derive its deadline from the active-stage start instead of `appliedAt`
+- adds a migration fallback for pre-0.1.24 controllers using the earliest recorded `stage-entered` runtime event before falling back conservatively
+- clarifies the editor label as “Maximum active duration” / “Maximale Wirkungsdauer” and explains that onset does not count
+- adds regression coverage for onset + active duration, direct-active application, and stage-transition clock preservation
+
 ## 0.1.23
 
 ### Visibility & Identification Runtime Hardening

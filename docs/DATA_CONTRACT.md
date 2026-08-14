@@ -188,6 +188,9 @@ Schema-v1 templates remain discoverable. Opening them normalizes their definitio
 
 ## Active-controller state
 
+
+`maximumDuration` is the maximum **active** duration. Its clock starts when the first effective stage begins, not at exposure. Onset/incubation time is excluded. The controller persists that once-only anchor as `activeStartedAt`; later stage changes and same-stage renewals do not reset it. A controller that is still `pending` or `incubating` therefore has no maximum-duration deadline yet.
+
 The controller contract remains schema v2 and now carries live save-resolution state:
 
 ```js
@@ -201,6 +204,7 @@ The controller contract remains schema v2 and now carries live save-resolution s
 
   appliedAt: 100000,
   stageEnteredAt: 100000,
+  activeStartedAt: 100000,
   nextCheckAt: 128800,
 
   identification: {
@@ -249,7 +253,7 @@ flags["pf2e-affliction-forge"] = {
 
 Generated stage-effect Item(s) use `documentKind: "affliction-stage-effect"` and carry the same `instanceId`, `controllerUuid`, `stageId`, and `stageNumber`. They also retain an `identifiedPresentation` snapshot so runtime identification changes can restore the authored stage-effect name/image/description without recompiling the stage. This source tagging remains the authoritative cleanup boundary.
 
-Automatic and manual save checks, progression, instant stage mechanics, world-time due-event discovery, historical catch-up, maximum-duration enforcement, non-GM Actor-sheet concealment, and lethal-stage audit logging are live in 0.1.23. Dedicated turn-specific scheduling remains later runtime work.
+Automatic and manual save checks, progression, instant stage mechanics, world-time due-event discovery, historical catch-up, maximum-active-duration enforcement, non-GM Actor-sheet concealment, and lethal-stage audit logging are live in 0.1.24. Dedicated turn-specific scheduling remains later runtime work.
 
 
 ## Pending-check runtime shape

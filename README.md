@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.23**
+Current development build: **0.1.24**
 
-Version **0.1.23** hardens runtime identification and visibility. Hidden controllers and unidentified stage-effect rows are removed from non-GM Actor-sheet presentation, suspected afflictions use generic player-facing identity, identified afflictions restore their authored names and descriptions, and lethal stage execution records an explicit cause-of-death/audit event on the controller. Player-manual saving throws continue to use the synchronized ChatMessage/direct PF2e dialog workflow introduced in 0.1.22.
+Version **0.1.24** gives `maximumDuration` explicit active-duration semantics. The maximum clock begins only when the first effective stage becomes active; onset/incubation time is excluded. The runtime persists this anchor as `activeStartedAt` and preserves it across all later stage transitions.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -16,7 +16,7 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - initial exposure checks and per-stage checks
 - multiple-save resolution through `single`, `best-degree`, `worst-degree`, `all-success`, and `any-success`
 - degree-of-success directives for reject, recover, stay, stage delta, and explicit stage selection
-- onset, maximum duration metadata, stage duration, and narrative stage descriptions
+- onset, maximum active duration (excluding onset), stage duration, and narrative stage descriptions
 - optional Critical Forge `EffectDefinition` per stage
 - persistent inert PF2e `effect` Items for Affliction Templates
 - active controller Items with definition snapshots, instance IDs, stage state, pending checks, last-check history, bounded runtime events, and lethal-stage mortality audit data
@@ -39,7 +39,7 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - GM-authoritative world-time scheduler using `game.time.worldTime` / `updateWorldTime`
 - automatic onset completion and due stage-save processing
 - configurable catch-up (`all` or `next`) with a safety limit
-- maximum-duration enforcement
+- maximum-active-duration enforcement anchored to the first effective stage
 
 ## Dependency
 
@@ -74,7 +74,7 @@ A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See
 
 ## Runtime boundary
 
-0.1.23 includes the hardened world-time scheduler, runtime clock anchoring, player-save routing, and identification visibility layer. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
+0.1.24 includes the hardened world-time scheduler, active-duration anchoring, player-save routing, and identification visibility layer. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
 
 Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
 

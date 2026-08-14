@@ -75,14 +75,52 @@ export function collectAfflictionControllers() {
   return controllers;
 }
 
+function finiteWorldTime(value) {
+  if (value == null || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+export function controllerActiveStartedAt(controller) {
+  const flags = getAfflictionFlags(controller);
+  if (!flags?.definitionSnapshot || !flags?.state) return null;
+  const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
+  const state = flags.state;
+
+  const explicit = finiteWorldTime(state.activeStartedAt);
+  if (explicit != null) return explicit;
+
+  // Migration path for controllers created before 0.1.24. Runtime events are
+  // the strongest evidence because stageEnteredAt only describes the current
+  // stage and would incorrectly restart the overall active-duration clock.
+  const enteredEvents = (Array.isArray(state.events) ? state.events : [])
+    .filter((event) => event?.type === "stage-entered" && Number(event?.stageNumber) > 0)
+    .map((event) => finiteWorldTime(event?.at))
+    .filter((value) => value != null);
+  if (enteredEvents.length > 0) return Math.min(...enteredEvents);
+
+  if (state.status !== "active" || Number(state.currentStage) <= 0) return null;
+
+  // Old immediate-stage controllers started being active at application time.
+  if (!definition.initialCheck && !definition.onset) {
+    const appliedAt = finiteWorldTime(state.appliedAt);
+    if (appliedAt != null) return appliedAt;
+  }
+
+  // Last-resort migration fallback. This deliberately errs late rather than
+  // ending a legacy affliction too early when its original active start cannot
+  // be reconstructed with confidence.
+  return finiteWorldTime(state.stageEnteredAt);
+}
+
 export function controllerMaximumDurationAt(controller) {
   const flags = getAfflictionFlags(controller);
   if (!flags?.definitionSnapshot || !flags?.state) return null;
   const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
   const seconds = durationToWorldSeconds(definition.maximumDuration);
-  const appliedAt = Number(flags.state.appliedAt);
-  if (seconds == null || !Number.isFinite(appliedAt)) return null;
-  return appliedAt + seconds;
+  const activeStartedAt = controllerActiveStartedAt(controller);
+  if (seconds == null || activeStartedAt == null) return null;
+  return activeStartedAt + seconds;
 }
 
 function blockingPendingCheck(state) {

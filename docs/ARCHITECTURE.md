@@ -1,4 +1,4 @@
-# Architecture 0.1.23
+# Architecture 0.1.24
 
 ```text
 Affliction Template / Definition
@@ -230,6 +230,6 @@ existing save policy / progression / stage transition logic
 
 The scheduler scans world Actors plus synthetic token Actors from loaded Scenes. Only Foundry's designated `game.users.activeGM` commits automatic transitions, preventing multiple connected GM clients from processing the same due event independently. Outstanding player/GM manual requests block re-issuance until they are resolved or manually retried.
 
-World settings control automatic scheduling, catch-up mode (`all` or `next`), and a catch-up safety limit. `maximumDuration` is enforced as a runtime deadline. Backwards world-time updates do not replay past events.
+World settings control automatic scheduling, catch-up mode (`all` or `next`), and a catch-up safety limit. `maximumDuration` is enforced as a runtime deadline anchored to `state.activeStartedAt`, the instant the first effective stage becomes active. Onset/incubation is excluded and later stage transitions never reset the deadline. Backwards world-time updates do not replay past events.
 
 Foundry's configured combat round time advances world time during combat, so round-based stage durations participate in the same clock. Dedicated turn-specific/event scheduling can be added later without changing the engine contract.

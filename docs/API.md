@@ -242,7 +242,7 @@ World settings:
 - catch-up mode `all` or `next`
 - catch-up safety limit, default 25 transitions per controller per pass
 
-`all` walks historical due timestamps until the controller catches up, becomes pending on a manual/player save, ends, or hits the safety limit. `next` consumes exactly one due event per scheduler pass. `maximumDuration` is enforced automatically.
+`all` walks historical due timestamps until the controller catches up, becomes pending on a manual/player save, ends, or hits the safety limit. `next` consumes exactly one due event per scheduler pass. `maximumDuration` is enforced automatically from the first active-stage timestamp (`activeStartedAt`); onset/incubation time is excluded.
 
 ## Runtime UI
 

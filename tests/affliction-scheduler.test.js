@@ -164,6 +164,54 @@ test("maximum duration ends an affliction before a later stage check", async () 
   assert.equal(result.processed[0].status, "maximum-duration");
 });
 
+test("maximum duration starts when the first active stage begins, not during onset", () => {
+  const def = definition({
+    onset: { value: 10, unit: "minutes" },
+    maximumDuration: { value: 5, unit: "minutes" }
+  });
+  const controller = makeController(def, {
+    status: "incubating",
+    currentStage: 0,
+    appliedAt: 100,
+    onsetStartedAt: 100,
+    activeStartedAt: null,
+    stageEnteredAt: null,
+    nextCheckAt: 700
+  });
+  assert.equal(controllerMaximumDurationAt(controller), null);
+
+  Object.assign(controller.flags[MODULE_ID].state, {
+    status: "active",
+    currentStage: 1,
+    onsetStartedAt: null,
+    activeStartedAt: 700,
+    stageEnteredAt: 700,
+    nextCheckAt: 706
+  });
+  assert.equal(controllerMaximumDurationAt(controller), 1000);
+});
+
+test("legacy controllers infer the active-duration anchor from the earliest stage-entered event", () => {
+  const def = definition({
+    onset: { value: 10, unit: "minutes" },
+    maximumDuration: { value: 5, unit: "minutes" }
+  });
+  const controller = makeController(def, {
+    status: "active",
+    currentStage: 2,
+    appliedAt: 100,
+    stageEnteredAt: 850,
+    nextCheckAt: 856,
+    activeStartedAt: undefined,
+    events: [
+      { type: "onset-started", at: 100 },
+      { type: "stage-entered", at: 700, stageNumber: 1 },
+      { type: "stage-entered", at: 850, stageNumber: 2 }
+    ]
+  });
+  assert.equal(controllerMaximumDurationAt(controller), 1000);
+});
+
 test("catch-up safety limit stops runaway historical processing", async () => {
   const controller = makeController(definition());
   const parts = runtime(controller, { step: 1 });

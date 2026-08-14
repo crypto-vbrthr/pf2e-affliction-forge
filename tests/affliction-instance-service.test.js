@@ -231,6 +231,7 @@ test("applying a definition creates one controller plus a tagged stage effect", 
   assert.equal(controllerFlags.sourceDefinitionVersion, 4);
   assert.equal(controllerFlags.state.currentStage, 1);
   assert.equal(controllerFlags.state.stageEnteredAt, 1000);
+  assert.equal(controllerFlags.state.activeStartedAt, 1000);
   assert.equal(controllerFlags.state.nextCheckAt, 1006);
   assert.equal(controllerFlags.state.activeStageEffectUuids.length, 1);
 
@@ -239,6 +240,31 @@ test("applying a definition creates one controller plus a tagged stage effect", 
   assert.equal(stageFlags.instanceId, controllerFlags.instanceId);
   assert.equal(stageFlags.stageId, "stage-1");
   assert.match(stageEffect.flags["pf2e-critical-forge"].definitionId, /^rot\.stage1\.affliction-instance\./);
+});
+
+test("onset time does not start the maximum-active-duration clock before the first stage", async () => {
+  const actor = new FakeActor("heroOnsetActiveClock", "Onset Active Clock Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Arsen-ähnliches Gift",
+    initialCheck: null,
+    onset: { value: 10, unit: "minutes" },
+    maximumDuration: { value: 5, unit: "minutes" },
+    stages: [{ ...createDefaultStage({ number: 1 }), effect: effect("arsenic.stage1", "Arsen · Phase 1") }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor, { appliedAt: 1000 });
+  let state = getAfflictionFlags(controller).state;
+  assert.equal(state.status, "incubating");
+  assert.equal(state.activeStartedAt, null);
+  assert.equal(state.onsetStartedAt, 1000);
+
+  await service.completeOnset(controller, { enteredAt: 1600 });
+  state = getAfflictionFlags(controller).state;
+  assert.equal(state.status, "active");
+  assert.equal(state.currentStage, 1);
+  assert.equal(state.stageEnteredAt, 1600);
+  assert.equal(state.activeStartedAt, 1600);
 });
 
 test("manual stage transitions replace only this instance stage effects and update revision", async () => {
@@ -252,6 +278,7 @@ test("manual stage transitions replace only this instance stage effects and upda
   assert.equal(flags.state.currentStage, 2);
   assert.equal(flags.state.revision, 2);
   assert.equal(flags.state.stageEnteredAt, 2000);
+  assert.equal(flags.state.activeStartedAt, 1000);
   assert.equal(registry.has(firstEffectUuid), false);
   const stageEffect = actor.items.find(isAfflictionStageEffect);
   assert.equal(getAfflictionFlags(stageEffect).stageId, "stage-2");
@@ -261,6 +288,7 @@ test("manual stage transitions replace only this instance stage effects and upda
   assert.equal(getAfflictionFlags(controller).state.revision, 3);
   assert.equal(registry.has(beforeReapply), false);
   assert.equal(getAfflictionFlags(controller).state.stageEnteredAt, 3000);
+  assert.equal(getAfflictionFlags(controller).state.activeStartedAt, 1000);
 });
 
 test("multiple instances of the same definition remain isolated", async () => {

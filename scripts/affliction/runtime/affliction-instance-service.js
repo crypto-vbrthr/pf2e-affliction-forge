@@ -52,6 +52,7 @@ function dueAt(duration, enteredAt) {
 }
 
 function finiteTime(value) {
+  if (value == null || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -580,6 +581,10 @@ function buildTransitionState(previous, definition, stageNumber, enteredAt, effe
   next.status = stageNumber > 0 ? "active" : (definition.onset ? "incubating" : "pending");
   next.currentStage = stageNumber;
   next.stageEnteredAt = stageNumber > 0 ? enteredAt : null;
+  // Maximum active duration begins once, when the first effective stage becomes active.
+  // Later stage changes and same-stage renewals must never reset this clock.
+  if (stageNumber > 0) next.activeStartedAt = finiteTime(previous.activeStartedAt) ?? enteredAt;
+  else next.activeStartedAt = finiteTime(previous.activeStartedAt);
   next.onsetStartedAt = stageNumber > 0 ? null : next.onsetStartedAt ?? null;
   const duration = stageNumber > 0
     ? stageDescriptor(definition, stageNumber)?.duration
@@ -714,6 +719,7 @@ export class AfflictionInstanceService {
           appliedAt,
           currentStage: initialStage,
           stageEnteredAt: initialStage > 0 ? appliedAt : null,
+          activeStartedAt: initialStage > 0 ? appliedAt : null,
           onsetStartedAt: hasOnset && !hasInitialCheck ? appliedAt : null,
           status: initialStatus,
           onsetTargetStage: hasOnset && !hasInitialCheck ? 1 : null,
@@ -813,6 +819,7 @@ export class AfflictionInstanceService {
     state.status = "incubating";
     state.currentStage = 0;
     state.stageEnteredAt = null;
+    state.activeStartedAt = null;
     state.onsetStartedAt = startedAt;
     state.nextCheckAt = dueAt(definition.onset, startedAt);
     state.activeStageEffectUuids = [];
