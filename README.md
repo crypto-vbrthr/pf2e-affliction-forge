@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current development build: **0.1.28**
+Current development build: **0.1.29**
 
-Version **0.1.28** adds an Active Afflictions registry to the main Forge. Active controller instances are grouped by Actor and can be opened explicitly in the existing manager without interrupting normal application/runtime flow. The manager remains a GM diagnostic and intervention tool rather than a mandatory step after application.
+Version **0.1.29** hardens the explicit active-affliction manager window. It opens at a taller default size, keeps the ApplicationV2 content chain bounded, and provides a reliable outer scrollbar so stage data, save controls, identification, mortality, runtime history, source information, and end controls remain reachable at any window size.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -80,7 +80,7 @@ A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See
 
 ## Runtime boundary
 
-0.1.28 includes the hardened world-time scheduler, active-duration anchoring, player-save routing, identification visibility layer, public library/provider discovery, and an explicit Active Afflictions runtime registry. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
+0.1.29 includes the hardened world-time scheduler, active-duration anchoring, player-save routing, identification visibility layer, public library/provider discovery, an explicit Active Afflictions runtime registry, and a taller scroll-safe controller manager. Foundry's canonical `game.time.worldTime` is the clock; the designated active GM is the only client that commits automatic progression. The scheduler discovers due controllers and delegates every save/progression decision to `api.engine.process()`.
 
 Round-based stage durations also use Foundry world-time seconds. Foundry's configured combat round time therefore feeds the same scheduler when combat advances world time. Dedicated turn-specific scheduling remains outside this block.
 

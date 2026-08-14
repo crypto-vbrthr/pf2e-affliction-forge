@@ -1692,3 +1692,36 @@
     justify-self: stretch;
   }
 }
+
+
+/* 0.1.29: controller manager viewport and scrolling hardening. */
+.affliction-controller-app .window-content {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.affliction-controller-app .affliction-controller-shell {
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.affliction-controller-app .affliction-controller-shell::-webkit-scrollbar {
+  width: 10px;
+}
+
+.affliction-controller-app .affliction-controller-shell::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-border-highlight, #a98b52) 55%, transparent);
+  border-radius: 999px;
+}
+
+.affliction-controller-app .affliction-controller-footer {
+  padding-bottom: 0.25rem;
+}

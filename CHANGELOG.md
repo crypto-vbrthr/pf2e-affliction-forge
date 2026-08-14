@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.29
+
+### Controller Manager Viewport & Scroll Hardening
+
+- increases the default `Leiden verwalten` window from 520×520 to 560×700 while keeping it resizable
+- makes the full controller manager body the primary vertical scroll viewport so every runtime section remains reachable
+- adds ApplicationV2 height-chain hardening for `.window-content` and the controller shell
+- adds a runtime `ResizeObserver` fallback so scroll sizing is recalculated when the manager is resized or a Foundry theme/wrapper reports different content dimensions
+- keeps the event log's own bounded history viewport while ensuring the manager footer and `Leiden beenden` action can always be reached through the outer scrollbar
+- disconnects the manager layout observer cleanly on close
+- adds regression coverage for default size, scrollbar CSS, and runtime layout guarding
+
 ## 0.1.28
 
 ### Active Afflictions Registry & Manager Entry Points

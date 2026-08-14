@@ -66,6 +66,7 @@ const apps = new Map();
 
 export class AfflictionControllerApp extends HandlebarsApplicationMixin(ApplicationV2) {
   controllerUuid;
+  resizeObserver = null;
 
   static DEFAULT_OPTIONS = {
     id: "pf2e-affliction-controller",
@@ -76,8 +77,8 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
       resizable: true
     },
     position: {
-      width: 520,
-      height: 520
+      width: 560,
+      height: 700
     },
     actions: {
       previousStage: AfflictionControllerApp.#previousStage,
@@ -166,8 +167,61 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
     };
   }
 
+  _onRender(context, options) {
+    super._onRender(context, options);
+    this.#installLayoutGuard();
+  }
+
+  #installLayoutGuard() {
+    this.resizeObserver?.disconnect?.();
+    this.resizeObserver = null;
+    this.#enforceLayout();
+
+    if (typeof ResizeObserver !== "function" || !(this.element instanceof HTMLElement)) return;
+    this.resizeObserver = new ResizeObserver(() => this.#enforceLayout());
+    this.resizeObserver.observe(this.element);
+  }
+
+  #enforceLayout() {
+    if (!(this.element instanceof HTMLElement)) return;
+
+    const shell = this.element.querySelector(".affliction-controller-shell");
+    if (!(shell instanceof HTMLElement)) return;
+
+    const content = this.element.querySelector(".window-content");
+    const ownRect = this.element.getBoundingClientRect?.();
+    const contentRect = content?.getBoundingClientRect?.();
+    const requestedHeight = Number(this.position?.height ?? 0);
+    const availableHeight = Math.max(
+      360,
+      contentRect?.height || 0,
+      (ownRect?.height || 0) - 40,
+      requestedHeight > 0 ? requestedHeight - 40 : 0
+    );
+
+    if (content instanceof HTMLElement) {
+      Object.assign(content.style, {
+        minHeight: "0",
+        overflow: "hidden"
+      });
+    }
+
+    Object.assign(shell.style, {
+      boxSizing: "border-box",
+      height: `${availableHeight}px`,
+      maxHeight: "100%",
+      minHeight: "0",
+      overflowX: "hidden",
+      overflowY: "auto",
+      overscrollBehavior: "contain",
+      scrollbarGutter: "stable"
+    });
+  }
+
   async close(options = {}) {
     apps.delete(this.controllerUuid);
+    this.resizeObserver?.disconnect?.();
+    this.resizeObserver = null;
     return super.close(options);
   }
 

@@ -144,3 +144,17 @@ test("active registry is refreshed from controller create update and delete hook
   assert.match(integration, /Hooks\.on\("updateItem", handleActiveAfflictionChanged\)/);
   assert.match(integration, /Hooks\.on\("deleteItem", handleActiveAfflictionChanged\)/);
 });
+
+
+test("controller manager uses a taller resizable viewport with a guarded outer scrollbar", () => {
+  const css = readFileSync(join(root, "styles/affliction-forge.css"), "utf8");
+  assert.match(manager, /width:\s*560/);
+  assert.match(manager, /height:\s*700/);
+  assert.match(manager, /ResizeObserver/);
+  assert.match(manager, /#enforceLayout/);
+  assert.match(manager, /overflowY:\s*"auto"/);
+  assert.match(manager, /scrollbarGutter:\s*"stable"/);
+  assert.match(css, /\.affliction-controller-app \.window-content/);
+  assert.match(css, /\.affliction-controller-app \.affliction-controller-shell/);
+  assert.match(css, /overflow-y:\s*auto/);
+})
