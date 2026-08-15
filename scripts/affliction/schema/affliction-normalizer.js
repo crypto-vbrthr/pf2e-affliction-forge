@@ -99,12 +99,15 @@ export function normalizeRestrictions(value, fallback = createDefaultRestriction
     ? (source.conditionLocks ?? base.conditionLocks).map(normalizeConditionLock).filter(Boolean)
     : [];
   const healing = cleanString(source.healing, base.healing ?? "none");
+  const unhealableDamageTypes = uniqueStrings(source.unhealableDamageTypes ?? base.unhealableDamageTypes)
+    .map((entry) => entry.toLowerCase());
   const blockedCapabilities = uniqueStrings(source.blockedCapabilities ?? base.blockedCapabilities)
     .map((entry) => entry.toLowerCase())
     .filter((entry) => AFFLICTION_CAPABILITIES.includes(entry));
   return {
     conditionLocks,
     healing: HEALING_RESTRICTION_MODES.includes(healing) ? healing : "none",
+    unhealableDamageTypes,
     blockedCapabilities
   };
 }
@@ -159,8 +162,22 @@ function normalizeCheck(check, index) {
   };
 }
 
+function normalizeEffectComponentPersistence(value, componentCount = 0) {
+  const source = Array.isArray(value) ? value : [];
+  return Array.from({ length: Math.max(0, componentCount) }, (_, index) => {
+    const mode = source[index];
+    return mode == null || mode === "" ? null : (STAGE_EFFECT_PERSISTENCE_MODES.includes(mode) ? mode : null);
+  });
+}
+
+export function resolveStageComponentPersistence(stage, componentIndex) {
+  const override = stage?.effectComponentPersistence?.[componentIndex];
+  return STAGE_EFFECT_PERSISTENCE_MODES.includes(override) ? override : (stage?.effectPersistence ?? "stage");
+}
+
 function normalizeStage(stage, index) {
   const fallback = createDefaultStage({ number: index + 1 });
+  const componentCount = Array.isArray(stage?.effect?.components) ? stage.effect.components.length : 0;
   return {
     id: cleanString(stage?.id, fallback.id),
     number: index + 1,
@@ -172,6 +189,7 @@ function normalizeStage(stage, index) {
     effectPersistence: STAGE_EFFECT_PERSISTENCE_MODES.includes(stage?.effectPersistence)
       ? stage.effectPersistence
       : fallback.effectPersistence,
+    effectComponentPersistence: normalizeEffectComponentPersistence(stage?.effectComponentPersistence, componentCount),
     effect: stage?.effect == null ? null : deepClone(stage.effect),
     reactions: Array.isArray(stage?.reactions) ? stage.reactions.map(normalizeEventReaction) : []
   };
@@ -235,6 +253,7 @@ export function mergeRestrictions(...values) {
   const normalized = values.filter(Boolean).map((value) => normalizeRestrictions(value));
   const conditionBySlug = new Map();
   const blockedCapabilities = new Set();
+  const unhealableDamageTypes = new Set();
   let healing = "none";
   const healingRank = { none: 0, "affliction-damage": 1, all: 2 };
 
@@ -248,12 +267,14 @@ export function mergeRestrictions(...values) {
       });
     }
     if ((healingRank[restrictions.healing] ?? 0) > (healingRank[healing] ?? 0)) healing = restrictions.healing;
+    for (const damageType of restrictions.unhealableDamageTypes ?? []) unhealableDamageTypes.add(damageType);
     for (const capability of restrictions.blockedCapabilities) blockedCapabilities.add(capability);
   }
 
   return {
     conditionLocks: [...conditionBySlug.values()],
     healing,
+    unhealableDamageTypes: [...unhealableDamageTypes],
     blockedCapabilities: [...blockedCapabilities]
   };
 }

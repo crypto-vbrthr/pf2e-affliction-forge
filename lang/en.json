@@ -428,5 +428,10 @@
   "PF2E_AFFLICTION_FORGE.Reaction.EventReaction": "Reaction",
   "PF2E_AFFLICTION_FORGE.Reaction.Event.DamageTaken": "Damage taken",
   "PF2E_AFFLICTION_FORGE.Reaction.EffectApplied": "Reaction effect applied.",
-  "PF2E_AFFLICTION_FORGE.Reaction.NoEffect": "No reaction effect applies to this result."
+  "PF2E_AFFLICTION_FORGE.Reaction.NoEffect": "No reaction effect applies to this result.",
+  "PF2E_AFFLICTION_FORGE.Restrictions.UnhealableDamageTypes": "Unhealable damage types",
+  "PF2E_AFFLICTION_FORGE.Restrictions.UnhealableDamageTypesHint": "HP damage of these damage types cannot be healed while the restriction is active. Mixed damage is not guessed when PF2e does not expose an exact post-IWR type breakdown.",
+  "PF2E_AFFLICTION_FORGE.Restrictions.TypedDamageHealingBlocked": "{value} HP of protected damage ({types}) cannot currently be healed.",
+  "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceInherit": "Inherit stage default",
+  "PF2E_AFFLICTION_FORGE.Restrictions.ComponentPersistenceHint": "Each persistent effect component may optionally use its own lifetime. “Inherit stage default” uses the stage persistence setting."
 }

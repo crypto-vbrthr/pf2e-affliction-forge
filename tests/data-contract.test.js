@@ -268,6 +268,7 @@ test("restrictions and stage-effect persistence are additive schema-v2 capabilit
     restrictions: {
       conditionLocks: [{ slug: "sickened", minimum: 1 }],
       healing: "affliction-damage",
+      unhealableDamageTypes: ["cold"],
       blockedCapabilities: ["speak"]
     },
     stages: [{
@@ -275,15 +276,17 @@ test("restrictions and stage-effect persistence are additive schema-v2 capabilit
       restrictions: {
         conditionLocks: [{ slug: "sickened", minimum: 2 }],
         healing: "all",
+        unhealableDamageTypes: ["fire"],
         blockedCapabilities: []
       },
-      effectPersistence: "permanent",
+      effectPersistence: "stage",
+      effectComponentPersistence: ["permanent"],
       effect: {
         schemaVersion: 2,
         id: "persistent.blind",
         name: "Persistent Blind",
         duration: { value: -1, unit: "unlimited", expiry: null },
-        components: [],
+        components: [{ type: "condition", slug: "blinded" }],
         application: {},
         metadata: {}
       }
@@ -291,9 +294,12 @@ test("restrictions and stage-effect persistence are additive schema-v2 capabilit
   });
   assert.equal(definition.schemaVersion, 2);
   assert.equal(definition.restrictions.healing, "affliction-damage");
+  assert.deepEqual(definition.restrictions.unhealableDamageTypes, ["cold"]);
   assert.deepEqual(definition.restrictions.blockedCapabilities, ["speak"]);
   assert.equal(definition.stages[0].restrictions.healing, "all");
-  assert.equal(definition.stages[0].effectPersistence, "permanent");
+  assert.deepEqual(definition.stages[0].restrictions.unhealableDamageTypes, ["fire"]);
+  assert.equal(definition.stages[0].effectPersistence, "stage");
+  assert.deepEqual(definition.stages[0].effectComponentPersistence, ["permanent"]);
   assert.equal(validateAfflictionDefinition(definition, { effectValidator: () => ({ valid: true, issues: [] }) }).valid, true);
 });
 
@@ -301,12 +307,16 @@ test("restriction validator rejects unsupported healing, capabilities, and persi
   const definition = validDefinition();
   definition.restrictions.healing = "only-on-tuesdays";
   definition.restrictions.blockedCapabilities = ["teleport"];
+  definition.restrictions.unhealableDamageTypes = [""];
   definition.stages[0].effectPersistence = "forever-ish";
+  definition.stages[0].effectComponentPersistence = ["eternal"];
   const report = validateAfflictionDefinition(definition);
   assert.equal(report.valid, false);
   assert.ok(report.errors.some((issue) => issue.code === "restrictions.healing"));
   assert.ok(report.errors.some((issue) => issue.code === "restrictions.capability"));
+  assert.ok(report.errors.some((issue) => issue.code === "restrictions.damage-type"));
   assert.ok(report.errors.some((issue) => issue.code === "stage.effect-persistence"));
+  assert.ok(report.errors.some((issue) => issue.code === "stage.component-persistence-mode"));
 });
 
 test("stage event reactions normalize and validate as additive schema-v2 mechanics", () => {

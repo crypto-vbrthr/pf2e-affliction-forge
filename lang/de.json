@@ -428,5 +428,10 @@
   "PF2E_AFFLICTION_FORGE.Reaction.EventReaction": "Reaktion",
   "PF2E_AFFLICTION_FORGE.Reaction.Event.DamageTaken": "Schaden erlitten",
   "PF2E_AFFLICTION_FORGE.Reaction.EffectApplied": "Reaktionseffekt angewendet.",
-  "PF2E_AFFLICTION_FORGE.Reaction.NoEffect": "Bei diesem Ergebnis wird kein Reaktionseffekt angewendet."
+  "PF2E_AFFLICTION_FORGE.Reaction.NoEffect": "Bei diesem Ergebnis wird kein Reaktionseffekt angewendet.",
+  "PF2E_AFFLICTION_FORGE.Restrictions.UnhealableDamageTypes": "Nicht heilbare Schadensarten",
+  "PF2E_AFFLICTION_FORGE.Restrictions.UnhealableDamageTypesHint": "TP-Schaden dieser Schadensarten kann nicht geheilt werden, solange die Einschränkung aktiv ist. Bei gemischtem Schaden ohne eindeutige PF2e-Aufschlüsselung wird nicht geraten.",
+  "PF2E_AFFLICTION_FORGE.Restrictions.TypedDamageHealingBlocked": "{value} TP geschützter Schaden ({types}) können derzeit nicht geheilt werden.",
+  "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceInherit": "Phasenstandard übernehmen",
+  "PF2E_AFFLICTION_FORGE.Restrictions.ComponentPersistenceHint": "Optional kann jede persistente Effektkomponente eine eigene Lebensdauer erhalten. „Phasenstandard übernehmen“ verwendet die Persistenz der Phase."
 }

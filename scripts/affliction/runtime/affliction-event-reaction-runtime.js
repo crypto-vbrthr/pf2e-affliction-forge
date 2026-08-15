@@ -77,11 +77,13 @@ function positiveDamageApplied(message) {
 }
 
 function damageTypeCandidates(value, output = new Set()) {
-  if (!value || typeof value !== "object") return output;
-  for (const [key, nested] of Object.entries(value)) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return output;
+  // PF2e DamageRollFlag.types is keyed by damage type. The nested keys are
+  // categories/buckets (for example `energy` or `normal`), not additional
+  // damage types, so only the top-level keys are part of the event contract.
+  for (const key of Object.keys(value)) {
     const normalized = String(key).trim().toLowerCase();
     if (normalized) output.add(normalized);
-    if (nested && typeof nested === "object") damageTypeCandidates(nested, output);
   }
   return output;
 }

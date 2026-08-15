@@ -15,7 +15,7 @@ import {
   isAfflictionStageEffect,
   isAfflictionTemplate
 } from "../documents/affliction-flags.js";
-import { normalizeAfflictionDefinition, resolveAfflictionRestrictions } from "../schema/affliction-normalizer.js";
+import { normalizeAfflictionDefinition, resolveAfflictionRestrictions, resolveStageComponentPersistence } from "../schema/affliction-normalizer.js";
 import { assertValidAfflictionDefinition } from "../schema/affliction-validator.js";
 import { deepClone, randomId } from "../schema/utils.js";
 import {
@@ -392,7 +392,7 @@ function stageDescriptor(definition, stageNumber) {
   return definition.stages?.[stageNumber - 1] ?? null;
 }
 
-function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemplateUuid, identifiedPresentation = null }) {
+function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemplateUuid, identifiedPresentation = null, effectPersistence = null, componentIndices = [] }) {
   return {
     managed: true,
     documentKind: DOCUMENT_KINDS.STAGE_EFFECT,
@@ -404,7 +404,8 @@ function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemp
     sourceTemplateUuid: sourceTemplateUuid ?? null,
     stageId: stage.id,
     stageNumber: stage.number,
-    effectPersistence: stage.effectPersistence ?? "stage",
+    effectPersistence: effectPersistence ?? stage.effectPersistence ?? "stage",
+    componentIndices: Array.isArray(componentIndices) ? [...componentIndices] : [],
     identifiedPresentation: identifiedPresentation ? deepClone(identifiedPresentation) : null
   };
 }
@@ -451,44 +452,64 @@ async function buildStageEffectSources({ actor, controller, definition, state, s
     throw new Error("Critical Forge Effect source API is unavailable.");
   }
 
-  const sources = await criticalApi.effects.toItemSources(runtimeEffect, {
-    actor,
-    target: actor,
-    source: controller
-  });
-  const list = Array.isArray(sources) ? sources : [sources];
+  const components = Array.isArray(runtimeEffect.components) ? runtimeEffect.components : [];
+  const grouped = new Map();
+  for (const [index, component] of components.entries()) {
+    const persistence = resolveStageComponentPersistence(stage, index);
+    const entry = grouped.get(persistence) ?? { persistence, indices: [], components: [] };
+    entry.indices.push(index);
+    entry.components.push(component);
+    grouped.set(persistence, entry);
+  }
+
   const sourceTemplateUuid = getAfflictionFlags(controller)?.sourceTemplateUuid ?? null;
   const presentation = runtimePresentation(definition, state);
   const unidentified = presentation.identification !== "identified";
+  const output = [];
 
-  return list.filter(Boolean).map((source) => {
-    const result = deepClone(source);
-    const identifiedPresentation = {
-      name: stage.effect?.name ?? result.name ?? stage.name ?? `${definition.name} · ${stage.number}`,
-      img: stage.effect?.img ?? result.img ?? definition.img,
-      description: stage.effect?.description ?? result.system?.description?.value ?? ""
-    };
-    result.flags ??= {};
-    result.flags[MODULE_ID] = stageEffectFlags({
-      definition,
-      state,
-      stage,
-      controllerUuid: controller.uuid,
-      sourceTemplateUuid,
-      identifiedPresentation
+  for (const group of grouped.values()) {
+    const groupedEffect = deepClone(runtimeEffect);
+    groupedEffect.components = deepClone(group.components);
+    if (grouped.size > 1) groupedEffect.id = `${runtimeEffect.id}.p-${group.persistence}`;
+    const sources = await criticalApi.effects.toItemSources(groupedEffect, {
+      actor,
+      target: actor,
+      source: controller
     });
-    result.system ??= {};
-    result.system.unidentified = unidentified;
-    result.system.tokenIcon ??= {};
-    result.system.tokenIcon.show = presentation.showStageTokenIcon;
-    if (unidentified) {
-      result.name = presentation.stageEffectName;
-      result.img = presentation.stageEffectImg;
-      result.system.description ??= { value: "", gm: "" };
-      result.system.description.value = "";
+    const list = Array.isArray(sources) ? sources : [sources];
+    for (const source of list.filter(Boolean)) {
+      const result = deepClone(source);
+      const identifiedPresentation = {
+        name: stage.effect?.name ?? result.name ?? stage.name ?? `${definition.name} · ${stage.number}`,
+        img: stage.effect?.img ?? result.img ?? definition.img,
+        description: stage.effect?.description ?? result.system?.description?.value ?? ""
+      };
+      result.flags ??= {};
+      result.flags[MODULE_ID] = stageEffectFlags({
+        definition,
+        state,
+        stage,
+        controllerUuid: controller.uuid,
+        sourceTemplateUuid,
+        identifiedPresentation,
+        effectPersistence: group.persistence,
+        componentIndices: group.indices
+      });
+      result.system ??= {};
+      result.system.unidentified = unidentified;
+      result.system.tokenIcon ??= {};
+      result.system.tokenIcon.show = presentation.showStageTokenIcon;
+      if (unidentified) {
+        result.name = presentation.stageEffectName;
+        result.img = presentation.stageEffectImg;
+        result.system.description ??= { value: "", gm: "" };
+        result.system.description.value = "";
+      }
+      output.push(result);
     }
-    return result;
-  });
+  }
+
+  return output;
 }
 
 async function createStageEffects({ actor, controller, definition, state, stage }) {
@@ -662,12 +683,16 @@ function residualEffectItems(actor, instanceId) {
   });
 }
 
-async function preserveStageEffects(actor, state, persistence) {
-  if (!actor || !state?.instanceId || !["affliction", "permanent"].includes(persistence)) return [];
-  const items = stageEffectItems(actor, state.instanceId);
+async function preserveStageEffects(actor, state) {
+  if (!actor || !state?.instanceId) return [];
+  const items = stageEffectItems(actor, state.instanceId).filter((item) => {
+    const persistence = getAfflictionFlags(item)?.effectPersistence ?? "stage";
+    return ["affliction", "permanent"].includes(persistence);
+  });
   if (items.length === 0) return [];
   const updates = items.map((item) => {
     const flags = deepClone(getAfflictionFlags(item) ?? {});
+    const persistence = flags.effectPersistence ?? "stage";
     flags.documentKind = DOCUMENT_KINDS.RESIDUAL_EFFECT;
     flags.residualPersistence = persistence;
     flags.residualCreatedAt = nowWorldTime();
@@ -676,7 +701,7 @@ async function preserveStageEffects(actor, state, persistence) {
   });
   await actor.updateEmbeddedDocuments("Item", updates, {
     render: false,
-    [MODULE_ID]: { restrictionBypass: true, afflictionResidualize: persistence }
+    [MODULE_ID]: { restrictionBypass: true, afflictionResidualize: true }
   });
   return residualEffectItems(actor, state.instanceId);
 }
@@ -838,6 +863,9 @@ function buildTransitionState(previous, definition, stageNumber, enteredAt, effe
   const nextStage = stageNumber > 0 ? stageDescriptor(definition, stageNumber) : null;
   const nextRestrictions = resolveAfflictionRestrictions(definition, nextStage);
   if (nextRestrictions.healing !== "affliction-damage") next.unhealableDamage = 0;
+  const activeTypedLocks = new Set(nextRestrictions.unhealableDamageTypes ?? []);
+  next.unhealableDamageByType = Object.fromEntries(Object.entries(next.unhealableDamageByType ?? {})
+    .filter(([type, amount]) => activeTypedLocks.has(type) && Number(amount) > 0));
   next.pendingCheck = null;
   next.onsetTargetStage = null;
   next.revision = Number(previous.revision ?? 0) + 1;
@@ -1298,9 +1326,7 @@ export class AfflictionInstanceService {
     let preservedOld = [];
     try {
       await withAfflictionRestrictionBypass(actor, async () => {
-        if (oldStage && ["affliction", "permanent"].includes(oldStage.effectPersistence)) {
-          preservedOld = await preserveStageEffects(actor, previous, oldStage.effectPersistence);
-        }
+        if (oldStage) preservedOld = await preserveStageEffects(actor, previous);
         await removeStageEffects(actor, previous);
         if (preparedSources.length > 0) {
           created = await actor.createEmbeddedDocuments("Item", preparedSources, {

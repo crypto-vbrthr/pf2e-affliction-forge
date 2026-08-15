@@ -12,6 +12,7 @@ export function createDefaultRestrictions() {
   return {
     conditionLocks: [],
     healing: "none",
+    unhealableDamageTypes: [],
     blockedCapabilities: []
   };
 }
@@ -91,6 +92,7 @@ export function createDefaultStage({ number = 1 } = {}) {
     check: null,
     restrictions: createDefaultRestrictions(),
     effectPersistence: "stage",
+    effectComponentPersistence: [],
     effect: null,
     reactions: []
   };
@@ -175,10 +177,12 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
   restrictions: {
     scopes: ["affliction", "stage"],
     healingModes: ["none", "all", "affliction-damage"],
+    typedHealingLocks: "damage-type-slug-array",
     blockedCapabilities: ["speak"],
     conditionLocks: "slug-plus-optional-minimum"
   },
   stageEffectPersistence: ["stage", "affliction", "permanent"],
+  componentEffectPersistence: "per-component override; null inherits stage persistence",
   eventReactions: {
     events: ["damage-taken"],
     optionalDamageTypeFilter: true,

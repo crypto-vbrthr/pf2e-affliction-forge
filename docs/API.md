@@ -1,4 +1,4 @@
-# Public API 0.1.0 (module 0.1.50)
+# Public API 0.1.0 (module 0.1.51)
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -247,7 +247,7 @@ Stage 0 is reserved for initial exposure/onset runtime state. An already active 
 
 ### API compatibility version
 
-`api.version` is now independent from the module release number. Module `0.1.50` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
+`api.version` is now independent from the module release number. Module `0.1.51` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
 
 ### Pause / resume semantics
 
@@ -683,6 +683,20 @@ spell-cast / supported Item-use     -> on-use
 ```
 
 A matching application is routed through `api.application.applyItemReference(...)`; trigger evaluation never implements Affliction progression itself.
+
+
+## Restriction & component-persistence additions (0.1.51)
+
+The compatibility version remains `0.1.0`. These helpers expose additive schema-v2 capabilities:
+
+```js
+api.definitions.resolveComponentPersistence(stage, componentIndex)
+await api.restrictions.recordDamageMessage(chatMessage)
+```
+
+`resolveComponentPersistence()` returns the effective `stage | affliction | permanent` lifetime for one persistent stage-effect component. An explicit entry in `stage.effectComponentPersistence[index]` wins; `null` or a missing entry inherits `stage.effectPersistence`.
+
+`recordDamageMessage()` is the same authoritative-GM accounting path used by the built-in `createChatMessage` hook for `unhealableDamageTypes`. It returns a structured status (`recorded`, `ambiguous`, or `ignored`) and is primarily useful for diagnostics/integrations. Mixed-type PF2e damage is intentionally `ambiguous` because the runtime will not guess how the final HP delta should be divided between damage types after resistance/weakness processing.
 
 ## Event reaction API (0.1.50)
 

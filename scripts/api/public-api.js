@@ -35,6 +35,7 @@ import {
   normalizeAfflictionDefinition,
   normalizeRestrictions,
   resolveAfflictionRestrictions,
+  resolveStageComponentPersistence,
   resolveSavePolicy,
   resolveStageCheck
 } from "../affliction/schema/affliction-normalizer.js";
@@ -100,6 +101,7 @@ import {
   collectActorRestrictions,
   inspectControllerRestrictions,
   isAfflictionCapabilityBlocked,
+  recordTypedHealingLockDamage,
   restrictionRuntimeStatus
 } from "../affliction/runtime/affliction-restriction-runtime.js";
 import {
@@ -181,6 +183,7 @@ export function createPublicApi() {
       normalizeRestrictions: (restrictions) => normalizeRestrictions(restrictions),
       mergeRestrictions: (...restrictions) => mergeRestrictions(...restrictions),
       resolveRestrictions: (definition, stageOrNumber = null) => resolveAfflictionRestrictions(definition, stageOrNumber),
+      resolveComponentPersistence: (stage, componentIndex) => resolveStageComponentPersistence(stage, componentIndex),
       resolveStageCheck: (definition, stageOrNumber) => resolveStageCheck(definition, stageOrNumber),
       resolveSavePolicy: (definition, checkOrId) => resolveSavePolicy(definition, checkOrId)
     }),
@@ -360,6 +363,7 @@ export function createPublicApi() {
       forActor: (actor) => collectActorRestrictions(actor),
       forController: (controller) => inspectControllerRestrictions(controller),
       isCapabilityBlocked: (actor, capability) => isAfflictionCapabilityBlocked(actor, capability),
+      recordDamageMessage: (message) => recordTypedHealingLockDamage(message),
       status: () => restrictionRuntimeStatus()
     }),
 

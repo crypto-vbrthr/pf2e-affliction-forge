@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.50**
+Current release: **0.1.51**
 
-Version **0.1.50** adds stage-scoped event reactions. The first runtime event is PF2e `damage-taken`: an active stage can request an auxiliary save whenever the affected Actor takes positive damage, optionally limited to authored damage types such as slashing. The auxiliary save never progresses the affliction stage itself; selected degrees of success can execute a Critical Forge Effect Definition. Player-owned reaction saves reuse the established targeted save-request workflow and the authoritative GM remains the only client that commits the reaction. The public API remains compatibility version `0.1.0` and Affliction schema v2 remains unchanged.
+Version **0.1.51** extends the generic restriction and persistence contracts. Individual persistent components inside one stage can now override the stage lifetime with `stage | affliction | permanent`, while `null` inherits the stage default. Root- and stage-scoped restrictions can also declare damage types whose already-suffered HP damage cannot be healed until that restriction ends. Single-type PF2e damage applications are tracked automatically; mixed-type damage fails safe instead of guessing a post-resistance allocation. The public API remains compatibility version `0.1.0` and Affliction schema v2 remains unchanged.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -19,7 +19,7 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - native Ausgeprägt/Virulent progression with consecutive-success tracking and one-stage critical-success reduction
 - onset, maximum active duration (excluding onset), stage duration, and narrative stage descriptions
 - optional Critical Forge `EffectDefinition` per stage
-- root- and stage-scoped condition/healing/capability restrictions plus `stage | affliction | permanent` stage-effect persistence
+- root- and stage-scoped condition/healing/capability restrictions, damage-type healing locks, plus `stage | affliction | permanent` persistence at stage or individual persistent-component level
 - stage-scoped event reactions with auxiliary saves and Critical Forge effects; `damage-taken` is the first supported event and accepts optional PF2e damage-type filters
 - persistent inert PF2e `effect` Items for Affliction Templates
 - active controller Items with definition snapshots, instance IDs, stage state, pending checks, last-check history, bounded runtime events, and lethal-stage mortality audit data

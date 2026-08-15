@@ -28,7 +28,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
   assert.equal(api.version, "0.1.0");
-  assert.equal(api.moduleVersion, "0.1.50");
+  assert.equal(api.moduleVersion, "0.1.51");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -46,9 +46,11 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.definitions.createRestrictions, "function");
   assert.equal(typeof api.definitions.normalizeRestrictions, "function");
   assert.equal(typeof api.definitions.resolveRestrictions, "function");
+  assert.equal(typeof api.definitions.resolveComponentPersistence, "function");
   assert.equal(typeof api.restrictions.forActor, "function");
   assert.equal(typeof api.restrictions.forController, "function");
   assert.equal(typeof api.restrictions.isCapabilityBlocked, "function");
+  assert.equal(typeof api.restrictions.recordDamageMessage, "function");
   assert.equal(typeof api.reactions.inspectMessage, "function");
   assert.equal(typeof api.reactions.damageTypes, "function");
   assert.equal(typeof api.reactions.matches, "function");

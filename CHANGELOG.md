@@ -1,8 +1,22 @@
 # Changelog
 
+## 0.1.51
+
+### Component Persistence & Typed Healing Locks
+
+- adds `effectComponentPersistence` as an additive stage field; each persistent Critical Forge component can use `stage | affliction | permanent` or inherit the stage default with `null`
+- groups generated persistent stage output by effective component lifetime so only authored long-lived consequences survive stage changes or controller end
+- adds root- and stage-scoped `unhealableDamageTypes` restrictions and controller `unhealableDamageByType` accounting
+- automatically records final HP damage for unambiguous single-type PF2e `damage-taken` messages while the matching typed healing lock is active
+- refuses to guess the post-IWR allocation of mixed-type damage; emits `pf2eAfflictionForgeTypedHealingLockAmbiguous` instead of over-blocking later healing
+- adds embedded-editor authoring for typed healing locks and per-component persistence, plus controller-manager diagnostics for active typed locks and tracked protected damage
+- exposes `api.restrictions.recordDamageMessage()` and `api.definitions.resolveComponentPersistence()` without changing public API compatibility `0.1.0`, Affliction schema v2, or Controller schema v2
+- corrects PF2e damage-type inspection so nested damage-category buckets are not mistaken for additional damage types
+- expands regression coverage; full suite: 253/253 passing
+
 ## 0.1.50
 
-### Triggered Checks & Event Reactions
+### _Triggered Checks & Event Reactions_
 
 - adds stage-scoped `reactions` as an additive Affliction schema-v2 capability
 - adds the first supported reaction event, `damage-taken`, driven by PF2e synchronized damage-application ChatMessages

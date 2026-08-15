@@ -103,6 +103,9 @@
       <div><small>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.ConditionLocks"}}</small> <strong>{{restrictions.conditionLocks}}</strong></div>
     {{/if}}
     <div><small>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.Healing"}}</small> <strong>{{restrictions.healingLabel}}</strong>{{#if restrictions.unhealableDamage}} · {{restrictions.unhealableDamage}} TP{{/if}}</div>
+    {{#if restrictions.unhealableDamageTypes.length}}
+      <div><small>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.UnhealableDamageTypes"}}</small> <strong>{{restrictions.unhealableDamageTypes}}</strong>{{#if restrictions.unhealableDamageByType.length}} · {{restrictions.unhealableDamageByType}}{{/if}}</div>
+    {{/if}}
     {{#if restrictions.blocksSpeak}}
       <div><strong>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.CannotSpeak"}}</strong></div>
     {{/if}}

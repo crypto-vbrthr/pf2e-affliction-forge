@@ -1348,6 +1348,44 @@ test("affliction-persistent stage output survives stage transitions and is remov
   assert.equal(actor.items.some(isAfflictionResidualEffect), false);
 });
 
+test("component-specific persistence preserves only the selected stage component", async () => {
+  const actor = new FakeActor("heroComponentResidual", "Component Hero");
+  const service = createAfflictionInstanceService();
+  const mixedPersistent = effect("mixed.stage1", "Mixed persistence");
+  mixedPersistent.components = [
+    { type: "condition", slug: "enfeebled", value: 2 },
+    { type: "condition", slug: "blinded" }
+  ];
+  const source = createAfflictionDefinition({
+    name: "Selective Blinding Disease",
+    initialCheck: null,
+    stages: [
+      {
+        ...createDefaultStage({ number: 1 }),
+        effectPersistence: "stage",
+        effectComponentPersistence: [null, "permanent"],
+        effect: mixedPersistent
+      },
+      { ...createDefaultStage({ number: 2 }), effect: null }
+    ]
+  });
+  const [controller] = await service.applyDefinition(source, actor);
+  assert.equal(actor.items.filter(isAfflictionStageEffect).length, 2, "different persistence groups compile into separate managed Items");
+  const stageItems = actor.items.filter(isAfflictionStageEffect);
+  assert.deepEqual(stageItems.map((item) => getAfflictionFlags(item).effectPersistence).sort(), ["permanent", "stage"]);
+
+  await service.setStage(controller, 2, { notifyLifecycle: false });
+  const residuals = actor.items.filter(isAfflictionResidualEffect);
+  assert.equal(residuals.length, 1);
+  assert.equal(getAfflictionFlags(residuals[0]).residualPersistence, "permanent");
+  assert.deepEqual(getAfflictionFlags(residuals[0]).componentIndices, [1]);
+
+  await service.end(controller, { reason: "recovered", notifyLifecycle: false });
+  const detached = actor.items.find(isAfflictionResidualEffect);
+  assert.ok(detached);
+  assert.equal(getAfflictionFlags(detached).controllerUuid, null);
+});
+
 test("permanent stage output detaches and survives controller end", async () => {
   const actor = new FakeActor("heroPermanentResidual", "Permanent Hero");
   const service = createAfflictionInstanceService();

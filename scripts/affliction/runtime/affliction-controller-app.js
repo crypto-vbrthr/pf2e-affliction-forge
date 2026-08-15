@@ -197,6 +197,7 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
       restrictions: restrictionInfo ? {
         hasAny: (restrictionInfo.restrictions.conditionLocks?.length ?? 0) > 0
           || restrictionInfo.restrictions.healing !== "none"
+          || (restrictionInfo.restrictions.unhealableDamageTypes?.length ?? 0) > 0
           || (restrictionInfo.restrictions.blockedCapabilities?.length ?? 0) > 0,
         conditionLocks: (restrictionInfo.restrictions.conditionLocks ?? []).map((lock) => Number.isInteger(lock.minimum)
           ? `${lock.slug} ≥ ${lock.minimum}`
@@ -207,7 +208,9 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
           "affliction-damage": "PF2E_AFFLICTION_FORGE.Restrictions.HealingAfflictionDamage"
         }[restrictionInfo.restrictions.healing] ?? "PF2E_AFFLICTION_FORGE.Restrictions.HealingNone"),
         blocksSpeak: restrictionInfo.restrictions.blockedCapabilities?.includes("speak") ?? false,
-        unhealableDamage: restrictionInfo.unhealableDamage ?? 0
+        unhealableDamage: restrictionInfo.unhealableDamage ?? 0,
+        unhealableDamageTypes: restrictionInfo.restrictions.unhealableDamageTypes ?? [],
+        unhealableDamageByType: Object.entries(restrictionInfo.unhealableDamageByType ?? {}).map(([type, amount]) => `${type}: ${amount} TP`)
       } : null,
       mortality: state.mortality?.dead ? {
         dead: true,

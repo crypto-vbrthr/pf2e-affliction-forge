@@ -395,19 +395,50 @@ This is diagnostic/audit state. The current stage and active generated-effect UU
 `state.mortality` remains `null` unless Critical Forge reports that a `death` instant component was actually applied. A death-effect immunity result creates a `death-resisted` event but does not populate mortality, so the Affliction Forge never claims a blocked death effect as the cause of death.
 
 
-## Restriction semantics (0.1.49)
+## Restriction semantics (0.1.49, extended 0.1.51)
 
 Restrictions are additive schema-v2 fields. Legacy definitions normalize to empty restrictions and `effectPersistence: "stage"`. Root and current-stage restrictions merge at runtime.
 
 - `conditionLocks`: matching PF2e condition Items cannot be deleted. With an integer `minimum`, the value cannot be reduced below it. With `minimum: null`, the value present on that condition Item is the floor for external reductions.
 - `healing: "all"`: blocks Actor HP increases while active.
 - `healing: "affliction-damage"`: protects only HP damage observed around this affliction's own instant stage execution. The protected amount is stored in controller `state.unhealableDamage`.
+- `unhealableDamageTypes`: lower-case damage-type slugs whose already-suffered HP damage is protected from healing while the matching root/stage restriction remains active. Exact single-type PF2e applications are tracked in controller `state.unhealableDamageByType`; mixed-type allocation is intentionally not guessed.
 - `blockedCapabilities`: machine-readable host-integration restrictions. `speak` is the initial supported capability.
 - `effectPersistence: "stage"`: generated persistent stage output is removed when leaving the stage.
 - `effectPersistence: "affliction"`: generated persistent output survives later stages and is removed when the affliction ends.
 - `effectPersistence: "permanent"`: generated persistent output survives later stages and remains as a detached `affliction-residual-effect` after controller end.
 
-`affliction-damage` intentionally does not claim damage caused by unrelated external events, even when the damage type matches a disease rule. Damage-type-wide healing restrictions require a separate future runtime contract.
+`affliction-damage` intentionally claims only damage produced by the affliction itself. Damage-type-wide rules use `unhealableDamageTypes` instead. Their tracked pools are additive runtime state and only protect damage observed while the matching restriction is active.
+
+
+### Component-specific persistent-effect lifetime (0.1.51)
+
+A stage may override persistence for individual persistent Critical Forge components without changing the Affliction schema version:
+
+```js
+{
+  effectPersistence: "stage",
+  effectComponentPersistence: [
+    null,        // inherit stage default
+    "permanent" // this component survives controller end
+  ],
+  effect: { components: [/* ... */] }
+}
+```
+
+The array is index-aligned with `stage.effect.components`. Supported explicit values are `stage`, `affliction`, and `permanent`; `null` means inherit `stage.effectPersistence`. Extra array entries produce validation warnings and normalization trims/pads the authored value to the component count. Instant components still execute through Critical Forge's instant path; the lifetime override applies to generated persistent stage output.
+
+### Typed unhealable damage state (0.1.51)
+
+Controller schema v2 gains the optional additive state field:
+
+```js
+unhealableDamageByType: {
+  cold: 17
+}
+```
+
+Keys are normalized lower-case damage-type slugs and values are non-negative integer HP damage amounts. The field is runtime bookkeeping, not authored template data. Inactive damage-type restrictions are removed from transition state so old protected pools stop blocking healing when their rule ends.
 
 ## Stage event reactions (0.1.50)
 

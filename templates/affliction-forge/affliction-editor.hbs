@@ -344,10 +344,17 @@
           <small>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.HealingHint"}}</small>
         </label>
       </div>
-      <label class="affliction-editor-checkbox">
-        <input data-restriction-field="speak" type="checkbox" {{#if restrictionView.speakBlocked}}checked{{/if}}>
-        <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.CannotSpeak"}}</span>
-      </label>
+      <div class="affliction-editor-grid two-columns">
+        <label class="affliction-editor-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.UnhealableDamageTypes"}}</span>
+          <input data-restriction-field="unhealableDamageTypes" type="text" value="{{restrictionView.unhealableDamageTypesText}}" placeholder="cold, fire">
+          <small>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.UnhealableDamageTypesHint"}}</small>
+        </label>
+        <label class="affliction-editor-checkbox">
+          <input data-restriction-field="speak" type="checkbox" {{#if restrictionView.speakBlocked}}checked{{/if}}>
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.CannotSpeak"}}</span>
+        </label>
+      </div>
     </section>
 
     <section class="affliction-editor-section">
@@ -581,10 +588,17 @@
                     </label>
                   </div>
                   <div class="affliction-editor-grid two-columns">
+                    <label class="affliction-editor-field">
+                      <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.UnhealableDamageTypes"}}</span>
+                      <input data-restriction-field="unhealableDamageTypes" type="text" value="{{stage.restrictionView.unhealableDamageTypesText}}" placeholder="cold, fire">
+                      <small>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.UnhealableDamageTypesHint"}}</small>
+                    </label>
                     <label class="affliction-editor-checkbox">
                       <input data-restriction-field="speak" type="checkbox" {{#if stage.restrictionView.speakBlocked}}checked{{/if}}>
                       <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.CannotSpeak"}}</span>
                     </label>
+                  </div>
+                  <div class="affliction-editor-grid two-columns">
                     <label class="affliction-editor-field">
                       <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.EffectPersistence"}}</span>
                       <select data-stage-field="effectPersistence">
@@ -721,6 +735,21 @@
                       <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.StageEffectManagedHint"}}</small>
                     </div>
                     <div class="affliction-editor-effect-host" data-stage-effect-host="{{stage.index}}"></div>
+                    <div class="affliction-editor-component-persistence" data-stage-component-persistence-list="{{stage.index}}">
+                      {{#if stage.effectComponentPersistenceRows.length}}
+                        <small class="affliction-editor-component-persistence-hint">{{localize "PF2E_AFFLICTION_FORGE.Restrictions.ComponentPersistenceHint"}}</small>
+                        {{#each stage.effectComponentPersistenceRows as |row|}}
+                          <label class="affliction-editor-field affliction-editor-component-persistence-row">
+                            <span>{{row.label}}</span>
+                            <select data-stage-component-persistence-index="{{row.index}}">
+                              {{#each row.options as |option|}}
+                                <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                              {{/each}}
+                            </select>
+                          </label>
+                        {{/each}}
+                      {{/if}}
+                    </div>
                   {{else}}
                     <p class="affliction-editor-empty">{{localize "PF2E_AFFLICTION_FORGE.Editor.NoStageEffect"}}</p>
                   {{/if}}

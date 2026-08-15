@@ -80,6 +80,7 @@ const LABELS = Object.freeze({
     "affliction-damage": "PF2E_AFFLICTION_FORGE.Restrictions.HealingAfflictionDamage"
   },
   effectPersistence: {
+    inherit: "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceInherit",
     stage: "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceStage",
     affliction: "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceAffliction",
     permanent: "PF2E_AFFLICTION_FORGE.Restrictions.PersistencePermanent"
@@ -141,6 +142,7 @@ function prepareRestrictions(restrictions = {}) {
   return {
     conditionLocksText: conditionLocksToText(restrictions.conditionLocks),
     healingOptions: optionList(HEALING_RESTRICTION_MODES, restrictions.healing ?? "none", LABELS.healingRestriction),
+    unhealableDamageTypesText: (restrictions.unhealableDamageTypes ?? []).join(", "),
     speakBlocked: restrictions.blockedCapabilities?.includes("speak") ?? false
   };
 }
@@ -150,8 +152,33 @@ function restrictionsFromRegion(region, fallback = {}) {
   return {
     conditionLocks: parseConditionLocks(region.querySelector('[data-restriction-field="conditionLocks"]')?.value ?? ""),
     healing: String(region.querySelector('[data-restriction-field="healing"]')?.value ?? "none"),
+    unhealableDamageTypes: parseStringList(region.querySelector('[data-restriction-field="unhealableDamageTypes"]')?.value ?? "").map((entry) => entry.toLowerCase()),
     blockedCapabilities: region.querySelector('[data-restriction-field="speak"]')?.checked ? ["speak"] : []
   };
+}
+
+function componentDisplayLabel(component, index) {
+  const type = String(component?.type ?? "component");
+  const detail = component?.slug ?? component?.label ?? component?.damageType ?? component?.selector ?? "";
+  return detail ? `${index + 1}. ${type} · ${detail}` : `${index + 1}. ${type}`;
+}
+
+function prepareComponentPersistence(stage) {
+  const components = Array.isArray(stage?.effect?.components) ? stage.effect.components : [];
+  const overrides = Array.isArray(stage?.effectComponentPersistence) ? stage.effectComponentPersistence : [];
+  return components.map((component, index) => {
+    const override = overrides[index] ?? null;
+    const values = ["inherit", ...STAGE_EFFECT_PERSISTENCE_MODES];
+    return {
+      index,
+      label: componentDisplayLabel(component, index),
+      options: values.map((value) => ({
+        value: value === "inherit" ? "" : value,
+        label: localize(LABELS.effectPersistence[value] ?? value),
+        selected: value === "inherit" ? override == null : override === value
+      }))
+    };
+  });
 }
 
 function integerValue(value, fallback = 0) {
@@ -435,6 +462,7 @@ export async function prepareAfflictionEditorContext(session, {
       customCheck: prepareGate(stage.check, definition.checks),
       restrictionView: prepareRestrictions(stage.restrictions),
       effectPersistenceOptions: optionList(STAGE_EFFECT_PERSISTENCE_MODES, stage.effectPersistence ?? "stage", LABELS.effectPersistence),
+      effectComponentPersistenceRows: prepareComponentPersistence(stage),
       hasEffect: Boolean(stage.effect),
       effectComponentCount: Array.isArray(stage.effect?.components) ? stage.effect.components.length : 0,
       reactions: (stage.reactions ?? []).map((reaction, reactionIndex) => ({
@@ -702,6 +730,13 @@ export class EmbeddedAfflictionEditor {
       if (stage.check && customGate) stage.check = gateFromRegion(customGate);
       stage.restrictions = restrictionsFromRegion(stageRegion.querySelector('[data-stage-restrictions]'), stage.restrictions);
       stage.effectPersistence = String(stageRegion.querySelector('[data-stage-field="effectPersistence"]')?.value ?? stage.effectPersistence ?? "stage");
+      const components = Array.isArray(stage.effect?.components) ? stage.effect.components : [];
+      stage.effectComponentPersistence = components.map((_, componentIndex) => {
+        const select = stageRegion.querySelector(`[data-stage-component-persistence-index="${componentIndex}"]`);
+        if (!select) return stage.effectComponentPersistence?.[componentIndex] ?? null;
+        const mode = String(select.value ?? "");
+        return mode || null;
+      });
       for (const reactionRegion of stageRegion.querySelectorAll("[data-stage-reaction-index]")) {
         const reactionIndex = Number(reactionRegion.dataset.stageReactionIndex);
         const reaction = stage.reactions?.[reactionIndex];
@@ -767,6 +802,37 @@ export class EmbeddedAfflictionEditor {
     const count = Array.isArray(effectDefinition?.components) ? effectDefinition.components.length : 0;
     const output = this.root?.querySelector?.(`[data-stage-effect-summary="${index}"] [data-effect-component-count]`);
     if (output) output.textContent = String(count);
+  }
+
+  #refreshStageComponentPersistence(index) {
+    const container = this.root?.querySelector?.(`[data-stage-component-persistence-list="${index}"]`);
+    const stage = this.session.definition.stages[index];
+    if (!(container instanceof HTMLElement) || !stage) return;
+    const rows = prepareComponentPersistence(stage);
+    container.replaceChildren();
+    if (rows.length === 0) return;
+    const heading = document.createElement("small");
+    heading.className = "affliction-editor-component-persistence-hint";
+    heading.textContent = localize("PF2E_AFFLICTION_FORGE.Restrictions.ComponentPersistenceHint");
+    container.append(heading);
+    for (const row of rows) {
+      const label = document.createElement("label");
+      label.className = "affliction-editor-field affliction-editor-component-persistence-row";
+      const span = document.createElement("span");
+      span.textContent = row.label;
+      const select = document.createElement("select");
+      select.dataset.stageComponentPersistenceIndex = String(row.index);
+      for (const option of row.options) {
+        const el = document.createElement("option");
+        el.value = option.value;
+        el.textContent = option.label;
+        el.selected = option.selected;
+        select.append(el);
+      }
+      if (this.session.readOnly) select.disabled = true;
+      label.append(span, select);
+      container.append(label);
+    }
   }
 
   #updateReactionEffectSummary(stageIndex, reactionIndex, effectDefinition) {
@@ -856,10 +922,15 @@ export class EmbeddedAfflictionEditor {
           const built = effectSession.buildDefinition({ api: criticalApi });
           // `built` is deeply frozen by Critical Forge. Route it through the
           // session clone boundary before applying Affliction-owned metadata.
+          const previousPersistence = Array.isArray(stage.effectComponentPersistence) ? [...stage.effectComponentPersistence] : [];
           this.session.setStageEffect(index, built);
-          const managed = synchronizeManagedStageEffectMetadata(this.session.definition, stage);
+          const currentStage = this.session.definition.stages[index];
+          const componentCount = Array.isArray(currentStage?.effect?.components) ? currentStage.effect.components.length : 0;
+          currentStage.effectComponentPersistence = Array.from({ length: componentCount }, (_, componentIndex) => previousPersistence[componentIndex] ?? null);
+          const managed = synchronizeManagedStageEffectMetadata(this.session.definition, currentStage);
           this.session.markDirty();
           this.#updateStageEffectSummary(index, managed);
+          this.#refreshStageComponentPersistence(index);
           this.#refreshValidation();
           this.#emitChange();
         }

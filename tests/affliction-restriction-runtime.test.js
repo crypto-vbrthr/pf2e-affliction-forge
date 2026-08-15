@@ -13,10 +13,11 @@ const {
   guardConditionUpdate,
   guardConditionDelete,
   guardHealingUpdate,
-  isAfflictionCapabilityBlocked
+  isAfflictionCapabilityBlocked,
+  recordTypedHealingLockDamage
 } = await import("../scripts/affliction/runtime/affliction-restriction-runtime.js");
 
-function actorWithController({ rootRestrictions = {}, stageRestrictions = {}, unhealableDamage = 0, hp = { value: 50, max: 100 } } = {}) {
+function actorWithController({ rootRestrictions = {}, stageRestrictions = {}, unhealableDamage = 0, unhealableDamageByType = {}, hp = { value: 50, max: 100 } } = {}) {
   const definition = createAfflictionDefinition({
     id: "test.restrictions",
     name: "Restriction Test",
@@ -45,10 +46,17 @@ function actorWithController({ rootRestrictions = {}, stageRestrictions = {}, un
           instanceId: "instance-1",
           status: "active",
           currentStage: 1,
-          unhealableDamage
+          unhealableDamage,
+          unhealableDamageByType,
+          revision: 1
         }
       }
     }
+  };
+  controller.update = async (changes) => {
+    const state = changes[`flags.${MODULE_ID}.state`];
+    if (state) controller.flags[MODULE_ID].state = structuredClone(state);
+    return controller;
   };
   actor.items.push(controller);
   return { actor, controller, definition };
@@ -119,4 +127,70 @@ test("affliction-damage healing restriction permits other healing but preserves 
   const excessive = { system: { attributes: { hp: { value: 100 } } } };
   guardHealingUpdate(actor, excessive);
   assert.equal(excessive.system.attributes.hp.value, 90);
+});
+
+
+test("typed healing locks protect recorded single-type PF2e damage", async () => {
+  globalThis.game.user = { id: "gm", isGM: true };
+  globalThis.game.users = { activeGM: { id: "gm" } };
+  globalThis.game.messages = new Map();
+  const { actor, controller } = actorWithController({
+    stageRestrictions: { conditionLocks: [], healing: "none", unhealableDamageTypes: ["cold"], blockedCapabilities: [] },
+    hp: { value: 70, max: 100 }
+  });
+  const message = {
+    id: "cold-damage",
+    uuid: "ChatMessage.cold-damage",
+    actor,
+    flags: {
+      pf2e: {
+        context: { type: "damage-taken", options: [] },
+        damageRoll: { types: { cold: { energy: 12 } } },
+        appliedDamage: {
+          isHealing: false,
+          isReverted: false,
+          persistent: [],
+          shield: null,
+          updates: [{ path: "system.attributes.hp.value", value: 12 }]
+        }
+      }
+    }
+  };
+  const result = await recordTypedHealingLockDamage(message);
+  assert.equal(result.status, "recorded");
+  assert.equal(controller.flags[MODULE_ID].state.unhealableDamageByType.cold, 12);
+
+  const healing = { system: { attributes: { hp: { value: 100 } } } };
+  guardHealingUpdate(actor, healing);
+  assert.equal(healing.system.attributes.hp.value, 88);
+});
+
+test("typed healing locks refuse to guess mixed damage allocation", async () => {
+  globalThis.game.user = { id: "gm", isGM: true };
+  globalThis.game.users = { activeGM: { id: "gm" } };
+  globalThis.game.messages = new Map();
+  const { actor, controller } = actorWithController({
+    stageRestrictions: { conditionLocks: [], healing: "none", unhealableDamageTypes: ["cold"], blockedCapabilities: [] }
+  });
+  const message = {
+    id: "mixed-damage",
+    uuid: "ChatMessage.mixed-damage",
+    actor,
+    flags: {
+      pf2e: {
+        context: { type: "damage-taken", options: [] },
+        damageRoll: { types: { cold: { energy: 6 }, slashing: { physical: 6 } } },
+        appliedDamage: {
+          isHealing: false,
+          isReverted: false,
+          persistent: [],
+          shield: null,
+          updates: [{ path: "system.attributes.hp.value", value: 10 }]
+        }
+      }
+    }
+  };
+  const result = await recordTypedHealingLockDamage(message);
+  assert.equal(result.status, "ambiguous");
+  assert.deepEqual(controller.flags[MODULE_ID].state.unhealableDamageByType, {});
 });

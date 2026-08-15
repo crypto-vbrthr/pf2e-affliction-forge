@@ -148,6 +148,15 @@ function validateRestrictions(report, restrictions, path) {
   if (!HEALING_RESTRICTION_MODES.includes(restrictions.healing)) {
     report.add({ severity: "error", code: "restrictions.healing", path: `${path}.healing`, message: `Unsupported healing restriction: ${restrictions.healing}.` });
   }
+  if (!Array.isArray(restrictions.unhealableDamageTypes)) {
+    report.add({ severity: "error", code: "restrictions.damage-types", path: `${path}.unhealableDamageTypes`, message: "unhealableDamageTypes must be an array." });
+  } else {
+    for (const [index, damageType] of restrictions.unhealableDamageTypes.entries()) {
+      if (typeof damageType !== "string" || !damageType.trim()) {
+        report.add({ severity: "error", code: "restrictions.damage-type", path: `${path}.unhealableDamageTypes.${index}`, message: "Healing-locked damage types must be non-empty strings." });
+      }
+    }
+  }
   if (!Array.isArray(restrictions.blockedCapabilities)) {
     report.add({ severity: "error", code: "restrictions.capabilities", path: `${path}.blockedCapabilities`, message: "blockedCapabilities must be an array." });
   } else {
@@ -382,6 +391,19 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
       validateStageReactions(report, stage.reactions ?? [], `${path}.reactions`, checkIds, effectValidator);
       if (!STAGE_EFFECT_PERSISTENCE_MODES.includes(stage.effectPersistence)) {
         report.add({ severity: "error", code: "stage.effect-persistence", path: `${path}.effectPersistence`, message: `Unsupported stage effect persistence: ${stage.effectPersistence}.` });
+      }
+      if (!Array.isArray(stage.effectComponentPersistence)) {
+        report.add({ severity: "error", code: "stage.component-persistence", path: `${path}.effectComponentPersistence`, message: "effectComponentPersistence must be an array." });
+      } else {
+        const componentCount = Array.isArray(stage.effect?.components) ? stage.effect.components.length : 0;
+        if (stage.effectComponentPersistence.length > componentCount) {
+          report.add({ severity: "warning", code: "stage.component-persistence-extra", path: `${path}.effectComponentPersistence`, message: "Component persistence contains entries for components that do not exist." });
+        }
+        for (const [componentIndex, mode] of stage.effectComponentPersistence.entries()) {
+          if (mode != null && !STAGE_EFFECT_PERSISTENCE_MODES.includes(mode)) {
+            report.add({ severity: "error", code: "stage.component-persistence-mode", path: `${path}.effectComponentPersistence.${componentIndex}`, message: `Unsupported component persistence: ${mode}.` });
+          }
+        }
       }
       if (stage.effectPersistence !== "stage" && stage.effect == null) {
         report.add({ severity: "warning", code: "stage.effect-persistence-without-effect", path: `${path}.effectPersistence`, message: "Persistent stage output has no effect definition to preserve." });

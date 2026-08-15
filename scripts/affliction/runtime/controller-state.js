@@ -31,6 +31,7 @@ export function createAfflictionControllerState(definition, {
   pause = null,
   recoverySuccesses = 0,
   unhealableDamage = 0,
+  unhealableDamageByType = {},
   revision = 1
 } = {}) {
   return {
@@ -50,6 +51,9 @@ export function createAfflictionControllerState(definition, {
     },
     recoverySuccesses,
     unhealableDamage: Math.max(0, Math.trunc(Number(unhealableDamage) || 0)),
+    unhealableDamageByType: Object.fromEntries(Object.entries(unhealableDamageByType ?? {})
+      .map(([type, amount]) => [String(type).trim().toLowerCase(), Math.max(0, Math.trunc(Number(amount) || 0))])
+      .filter(([type, amount]) => type && amount > 0)),
     activeStageEffectUuids: [...activeStageEffectUuids],
     pendingCheck: pendingCheck == null ? null : deepClone(pendingCheck),
     onsetTargetStage: onsetTargetStage == null ? null : Math.max(1, Math.trunc(Number(onsetTargetStage) || 1)),
@@ -99,6 +103,12 @@ export function validateAfflictionControllerState(state, definition = null) {
     }
     if (!Number.isInteger(state.recoverySuccesses) || state.recoverySuccesses < 0) errors.push("recoverySuccesses must be a non-negative integer.");
     if (state.unhealableDamage !== undefined && (!Number.isInteger(state.unhealableDamage) || state.unhealableDamage < 0)) errors.push("unhealableDamage must be a non-negative integer when present.");
+    if (state.unhealableDamageByType !== undefined) {
+      if (!state.unhealableDamageByType || typeof state.unhealableDamageByType !== "object" || Array.isArray(state.unhealableDamageByType)) errors.push("unhealableDamageByType must be an object when present.");
+      else for (const [type, amount] of Object.entries(state.unhealableDamageByType)) {
+        if (!type.trim() || !Number.isInteger(amount) || amount < 0) errors.push("unhealableDamageByType values must be non-negative integers keyed by damage type.");
+      }
+    }
     if (!Number.isInteger(state.revision) || state.revision < 1) errors.push("revision must be a positive integer.");
     if (state.onsetTargetStage !== null && state.onsetTargetStage !== undefined && (!Number.isInteger(state.onsetTargetStage) || state.onsetTargetStage < 1)) errors.push("onsetTargetStage must be a positive integer or null.");
     if (definition && Number.isInteger(state.onsetTargetStage) && state.onsetTargetStage > definition.stages.length) errors.push("onsetTargetStage exceeds the definition stage count.");

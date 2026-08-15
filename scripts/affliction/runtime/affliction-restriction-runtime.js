@@ -1,6 +1,8 @@
 import { DOCUMENT_KINDS, MODULE_ID } from "../../constants.js";
 import { getAfflictionFlags, isAfflictionController } from "../documents/affliction-flags.js";
 import { normalizeAfflictionDefinition, resolveAfflictionRestrictions } from "../schema/affliction-normalizer.js";
+import { inspectPf2eAfflictionReactionEvent } from "./affliction-event-reaction-runtime.js";
+import { deepClone } from "../schema/utils.js";
 
 let initialized = false;
 const bypassActors = new Map();
@@ -67,7 +69,8 @@ export function inspectControllerRestrictions(controller) {
     stageNumber: stage.number,
     stageId: stage.id,
     restrictions: resolveAfflictionRestrictions(definition, stage),
-    unhealableDamage: Math.max(0, Math.trunc(Number(flags.state.unhealableDamage ?? 0)))
+    unhealableDamage: Math.max(0, Math.trunc(Number(flags.state.unhealableDamage ?? 0))),
+    unhealableDamageByType: Object.freeze({ ...(flags.state.unhealableDamageByType ?? {}) })
   });
 }
 
@@ -81,6 +84,8 @@ export function collectActorRestrictions(actor) {
   const blockedCapabilities = new Set();
   let healing = "none";
   let unhealableDamage = 0;
+  const unhealableDamageByType = new Map();
+  const unhealableDamageTypes = new Set();
   const rank = { none: 0, "affliction-damage": 1, all: 2 };
 
   for (const source of sources) {
@@ -97,13 +102,22 @@ export function collectActorRestrictions(actor) {
     for (const capability of restrictions.blockedCapabilities ?? []) blockedCapabilities.add(capability);
     if ((rank[restrictions.healing] ?? 0) > (rank[healing] ?? 0)) healing = restrictions.healing;
     if (restrictions.healing === "affliction-damage") unhealableDamage += source.unhealableDamage;
+    for (const type of restrictions.unhealableDamageTypes ?? []) unhealableDamageTypes.add(type);
+    for (const [type, amount] of Object.entries(source.unhealableDamageByType ?? {})) {
+      const numeric = Math.max(0, Math.trunc(Number(amount) || 0));
+      if (numeric > (unhealableDamageByType.get(type) ?? 0)) unhealableDamageByType.set(type, numeric);
+    }
   }
 
+  const typedUnhealableDamage = [...unhealableDamageByType.values()].reduce((sum, amount) => sum + amount, 0);
   return Object.freeze({
     actorUuid: actor?.uuid ?? null,
     conditionLocks: Object.freeze([...conditionBySlug.values()].map((entry) => Object.freeze(entry))),
     healing,
     unhealableDamage,
+    unhealableDamageTypes: Object.freeze([...unhealableDamageTypes]),
+    unhealableDamageByType: Object.freeze(Object.fromEntries(unhealableDamageByType)),
+    typedUnhealableDamage,
     blockedCapabilities: Object.freeze([...blockedCapabilities]),
     sources: Object.freeze(sources)
   });
@@ -240,14 +254,83 @@ export function guardHealingUpdate(actor, changes, options = {}) {
     return true;
   }
 
-  if (restrictions.unhealableDamage > 0 && hp.max != null) {
-    const ceiling = Math.max(0, hp.max - restrictions.unhealableDamage);
+  const protectedDamage = Math.max(0, restrictions.unhealableDamage + (restrictions.typedUnhealableDamage ?? 0));
+  if (protectedDamage > 0 && hp.max != null) {
+    const ceiling = Math.max(0, hp.max - protectedDamage);
     if (proposed > ceiling) {
       setProposedHpValue(changes, Math.max(hp.current, ceiling));
-      warnRestriction("PF2E_AFFLICTION_FORGE.Restrictions.AfflictionDamageHealingBlocked", { value: restrictions.unhealableDamage });
+      const key = (restrictions.typedUnhealableDamage ?? 0) > 0
+        ? "PF2E_AFFLICTION_FORGE.Restrictions.TypedDamageHealingBlocked"
+        : "PF2E_AFFLICTION_FORGE.Restrictions.AfflictionDamageHealingBlocked";
+      warnRestriction(key, { value: protectedDamage, types: restrictions.unhealableDamageTypes.join(", ") });
     }
   }
   return true;
+}
+
+function authoritativeGm() {
+  const user = globalThis.game?.user;
+  if (!user?.isGM) return false;
+  const activeGM = globalThis.game?.users?.activeGM;
+  return !activeGM?.id || activeGM.id === user.id;
+}
+
+function appliedHpDamageAmount(message) {
+  const applied = message?.flags?.pf2e?.appliedDamage ?? message?.flags?.PF2E?.appliedDamage;
+  if (!applied || applied.isHealing === true || applied.isReverted === true) return 0;
+  return (Array.isArray(applied.updates) ? applied.updates : [])
+    .filter((entry) => typeof entry?.path === "string" && entry.path.includes("system.attributes.hp.value"))
+    .reduce((sum, entry) => sum + Math.max(0, Math.trunc(Number(entry?.value) || 0)), 0);
+}
+
+async function updateTypedDamageController(controller, damageType, amount, event) {
+  const flags = getAfflictionFlags(controller);
+  if (!flags?.state || amount <= 0) return false;
+  const state = deepClone(flags.state);
+  state.unhealableDamageByType ??= {};
+  state.unhealableDamageByType[damageType] = Math.max(0, Math.trunc(Number(state.unhealableDamageByType[damageType]) || 0)) + amount;
+  state.revision = Math.max(1, Math.trunc(Number(state.revision) || 0) + 1);
+  await controller.update({ [`flags.${MODULE_ID}.state`]: state }, {
+    render: false,
+    [MODULE_ID]: { restrictionBypass: true, typedHealingLock: true, sourceMessageUuid: event?.messageUuid ?? null }
+  });
+  return true;
+}
+
+export async function recordTypedHealingLockDamage(message) {
+  if (!authoritativeGm()) return Object.freeze({ status: "ignored", reason: "not-authoritative-gm" });
+  const event = inspectPf2eAfflictionReactionEvent(message);
+  if (!event.matched || !event.actor) return Object.freeze({ status: "ignored", reason: "not-positive-damage" });
+  const amount = appliedHpDamageAmount(message);
+  if (amount <= 0) return Object.freeze({ status: "ignored", reason: "no-hp-damage" });
+
+  const damageTypes = [...new Set((event.damageTypes ?? []).map((type) => String(type).trim().toLowerCase()).filter(Boolean))];
+  const controllers = itemCollection(event.actor).filter(isAfflictionController);
+  const matching = controllers.map((controller) => ({ controller, info: inspectControllerRestrictions(controller) }))
+    .filter(({ info }) => info?.restrictions?.unhealableDamageTypes?.some((type) => damageTypes.includes(type)));
+  if (matching.length === 0) return Object.freeze({ status: "ignored", reason: "no-typed-healing-lock" });
+
+  // PF2e's applied-damage flag exposes the final HP delta but not a post-IWR
+  // per-damage-type breakdown. A single-type damage event is exact; mixed
+  // damage is deliberately left for manual resolution rather than overblocking
+  // healing by guessing which pool survived resistances/weaknesses.
+  if (damageTypes.length !== 1) {
+    globalThis.Hooks?.callAll?.("pf2eAfflictionForgeTypedHealingLockAmbiguous", Object.freeze({
+      actorUuid: event.actorUuid,
+      messageUuid: event.messageUuid,
+      amount,
+      damageTypes: Object.freeze(damageTypes)
+    }));
+    return Object.freeze({ status: "ambiguous", amount, damageTypes: Object.freeze(damageTypes) });
+  }
+
+  const damageType = damageTypes[0];
+  let recorded = 0;
+  for (const { controller, info } of matching) {
+    if (!info.restrictions.unhealableDamageTypes.includes(damageType)) continue;
+    if (await updateTypedDamageController(controller, damageType, amount, event)) recorded += 1;
+  }
+  return Object.freeze({ status: recorded > 0 ? "recorded" : "ignored", recorded, amount, damageType });
 }
 
 export function initializeAfflictionRestrictionRuntime() {
@@ -256,6 +339,7 @@ export function initializeAfflictionRestrictionRuntime() {
   Hooks.on("preUpdateItem", (item, changes, options) => guardConditionUpdate(item, changes, options));
   Hooks.on("preDeleteItem", (item, options) => guardConditionDelete(item, options));
   Hooks.on("preUpdateActor", (actor, changes, options) => guardHealingUpdate(actor, changes, options));
+  Hooks.on("createChatMessage", (message) => { void recordTypedHealingLockDamage(message); });
   console.info(`${MODULE_ID} | Affliction restriction runtime initialized.`);
 }
 
