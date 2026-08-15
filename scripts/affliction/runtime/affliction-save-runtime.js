@@ -467,6 +467,14 @@ function emitPlayerResult(request, result) {
   const userId = globalThis.game?.user?.id;
   globalThis.game?.socket?.emit?.(SOCKET_NAME, {
     type: "save-result",
+    ...(request.purpose === "reaction" ? {
+      purpose: "reaction",
+      reactionId: request.reactionId ?? null,
+      stageNumber: request.stageNumber ?? null,
+      eventMessageId: request.eventMessageId ?? null,
+      eventMessageUuid: request.eventMessageUuid ?? null,
+      reactionKey: request.reactionKey ?? null
+    } : {}),
     controllerUuid: request.controllerUuid,
     requestId: request.requestId,
     checkId: request.checkId,
@@ -806,6 +814,14 @@ export function captureTaggedPlayerSaveMessageForGm(message) {
   if (!degree) return { status: "ignored" };
 
   const payload = {
+    ...(request.purpose === "reaction" ? {
+      purpose: "reaction",
+      reactionId: request.reactionId ?? null,
+      stageNumber: request.stageNumber ?? null,
+      eventMessageId: request.eventMessageId ?? null,
+      eventMessageUuid: request.eventMessageUuid ?? null,
+      reactionKey: request.reactionKey ?? null
+    } : {}),
     controllerUuid: request.controllerUuid,
     requestId: request.requestId,
     checkId: request.checkId,
@@ -817,9 +833,12 @@ export function captureTaggedPlayerSaveMessageForGm(message) {
     rollId: roll.id ?? roll._id ?? message?.id ?? null
   };
   const api = globalThis.game?.modules?.get?.(MODULE_ID)?.api;
-  if (typeof api?.engine?.acceptPlayerResult !== "function") return { status: "unavailable", payload };
-  void api.engine.acceptPlayerResult(payload).then((result) => {
-    if (result?.status && result.status !== "pending") {
+  const accept = payload.purpose === "reaction"
+    ? api?.reactions?.acceptPlayerResult
+    : api?.engine?.acceptPlayerResult;
+  if (typeof accept !== "function") return { status: "unavailable", payload };
+  void accept(payload).then((result) => {
+    if (payload.purpose !== "reaction" && result?.status && result.status !== "pending") {
       globalThis.Hooks?.callAll?.("pf2eAfflictionForgeCheckResolved", result);
     }
   }).catch((error) => {
@@ -884,8 +903,10 @@ async function handleSocket(payload) {
   if (payload?.type !== "save-result" || !shouldHandleResult(payload)) return;
   try {
     const api = globalThis.game?.modules?.get?.(MODULE_ID)?.api;
-    const result = await api?.engine?.acceptPlayerResult?.(payload);
-    if (result?.status && result.status !== "pending") {
+    const result = payload.purpose === "reaction"
+      ? await api?.reactions?.acceptPlayerResult?.(payload)
+      : await api?.engine?.acceptPlayerResult?.(payload);
+    if (payload.purpose !== "reaction" && result?.status && result.status !== "pending") {
       globalThis.Hooks?.callAll?.("pf2eAfflictionForgeCheckResolved", result);
     }
   } catch (error) {

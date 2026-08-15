@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.49**
+Current release: **0.1.50**
 
-Version **0.1.49** adds generic Remastered-rules restrictions and persistent consequences without changing Affliction schema v2 or public API compatibility `0.1.0`. Definitions can lock conditions against reduction/removal, block all HP healing or only HP damage caused by the affliction itself, expose blocked capabilities such as speaking, and let a stage Effect persist for the stage, the whole affliction, or permanently after the controller ends.
+Version **0.1.50** adds stage-scoped event reactions. The first runtime event is PF2e `damage-taken`: an active stage can request an auxiliary save whenever the affected Actor takes positive damage, optionally limited to authored damage types such as slashing. The auxiliary save never progresses the affliction stage itself; selected degrees of success can execute a Critical Forge Effect Definition. Player-owned reaction saves reuse the established targeted save-request workflow and the authoritative GM remains the only client that commits the reaction. The public API remains compatibility version `0.1.0` and Affliction schema v2 remains unchanged.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -17,11 +17,10 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - multiple-save resolution through `single`, `best-degree`, `worst-degree`, `all-success`, and `any-success`
 - degree-of-success directives for reject, recover, stay, stage delta, and explicit stage selection
 - native Ausgeprägt/Virulent progression with consecutive-success tracking and one-stage critical-success reduction
-- root and per-stage restrictions for protected condition values, HP-healing locks, and blocked capabilities such as speaking
-- tracked `affliction-damage` healing protection that preserves only HP loss caused by Affliction Forge stage execution while still allowing unrelated damage to be healed
-- stage Effect persistence modes: stage-only, until the affliction ends, or permanent detached residual output
 - onset, maximum active duration (excluding onset), stage duration, and narrative stage descriptions
 - optional Critical Forge `EffectDefinition` per stage
+- root- and stage-scoped condition/healing/capability restrictions plus `stage | affliction | permanent` stage-effect persistence
+- stage-scoped event reactions with auxiliary saves and Critical Forge effects; `damage-taken` is the first supported event and accepts optional PF2e damage-type filters
 - persistent inert PF2e `effect` Items for Affliction Templates
 - active controller Items with definition snapshots, instance IDs, stage state, pending checks, last-check history, bounded runtime events, and lethal-stage mortality audit data
 - generated, instance-scoped persistent stage effects through Critical Forge's public Effect Engine API

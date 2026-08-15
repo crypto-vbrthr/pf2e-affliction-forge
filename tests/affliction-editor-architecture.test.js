@@ -155,3 +155,29 @@ test("poison definitions expose an injury-poison delivery toggle in the embedded
   assert.match(template, /data-poison-delivery-options/);
   assert.match(source, /definition\.delivery\.injuryPoison/);
 });
+
+test("stage event reactions are exposed through the embedded editor and reuse Critical Forge effects", async () => {
+  const definition = createAfflictionDefinition({ name: "Reaction Probe" });
+  definition.stages[0].reactions = [{
+    id: "hurt",
+    label: "Pain response",
+    trigger: { event: "damage-taken", damageTypes: ["slashing"] },
+    checkId: "primary",
+    applyOn: ["failure", "criticalFailure"],
+    effect: null
+  }];
+  const session = createAfflictionEditorSession(definition);
+  const api = { definitions: { validate: () => ({ valid: true, issues: [], errors: [], warnings: [] }) } };
+  const context = await prepareAfflictionEditorContext(session, { api });
+  assert.equal(context.stages[0].reactions.length, 1);
+  assert.equal(context.stages[0].reactions[0].stageIndex, 0);
+  assert.equal(context.stages[0].reactions[0].damageTypesText, "slashing");
+  assert.match(template, /data-affliction-action="addStageReaction"/);
+  assert.match(template, /data-reaction-field="event"/);
+  assert.match(template, /data-reaction-field="damageTypes"/);
+  assert.match(template, /data-reaction-field="checkId"/);
+  assert.match(template, /data-reaction-outcome/);
+  assert.match(template, /data-reaction-effect-host/);
+  assert.match(source, /#mountReactionEffectEditors\(\)/);
+  assert.match(source, /synchronizeManagedReactionEffectMetadata/);
+});

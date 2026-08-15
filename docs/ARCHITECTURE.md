@@ -1,4 +1,4 @@
-# Architecture 0.1.49
+# Architecture 0.1.50
 
 ```text
 Affliction Template / Definition
@@ -358,7 +358,7 @@ The combat runtime serializes the complete apply/consume transaction per source 
 ## Contract/runtime hardening in 0.1.42
 
 - Runtime application now enforces one live controller per Actor + Affliction `definitionId`, including pending exposure/incubation reservations and concurrent apply calls.
-- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.49`).
+- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.50`).
 - Combat-trigger idempotency is committed only after a successful application or an intentional terminal decision; transient failures remain retryable.
 - Strict reconciliation can verify generated stage-effect content, not merely controller/stage ownership flags.
 - Identification updates use batch embedded-document updates when available and fall back to strict reconciliation after a partial failure.
@@ -401,3 +401,15 @@ Virulent/Ausgeprägt stage progression still performs exactly one save at each n
 `affliction-restriction-runtime.js` derives root + current-stage restrictions from active controllers. It guards PF2e condition Item reductions/deletions and Actor HP healing without embedding disease-specific logic. Internal Affliction transitions use a scoped bypass so controller-owned cleanup cannot be blocked by the restrictions it is replacing.
 
 Stage output can be residualized on transition. `affliction-residual-effect` Items retain instance provenance while `affliction` persistence is controller-owned; `permanent` residuals are detached from the controller on end so reconciliation and controller deletion do not remove them.
+
+## Stage event reaction runtime (0.1.50)
+
+Event reactions are a separate runtime lane from ordinary Affliction progression. The `createChatMessage` hook inspects supported PF2e synchronized runtime events only on the authoritative GM. For the initial `damage-taken` event, active controller Items on the affected Actor are inspected and only reactions on the current stage are eligible.
+
+The event runtime deliberately separates three responsibilities:
+
+1. PF2e event inspection identifies positive applied damage and, where possible, damage types from the damage message and its originating damage-roll message.
+2. The referenced Affliction save check is rolled through the existing save policy and player-request infrastructure without invoking stage directives.
+3. A configured Critical Forge Effect Definition is executed only for authored degrees of success.
+
+Processed and pending event/controller/reaction keys provide same-session duplicate protection for synchronized ChatMessages. Typed reactions fail closed when the damage type is unresolved instead of guessing. Runtime resolution emits `pf2eAfflictionForgeReactionResolved` for host integrations and a GM audit summary.

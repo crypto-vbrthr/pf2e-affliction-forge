@@ -1,4 +1,5 @@
 import {
+  AFFLICTION_REACTION_EVENTS,
   AFFLICTION_TYPES,
   CHECK_COMBINE_MODES,
   DURATION_UNITS,
@@ -21,6 +22,9 @@ import { deepClone } from "../schema/utils.js";
 export const AFFLICTION_EDITOR_TEMPLATE = `modules/${MODULE_ID}/templates/affliction-forge/affliction-editor.hbs`;
 
 const LABELS = Object.freeze({
+  reactionEvent: {
+    "damage-taken": "PF2E_AFFLICTION_FORGE.Reaction.Event.DamageTaken"
+  },
   type: {
     poison: "PF2E_AFFLICTION_FORGE.Types.Poison",
     disease: "PF2E_AFFLICTION_FORGE.Types.Disease",
@@ -259,6 +263,13 @@ function displayIssue(issue) {
 
 function displayIssuePath(path) {
   const value = String(path ?? "");
+  const reactionEffectComponent = /^stages\.(\d+)\.reactions\.(\d+)\.effect\.components\.(\d+)(?:\.|$)/.exec(value);
+  if (reactionEffectComponent) {
+    const stageNumber = Number(reactionEffectComponent[1]) + 1;
+    const reactionNumber = Number(reactionEffectComponent[2]) + 1;
+    const componentNumber = Number(reactionEffectComponent[3]) + 1;
+    return `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage")} ${stageNumber} · ${localize("PF2E_AFFLICTION_FORGE.Reaction.EventReaction")} ${reactionNumber} · ${localize("PF2E_AFFLICTION_FORGE.Editor.Component")} ${componentNumber}`;
+  }
   const effectComponent = /^stages\.(\d+)\.effect\.components\.(\d+)(?:\.|$)/.exec(value);
   if (effectComponent) {
     const stageNumber = Number(effectComponent[1]) + 1;
@@ -318,6 +329,61 @@ function synchronizeManagedStageEffectMetadata(definition, stage) {
   return effect;
 }
 
+
+function createDefaultReactionEffect(definition, stage, reaction, criticalApi) {
+  const effectId = `${definition.id}.${stage.id}.${reaction.id}.reaction-effect`;
+  const reactionLabel = reaction.label || localize("PF2E_AFFLICTION_FORGE.Reaction.EventReaction");
+  return criticalApi.builders.effect()
+    .setId(effectId)
+    .setName(`${definition.name || localize("PF2E_AFFLICTION_FORGE.Editor.Untitled")} · ${reactionLabel}`)
+    .setImage(definition.img)
+    .setDuration(1, "rounds", null)
+    .setMetadata({
+      originModule: MODULE_ID,
+      originFeature: "affliction-event-reaction-effect-definition"
+    })
+    .build();
+}
+
+function synchronizeManagedReactionEffectMetadata(definition, stage, reaction) {
+  const source = reaction?.effect;
+  if (!source || typeof source !== "object" || Array.isArray(source)) return source;
+  const effect = deepClone(source);
+  const reactionLabel = reaction.label || localize("PF2E_AFFLICTION_FORGE.Reaction.EventReaction");
+  effect.id = `${definition.id}.${stage.id}.${reaction.id}.reaction-effect`;
+  effect.name = `${definition.name || localize("PF2E_AFFLICTION_FORGE.Editor.Untitled")} · ${reactionLabel}`;
+  effect.img = definition.img;
+  effect.metadata = {
+    ...(effect.metadata ?? {}),
+    originModule: MODULE_ID,
+    originFeature: "affliction-event-reaction-effect-definition"
+  };
+  reaction.effect = effect;
+  return effect;
+}
+
+function prepareReaction(reaction, reactionIndex, checks) {
+  return {
+    ...reaction,
+    index: reactionIndex,
+    number: reactionIndex + 1,
+    eventOptions: optionList(AFFLICTION_REACTION_EVENTS, reaction.trigger?.event ?? "damage-taken", LABELS.reactionEvent),
+    damageTypesText: (reaction.trigger?.damageTypes ?? []).join(", "),
+    checkOptions: checks.map((check) => ({
+      value: check.id,
+      label: check.label || check.id,
+      selected: check.id === reaction.checkId
+    })),
+    outcomes: OUTCOME_KEYS.map((outcome) => ({
+      key: outcome,
+      label: localize(LABELS.outcome[outcome]),
+      checked: reaction.applyOn?.includes?.(outcome) ?? false
+    })),
+    hasEffect: Boolean(reaction.effect),
+    effectComponentCount: Array.isArray(reaction.effect?.components) ? reaction.effect.components.length : 0
+  };
+}
+
 export async function prepareAfflictionEditorContext(session, {
   api = game.modules.get(MODULE_ID)?.api,
   validationReport = null
@@ -370,7 +436,11 @@ export async function prepareAfflictionEditorContext(session, {
       restrictionView: prepareRestrictions(stage.restrictions),
       effectPersistenceOptions: optionList(STAGE_EFFECT_PERSISTENCE_MODES, stage.effectPersistence ?? "stage", LABELS.effectPersistence),
       hasEffect: Boolean(stage.effect),
-      effectComponentCount: Array.isArray(stage.effect?.components) ? stage.effect.components.length : 0
+      effectComponentCount: Array.isArray(stage.effect?.components) ? stage.effect.components.length : 0,
+      reactions: (stage.reactions ?? []).map((reaction, reactionIndex) => ({
+        ...prepareReaction(reaction, reactionIndex, definition.checks),
+        stageIndex: index
+      }))
     })),
     validation: issueSummary(report)
   };
@@ -448,6 +518,7 @@ export class EmbeddedAfflictionEditor {
     this.#bind();
     this.#activateDynamicControls();
     await this.#mountStageEffectEditors();
+    await this.#mountReactionEffectEditors();
     if (this.session.readOnly) this.#applyReadOnly();
     return this;
   }
@@ -631,6 +702,19 @@ export class EmbeddedAfflictionEditor {
       if (stage.check && customGate) stage.check = gateFromRegion(customGate);
       stage.restrictions = restrictionsFromRegion(stageRegion.querySelector('[data-stage-restrictions]'), stage.restrictions);
       stage.effectPersistence = String(stageRegion.querySelector('[data-stage-field="effectPersistence"]')?.value ?? stage.effectPersistence ?? "stage");
+      for (const reactionRegion of stageRegion.querySelectorAll("[data-stage-reaction-index]")) {
+        const reactionIndex = Number(reactionRegion.dataset.stageReactionIndex);
+        const reaction = stage.reactions?.[reactionIndex];
+        if (!reaction) continue;
+        reaction.id = String(reactionRegion.querySelector('[data-reaction-field="id"]')?.value ?? reaction.id).trim();
+        reaction.label = String(reactionRegion.querySelector('[data-reaction-field="label"]')?.value ?? reaction.label);
+        reaction.trigger ??= { event: "damage-taken", damageTypes: [] };
+        reaction.trigger.event = String(reactionRegion.querySelector('[data-reaction-field="event"]')?.value ?? reaction.trigger.event ?? "damage-taken");
+        reaction.trigger.damageTypes = parseStringList(reactionRegion.querySelector('[data-reaction-field="damageTypes"]')?.value ?? "").map((entry) => entry.toLowerCase());
+        reaction.checkId = String(reactionRegion.querySelector('[data-reaction-field="checkId"]')?.value ?? reaction.checkId);
+        reaction.applyOn = [...reactionRegion.querySelectorAll('[data-reaction-outcome]:checked')].map((input) => String(input.value));
+        synchronizeManagedReactionEffectMetadata(definition, stage, reaction);
+      }
       synchronizeManagedStageEffectMetadata(definition, stage);
     }
 
@@ -664,11 +748,30 @@ export class EmbeddedAfflictionEditor {
       if (input) input.value = check.id;
       if (label) label.textContent = check.label || check.id;
     }
+    for (const select of root.querySelectorAll("[data-reaction-field=\"checkId\"]")) {
+      const stageIndex = Number(select.closest("[data-affliction-stage-index]")?.dataset?.afflictionStageIndex);
+      const reactionIndex = Number(select.closest("[data-stage-reaction-index]")?.dataset?.stageReactionIndex);
+      const selectedId = this.session.definition.stages?.[stageIndex]?.reactions?.[reactionIndex]?.checkId;
+      const existing = [...select.options];
+      for (const [index, option] of existing.entries()) {
+        const check = checks[index];
+        if (!check) continue;
+        option.value = check.id;
+        option.textContent = check.label || check.id;
+      }
+      if (selectedId) select.value = selectedId;
+    }
   }
 
   #updateStageEffectSummary(index, effectDefinition) {
     const count = Array.isArray(effectDefinition?.components) ? effectDefinition.components.length : 0;
     const output = this.root?.querySelector?.(`[data-stage-effect-summary="${index}"] [data-effect-component-count]`);
+    if (output) output.textContent = String(count);
+  }
+
+  #updateReactionEffectSummary(stageIndex, reactionIndex, effectDefinition) {
+    const count = Array.isArray(effectDefinition?.components) ? effectDefinition.components.length : 0;
+    const output = this.root?.querySelector?.(`[data-reaction-effect-summary="${stageIndex}:${reactionIndex}"] [data-effect-component-count]`);
     if (output) output.textContent = String(count);
   }
 
@@ -685,6 +788,7 @@ export class EmbeddedAfflictionEditor {
   async #handleAction(action, target) {
     this.#sync();
     const index = Number(target.dataset.index);
+    const reactionIndex = Number(target.dataset.reactionIndex);
 
     if (action === "addCheck") this.session.addCheck();
     else if (action === "removeCheck") this.session.removeCheck(index);
@@ -701,6 +805,16 @@ export class EmbeddedAfflictionEditor {
       return;
     }
     else if (action === "toggleStageCheck") this.session.setStageCheckOverride(index, !this.session.definition.stages[index]?.check);
+    else if (action === "addStageReaction") this.session.addStageReaction(index);
+    else if (action === "removeStageReaction") this.session.removeStageReaction(index, reactionIndex);
+    else if (action === "addReactionEffect") {
+      const stage = this.session.definition.stages[index];
+      const reaction = stage?.reactions?.[reactionIndex];
+      if (stage && reaction && !reaction.effect) {
+        this.session.setStageReactionEffect(index, reactionIndex, createDefaultReactionEffect(this.session.definition, stage, reaction, this.#criticalApi()));
+      }
+    }
+    else if (action === "removeReactionEffect") this.session.setStageReactionEffect(index, reactionIndex, null);
     else if (action === "addStageEffect") {
       const stage = this.session.definition.stages[index];
       if (stage && !stage.effect) this.session.setStageEffect(index, createDefaultStageEffect(this.session.definition, stage, this.#criticalApi()));
@@ -754,6 +868,43 @@ export class EmbeddedAfflictionEditor {
       await editor.mount(host);
       host.dataset.afflictionEffectEditor = "components-only";
       editor.root?.setAttribute?.("data-affliction-stage-effect-editor", "");
+      if (this.session.readOnly) {
+        for (const control of host.querySelectorAll("input, select, textarea, button")) control.disabled = true;
+      }
+    }
+  }
+
+
+  async #mountReactionEffectEditors() {
+    if (!(this.root instanceof HTMLElement)) return;
+    const criticalApi = this.#criticalApi();
+    for (const host of this.root.querySelectorAll("[data-reaction-effect-host]")) {
+      const [stageText, reactionText] = String(host.dataset.reactionEffectHost ?? "").split(":");
+      const stageIndex = Number(stageText);
+      const reactionIndex = Number(reactionText);
+      const stage = this.session.definition.stages[stageIndex];
+      const reaction = stage?.reactions?.[reactionIndex];
+      if (!stage || !reaction?.effect) continue;
+      synchronizeManagedReactionEffectMetadata(this.session.definition, stage, reaction);
+      const editor = criticalApi.ui.effectEditor.create({
+        definition: reaction.effect,
+        layout: "embedded",
+        onChange: (effectSession) => {
+          const built = effectSession.buildDefinition({ api: criticalApi });
+          this.session.setStageReactionEffect(stageIndex, reactionIndex, built);
+          const currentStage = this.session.definition.stages[stageIndex];
+          const currentReaction = currentStage?.reactions?.[reactionIndex];
+          const managed = synchronizeManagedReactionEffectMetadata(this.session.definition, currentStage, currentReaction);
+          this.session.markDirty();
+          this.#updateReactionEffectSummary(stageIndex, reactionIndex, managed);
+          this.#refreshValidation();
+          this.#emitChange();
+        }
+      });
+      this.effectEditors.set(`reaction:${stageIndex}:${reactionIndex}`, editor);
+      await editor.mount(host);
+      host.dataset.afflictionEffectEditor = "components-only";
+      editor.root?.setAttribute?.("data-affliction-reaction-effect-editor", "");
       if (this.session.readOnly) {
         for (const control of host.querySelectorAll("input, select, textarea, button")) control.disabled = true;
       }

@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.49 adds condition locks, healing restrictions, capability restrictions, and persistent stage consequences for richer Remastered disease support.",
-  "version": "0.1.49",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.50 adds stage-scoped event reactions with auxiliary saves and Critical Forge effects, initially for PF2e damage-taken events.",
+  "version": "0.1.50",
   "socket": true,
   "authors": [
     {
@@ -55,5 +55,5 @@
   ],
   "url": "https://github.com/crypto-vbrthr/pf2e-affliction-forge",
   "manifest": "https://raw.githubusercontent.com/crypto-vbrthr/pf2e-affliction-forge/main/module.json",
-  "download": "https://github.com/crypto-vbrthr/pf2e-affliction-forge/releases/download/0.1.49/pf2e-affliction-forge.zip"
+  "download": "https://github.com/crypto-vbrthr/pf2e-affliction-forge/releases/download/0.1.50/pf2e-affliction-forge.zip"
 }

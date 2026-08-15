@@ -1,23 +1,29 @@
 # Changelog
 
+## 0.1.50
+
+### Triggered Checks & Event Reactions
+
+- adds stage-scoped `reactions` as an additive Affliction schema-v2 capability
+- adds the first supported reaction event, `damage-taken`, driven by PF2e synchronized damage-application ChatMessages
+- reactions can optionally filter by PF2e damage type; normal PF2e damage application can resolve the originating damage-roll message to recover its damage-type classification
+- unresolved required damage types fail closed, so a typed reaction is never fired merely because some damage occurred
+- each reaction references an existing stable Affliction save-check ID and resolves an auxiliary save without changing the current Affliction stage
+- reaction effects execute only for configured degrees of success and reuse Critical Forge Effect Definitions through the public Effect execution API
+- player-owned reaction saves reuse the existing targeted player-save request and authoritative-GM result handoff
+- adds embedded-editor authoring for reaction trigger, optional damage-type filters, auxiliary save, result selection, and reaction Effect components
+- adds public `api.reactions.*`, `api.catalogs.reactionEvents()`, and `api.definitions.createReaction()` contracts without changing public API compatibility `0.1.0` or schema v2
+- adds runtime, schema, editor-session, editor-architecture, and API regression coverage; full suite: 250/250 passing
+
 ## 0.1.49
 
 ### Restrictions & Persistent Consequences
 
-- adds root and per-stage `restrictions` to additive Affliction schema v2
-- adds condition locks that prevent matching PF2e conditions from being reduced below a configured minimum or, without a minimum, below their current value while the restriction is active
-- prevents deletion of locked condition Items while the owning restriction is active
-- adds `healing: "all"` to block all HP healing during an active restriction
-- adds `healing: "affliction-damage"` and controller `unhealableDamage` tracking so HP damage caused by Affliction Forge stage execution cannot be healed until that restriction ends, while unrelated damage can still be healed
-- adds a generic blocked-capability contract, initially supporting `speak`, and exposes it through `api.restrictions` for host integrations
-- adds `effectPersistence: "stage" | "affliction" | "permanent"` to stage definitions
-- affliction-persistent stage Effects survive later stage transitions and are removed when the affliction ends
-- permanent stage Effects survive stage transitions and controller cleanup as detached residual managed Effects
-- adds residual-effect document recognition and player-visibility handling
-- adds restriction controls to the embedded Affliction Editor and an active-restriction summary to the controller UI
-- keeps arbitrary external damage-type healing restrictions and event-triggered checks outside this block for later dedicated coverage
-- keeps Affliction schema v2, Controller schema v2, and public API compatibility `0.1.0`
-- expands regression coverage to 240 tests
+- adds root- and stage-scoped condition locks, healing restrictions, and the machine-readable `speak` capability restriction
+- adds `stage | affliction | permanent` stage-effect persistence and residual Effect lifecycle handling
+- tracks affliction-owned unhealable damage independently from unrelated Actor damage
+- fixes residual lifecycle cleanup so newly detached permanent consequences survive controller end
+- preserves Affliction schema v2 and public API compatibility `0.1.0`
 
 ## 0.1.48
 

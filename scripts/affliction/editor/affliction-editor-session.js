@@ -1,4 +1,5 @@
 import {
+  createDefaultEventReaction,
   createDefaultInitialCheck,
   createDefaultSaveCheck,
   createDefaultStage,
@@ -93,7 +94,10 @@ export class AfflictionEditorSession {
     const fallbackId = this.definition.checks[0]?.id ?? null;
     removeCheckIdFromGate(this.definition.initialCheck, removed.id, fallbackId);
     removeCheckIdFromGate(this.definition.defaultStageCheck, removed.id, fallbackId);
-    for (const stage of this.definition.stages) removeCheckIdFromGate(stage.check, removed.id, fallbackId);
+    for (const stage of this.definition.stages) {
+      removeCheckIdFromGate(stage.check, removed.id, fallbackId);
+      for (const reaction of stage.reactions ?? []) if (reaction.checkId === removed.id) reaction.checkId = fallbackId;
+    }
     this.markDirty();
     return true;
   }
@@ -107,7 +111,10 @@ export class AfflictionEditorSession {
     check.id = nextId;
     replaceCheckIdInGate(this.definition.initialCheck, oldId, nextId);
     replaceCheckIdInGate(this.definition.defaultStageCheck, oldId, nextId);
-    for (const stage of this.definition.stages) replaceCheckIdInGate(stage.check, oldId, nextId);
+    for (const stage of this.definition.stages) {
+      replaceCheckIdInGate(stage.check, oldId, nextId);
+      for (const reaction of stage.reactions ?? []) if (reaction.checkId === oldId) reaction.checkId = nextId;
+    }
     this.markDirty();
     return true;
   }
@@ -158,6 +165,10 @@ export class AfflictionEditorSession {
     const nextNumber = index + 2;
     copy.id = randomId(`${source.id || "stage"}-copy`);
     if (copy.effect?.id) copy.effect.id = `${this.definition.id}.${copy.id}.effect`;
+    for (const [reactionIndex, reaction] of (copy.reactions ?? []).entries()) {
+      reaction.id = randomId(`${reaction.id || `reaction-${reactionIndex + 1}`}-copy`);
+      if (reaction.effect?.id) reaction.effect.id = `${this.definition.id}.${copy.id}.${reaction.id}.effect`;
+    }
     this.definition.stages.splice(index + 1, 0, copy);
     this.definition.stages = reindexStages(this.definition.stages);
     this.markDirty();
@@ -195,6 +206,37 @@ export class AfflictionEditorSession {
   isStageCollapsed(index) {
     const stage = this.definition.stages[index];
     return Boolean(stage && this.collapsedStages.has(stage.id));
+  }
+
+  addStageReaction(stageIndex, options = {}) {
+    const stage = this.definition.stages[stageIndex];
+    if (!stage) return -1;
+    stage.reactions ??= [];
+    const reactionIndex = stage.reactions.length;
+    const reaction = createDefaultEventReaction({
+      id: String(options.id ?? `reaction-${reactionIndex + 1}`).trim() || `reaction-${reactionIndex + 1}`,
+      checkId: options.checkId ?? this.definition.checks[0]?.id ?? "primary",
+      ...deepClone(options)
+    });
+    stage.reactions.push(reaction);
+    this.markDirty();
+    return reactionIndex;
+  }
+
+  removeStageReaction(stageIndex, reactionIndex) {
+    const stage = this.definition.stages[stageIndex];
+    if (!stage || !Array.isArray(stage.reactions) || reactionIndex < 0 || reactionIndex >= stage.reactions.length) return false;
+    stage.reactions.splice(reactionIndex, 1);
+    this.markDirty();
+    return true;
+  }
+
+  setStageReactionEffect(stageIndex, reactionIndex, effectDefinition) {
+    const reaction = this.definition.stages[stageIndex]?.reactions?.[reactionIndex];
+    if (!reaction) return false;
+    reaction.effect = effectDefinition == null ? null : deepClone(effectDefinition);
+    this.markDirty();
+    return true;
   }
 
   setStageEffect(index, effectDefinition) {

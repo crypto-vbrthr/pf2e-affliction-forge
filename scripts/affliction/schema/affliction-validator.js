@@ -1,5 +1,6 @@
 import {
   AFFLICTION_CAPABILITIES,
+  AFFLICTION_REACTION_EVENTS,
   AFFLICTION_SCHEMA_VERSION,
   AFFLICTION_TYPES,
   CHECK_COMBINE_MODES,
@@ -249,6 +250,79 @@ function resolveEffectIssueMessage(issue) {
   return messageKey;
 }
 
+
+function validateReactionEffect(report, effect, path, effectValidator) {
+  if (effect == null) return;
+  if (!isObject(effect)) {
+    report.add({ severity: "error", code: "reaction.effect.object", path, message: "Reaction effect must be an Effect Definition object or null." });
+    return;
+  }
+  if (typeof effectValidator !== "function") return;
+  try {
+    const effectReport = effectValidator(effect);
+    for (const issue of adaptEffectReport(effectReport)) {
+      report.add({
+        severity: issue.severity === "info" ? "info" : issue.severity,
+        code: `reaction.effect.${issue.code ?? "invalid"}`,
+        path: `${path}${Number.isInteger(issue.componentIndex) ? `.components.${issue.componentIndex}` : ""}`,
+        message: resolveEffectIssueMessage(issue),
+        data: { ...(issue.data ?? {}), providerMessageKey: issue.messageKey ?? null }
+      });
+    }
+    if (effectReport?.valid === false && adaptEffectReport(effectReport).length === 0) {
+      for (const message of effectReport.errors ?? []) report.add({ severity: "error", code: "reaction.effect.invalid", path, message: String(message) });
+    }
+  } catch (error) {
+    report.add({ severity: "error", code: "reaction.effect.validator-failed", path, message: `Effect validation failed: ${error.message}` });
+  }
+}
+
+function validateStageReactions(report, reactions, path, checkIds, effectValidator) {
+  if (!Array.isArray(reactions)) {
+    report.add({ severity: "error", code: "reaction.array", path, message: "Stage reactions must be an array." });
+    return;
+  }
+  const ids = new Set();
+  for (const [index, reaction] of reactions.entries()) {
+    const reactionPath = `${path}.${index}`;
+    if (!isObject(reaction)) {
+      report.add({ severity: "error", code: "reaction.object", path: reactionPath, message: "Stage reaction must be an object." });
+      continue;
+    }
+    if (requiredString(report, reaction.id, `${reactionPath}.id`, "reaction.id")) {
+      if (ids.has(reaction.id)) report.add({ severity: "error", code: "reaction.id.duplicate", path: `${reactionPath}.id`, message: `Duplicate reaction id: ${reaction.id}.` });
+      ids.add(reaction.id);
+    }
+    if (!isObject(reaction.trigger)) {
+      report.add({ severity: "error", code: "reaction.trigger.object", path: `${reactionPath}.trigger`, message: "Reaction trigger is required." });
+    } else {
+      if (!AFFLICTION_REACTION_EVENTS.includes(reaction.trigger.event)) {
+        report.add({ severity: "error", code: "reaction.trigger.event", path: `${reactionPath}.trigger.event`, message: `Unsupported reaction event: ${reaction.trigger.event}.` });
+      }
+      if (!Array.isArray(reaction.trigger.damageTypes)) {
+        report.add({ severity: "error", code: "reaction.trigger.damage-types", path: `${reactionPath}.trigger.damageTypes`, message: "damageTypes must be an array." });
+      } else if (reaction.trigger.event !== "damage-taken" && reaction.trigger.damageTypes.length > 0) {
+        report.add({ severity: "warning", code: "reaction.trigger.damage-types-unused", path: `${reactionPath}.trigger.damageTypes`, message: "Damage type filters are only used by damage-taken reactions." });
+      }
+    }
+    if (!checkIds.has(reaction.checkId)) {
+      report.add({ severity: "error", code: "reaction.check.unknown", path: `${reactionPath}.checkId`, message: `Unknown reaction check id: ${reaction.checkId}.` });
+    }
+    if (!Array.isArray(reaction.applyOn) || reaction.applyOn.length === 0) {
+      report.add({ severity: "error", code: "reaction.apply-on", path: `${reactionPath}.applyOn`, message: "A reaction must apply on at least one degree of success." });
+    } else {
+      for (const [outcomeIndex, outcome] of reaction.applyOn.entries()) {
+        if (!OUTCOME_KEYS.includes(outcome)) report.add({ severity: "error", code: "reaction.apply-on.outcome", path: `${reactionPath}.applyOn.${outcomeIndex}`, message: `Unsupported reaction outcome: ${outcome}.` });
+      }
+    }
+    if (reaction.effect == null) {
+      report.add({ severity: "warning", code: "reaction.effect.missing", path: `${reactionPath}.effect`, message: "Reaction has no effect to execute after the triggered check." });
+    } else {
+      validateReactionEffect(report, reaction.effect, `${reactionPath}.effect`, effectValidator);
+    }
+  }
+}
+
 export function validateAfflictionDefinition(definition, { effectValidator = null } = {}) {
   const report = new AfflictionValidationReport();
   if (!isObject(definition)) {
@@ -305,6 +379,7 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
       validateDuration(report, stage.duration, `${path}.duration`, { nullable: false, allowUnlimited: true });
       validateCheckGate(report, stage.check, `${path}.check`, checkIds, definition.stages.length);
       validateRestrictions(report, stage.restrictions, `${path}.restrictions`);
+      validateStageReactions(report, stage.reactions ?? [], `${path}.reactions`, checkIds, effectValidator);
       if (!STAGE_EFFECT_PERSISTENCE_MODES.includes(stage.effectPersistence)) {
         report.add({ severity: "error", code: "stage.effect-persistence", path: `${path}.effectPersistence`, message: `Unsupported stage effect persistence: ${stage.effectPersistence}.` });
       }

@@ -124,3 +124,35 @@ test("editor session preserves save-policy overrides and identification state", 
   assert.deepEqual(session.definition.checks[0].policy, { execution: "gm", visibility: "public" });
   assert.deepEqual(session.definition.identification, { initialState: "hidden" });
 });
+
+test("check rename preserves stage event-reaction references", () => {
+  const session = createAfflictionEditorSession(sourceDefinition());
+  session.addStageReaction(0, { id: "hurt", checkId: "primary" });
+  assert.equal(session.definition.stages[0].reactions[0].checkId, "primary");
+
+  session.renameCheck(0, "mind");
+  assert.equal(session.definition.stages[0].reactions[0].checkId, "mind");
+});
+
+test("duplicating a stage gives event reactions and their effects independent identities", () => {
+  const session = createAfflictionEditorSession(sourceDefinition());
+  session.addStageReaction(0, { id: "hurt", checkId: "primary" });
+  session.setStageReactionEffect(0, 0, {
+    schemaVersion: 2,
+    id: "reaction.effect",
+    name: "Reaction Effect",
+    description: "",
+    img: "icons/svg/aura.svg",
+    duration: { value: 1, unit: "rounds", expiry: null },
+    components: [],
+    application: {},
+    metadata: {}
+  });
+
+  session.duplicateStage(0);
+  const original = session.definition.stages[0].reactions[0];
+  const copy = session.definition.stages[1].reactions[0];
+  assert.notEqual(copy.id, original.id);
+  assert.notEqual(copy.effect.id, original.effect.id);
+  assert.match(copy.effect.id, new RegExp(session.definition.stages[1].id));
+});

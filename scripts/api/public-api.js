@@ -1,5 +1,6 @@
 import {
   AFFLICTION_CAPABILITIES,
+  AFFLICTION_REACTION_EVENTS,
   AFFLICTION_SCHEMA_VERSION,
   AFFLICTION_TYPES,
   API_VERSION,
@@ -21,6 +22,7 @@ import {
 import {
   AFFLICTION_DATA_CONTRACT_V2,
   createAfflictionDefinition,
+  createDefaultEventReaction,
   createDefaultInitialCheck,
   createDefaultRestrictions,
   createDefaultSaveCheck,
@@ -100,6 +102,14 @@ import {
   isAfflictionCapabilityBlocked,
   restrictionRuntimeStatus
 } from "../affliction/runtime/affliction-restriction-runtime.js";
+import {
+  acceptAfflictionReactionPlayerResult,
+  afflictionEventReactionRuntimeStatus,
+  eventReactionMatches,
+  inspectPf2eAfflictionReactionEvent,
+  processAfflictionEventReactionMessage,
+  resolvePf2eDamageTypes
+} from "../affliction/runtime/affliction-event-reaction-runtime.js";
 import { createAfflictionEditorUiApi } from "../affliction/editor/affliction-editor.js";
 import {
   criticalForgeEffectValidator,
@@ -141,6 +151,7 @@ export function createPublicApi() {
       identificationStates: () => [...IDENTIFICATION_STATES],
       healingRestrictionModes: () => [...HEALING_RESTRICTION_MODES],
       afflictionCapabilities: () => [...AFFLICTION_CAPABILITIES],
+      reactionEvents: () => [...AFFLICTION_REACTION_EVENTS],
       stageEffectPersistenceModes: () => [...STAGE_EFFECT_PERSISTENCE_MODES],
       durationUnits: () => [...DURATION_UNITS],
       checkCombineModes: () => [...CHECK_COMBINE_MODES],
@@ -153,6 +164,7 @@ export function createPublicApi() {
 
     definitions: Object.freeze({
       create: (options = {}) => createAfflictionDefinition(options),
+      createReaction: (options = {}) => createDefaultEventReaction(options),
       createCheck: (options = {}) => createDefaultSaveCheck(options),
       createSavePolicy: (options = {}) => createDefaultSavePolicy(options),
       createRestrictions: () => createDefaultRestrictions(),
@@ -349,6 +361,15 @@ export function createPublicApi() {
       forController: (controller) => inspectControllerRestrictions(controller),
       isCapabilityBlocked: (actor, capability) => isAfflictionCapabilityBlocked(actor, capability),
       status: () => restrictionRuntimeStatus()
+    }),
+
+    reactions: Object.freeze({
+      inspectMessage: (message) => inspectPf2eAfflictionReactionEvent(message),
+      damageTypes: (message) => resolvePf2eDamageTypes(message),
+      matches: (reaction, event) => eventReactionMatches(reaction, event),
+      processMessage: (message, options = {}) => processAfflictionEventReactionMessage(message, options),
+      acceptPlayerResult: (payload = {}) => acceptAfflictionReactionPlayerResult(payload),
+      status: () => afflictionEventReactionRuntimeStatus()
     }),
 
     ui: Object.freeze({

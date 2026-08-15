@@ -308,3 +308,46 @@ test("restriction validator rejects unsupported healing, capabilities, and persi
   assert.ok(report.errors.some((issue) => issue.code === "restrictions.capability"));
   assert.ok(report.errors.some((issue) => issue.code === "stage.effect-persistence"));
 });
+
+test("stage event reactions normalize and validate as additive schema-v2 mechanics", () => {
+  const definition = normalizeAfflictionDefinition({
+    ...validDefinition(),
+    checks: [
+      createDefaultSaveCheck({ id: "primary", dc: 25 }),
+      createDefaultSaveCheck({ id: "mind", statistic: "will", dc: 25 })
+    ],
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      reactions: [{
+        id: "slashing-nightmare",
+        label: "Nightmare backlash",
+        trigger: { event: "damage-taken", damageTypes: ["slashing"] },
+        checkId: "mind",
+        applyOn: ["failure", "criticalFailure"],
+        effect: null
+      }]
+    }]
+  });
+  const reaction = definition.stages[0].reactions[0];
+  assert.equal(reaction.trigger.event, "damage-taken");
+  assert.deepEqual(reaction.trigger.damageTypes, ["slashing"]);
+  assert.equal(reaction.checkId, "mind");
+  assert.equal(validateAfflictionDefinition(definition).valid, true);
+});
+
+test("event reaction validator rejects unsupported triggers, unknown checks, and empty outcomes", () => {
+  const definition = validDefinition();
+  definition.stages[0].reactions = [{
+    id: "bad",
+    label: "Bad",
+    trigger: { event: "moon-phase", damageTypes: [] },
+    checkId: "missing",
+    applyOn: [],
+    effect: null
+  }];
+  const report = validateAfflictionDefinition(definition);
+  assert.equal(report.valid, false);
+  assert.ok(report.errors.some((issue) => issue.code === "reaction.trigger.event"));
+  assert.ok(report.errors.some((issue) => issue.code === "reaction.check.unknown"));
+  assert.ok(report.errors.some((issue) => issue.code === "reaction.apply-on"));
+});

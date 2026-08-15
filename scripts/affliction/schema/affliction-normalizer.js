@@ -1,6 +1,7 @@
 import {
   AFFLICTION_SCHEMA_VERSION,
   AFFLICTION_CAPABILITIES,
+  AFFLICTION_REACTION_EVENTS,
   CHECK_COMBINE_MODES,
   DURATION_UNITS,
   HEALING_RESTRICTION_MODES,
@@ -13,6 +14,7 @@ import {
 } from "../../constants.js";
 import {
   createAfflictionDefinition,
+  createDefaultEventReaction,
   createDefaultInitialCheck,
   createDefaultRestrictions,
   createDefaultSaveCheck,
@@ -122,6 +124,26 @@ function normalizeIdentification(value, fallback = { initialState: "identified" 
   };
 }
 
+function normalizeEventReaction(value, index) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const fallback = createDefaultEventReaction({ id: `reaction-${index + 1}` });
+  const triggerSource = source.trigger && typeof source.trigger === "object" && !Array.isArray(source.trigger)
+    ? source.trigger
+    : {};
+  const event = cleanString(triggerSource.event, fallback.trigger.event).toLowerCase();
+  return {
+    id: cleanString(source.id, fallback.id),
+    label: String(source.label ?? "").trim(),
+    trigger: {
+      event: AFFLICTION_REACTION_EVENTS.includes(event) ? event : fallback.trigger.event,
+      damageTypes: uniqueStrings(triggerSource.damageTypes).map((entry) => entry.toLowerCase())
+    },
+    checkId: cleanString(source.checkId, fallback.checkId),
+    applyOn: uniqueStrings(source.applyOn ?? fallback.applyOn).filter((entry) => OUTCOME_KEYS.includes(entry)),
+    effect: source.effect == null ? null : deepClone(source.effect)
+  };
+}
+
 function normalizeCheck(check, index) {
   const fallback = createDefaultSaveCheck({ id: index === 0 ? "primary" : `check-${index + 1}` });
   const dcMode = SAVE_DC_MODES.includes(check?.dcMode) ? check.dcMode : fallback.dcMode;
@@ -150,7 +172,8 @@ function normalizeStage(stage, index) {
     effectPersistence: STAGE_EFFECT_PERSISTENCE_MODES.includes(stage?.effectPersistence)
       ? stage.effectPersistence
       : fallback.effectPersistence,
-    effect: stage?.effect == null ? null : deepClone(stage.effect)
+    effect: stage?.effect == null ? null : deepClone(stage.effect),
+    reactions: Array.isArray(stage?.reactions) ? stage.reactions.map(normalizeEventReaction) : []
   };
 }
 

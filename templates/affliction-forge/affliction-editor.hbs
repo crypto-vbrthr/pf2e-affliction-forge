@@ -596,6 +596,109 @@
                   </div>
                 </section>
 
+                <section class="affliction-editor-stage-reaction-section">
+                  <header>
+                    <div>
+                      <strong>{{localize "PF2E_AFFLICTION_FORGE.Reaction.Title"}}</strong>
+                      <small>{{localize "PF2E_AFFLICTION_FORGE.Reaction.Hint"}}</small>
+                    </div>
+                    <button type="button" class="affliction-editor-primary" data-affliction-action="addStageReaction" data-index="{{stage.index}}">
+                      <i class="fa-solid fa-plus"></i> {{localize "PF2E_AFFLICTION_FORGE.Reaction.Add"}}
+                    </button>
+                  </header>
+
+                  {{#if stage.reactions.length}}
+                    <div class="affliction-editor-stage-reaction-list">
+                      {{#each stage.reactions as |reaction|}}
+                        <article class="affliction-editor-stage-reaction-card" data-stage-reaction-index="{{reaction.index}}">
+                          <header>
+                            <strong>{{localize "PF2E_AFFLICTION_FORGE.Reaction.EventReaction"}} {{reaction.number}}</strong>
+                            <button type="button" class="icon danger" data-affliction-action="removeStageReaction" data-index="{{reaction.stageIndex}}" data-reaction-index="{{reaction.index}}" title="{{localize 'PF2E_AFFLICTION_FORGE.Reaction.Remove'}}">
+                              <i class="fa-solid fa-trash"></i>
+                            </button>
+                          </header>
+
+                          <div class="affliction-editor-grid two-columns">
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.Id"}}</span>
+                              <input data-reaction-field="id" type="text" value="{{reaction.id}}" required>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.Label"}}</span>
+                              <input data-reaction-field="label" type="text" value="{{reaction.label}}">
+                            </label>
+                          </div>
+
+                          <div class="affliction-editor-grid three-columns">
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.Trigger"}}</span>
+                              <select data-reaction-field="event">
+                                {{#each reaction.eventOptions as |option|}}
+                                  <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                                {{/each}}
+                              </select>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.DamageTypes"}}</span>
+                              <input data-reaction-field="damageTypes" type="text" value="{{reaction.damageTypesText}}" placeholder="slashing, fire">
+                              <small>{{localize "PF2E_AFFLICTION_FORGE.Reaction.DamageTypesHint"}}</small>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.Check"}}</span>
+                              <select data-reaction-field="checkId">
+                                {{#each reaction.checkOptions as |option|}}
+                                  <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                                {{/each}}
+                              </select>
+                            </label>
+                          </div>
+
+                          <div class="affliction-editor-reaction-outcomes">
+                            <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.ApplyOn"}}</span>
+                            <div class="affliction-editor-check-pills">
+                              {{#each reaction.outcomes as |outcome|}}
+                                <label>
+                                  <input data-reaction-outcome type="checkbox" value="{{outcome.key}}" {{#if outcome.checked}}checked{{/if}}>
+                                  <span>{{outcome.label}}</span>
+                                </label>
+                              {{/each}}
+                            </div>
+                          </div>
+
+                          <section class="affliction-editor-reaction-effect">
+                            <header>
+                              <div>
+                                <strong>{{localize "PF2E_AFFLICTION_FORGE.Reaction.Effect"}}</strong>
+                                <small>{{localize "PF2E_AFFLICTION_FORGE.Reaction.EffectHint"}}</small>
+                              </div>
+                              {{#if reaction.hasEffect}}
+                                <button type="button" class="danger" data-affliction-action="removeReactionEffect" data-index="{{reaction.stageIndex}}" data-reaction-index="{{reaction.index}}">
+                                  <i class="fa-solid fa-trash"></i> {{localize "PF2E_AFFLICTION_FORGE.Reaction.RemoveEffect"}}
+                                </button>
+                              {{else}}
+                                <button type="button" class="affliction-editor-primary" data-affliction-action="addReactionEffect" data-index="{{reaction.stageIndex}}" data-reaction-index="{{reaction.index}}">
+                                  <i class="fa-solid fa-plus"></i> {{localize "PF2E_AFFLICTION_FORGE.Reaction.AddEffect"}}
+                                </button>
+                              {{/if}}
+                            </header>
+                            {{#if reaction.hasEffect}}
+                              <div class="affliction-editor-stage-effect-summary" data-reaction-effect-summary="{{reaction.stageIndex}}:{{reaction.index}}">
+                                <span><i class="fa-solid fa-cubes"></i> <strong data-effect-component-count>{{reaction.effectComponentCount}}</strong> {{localize "PF2E_AFFLICTION_FORGE.Editor.EffectComponents"}}</span>
+                                <small>{{localize "PF2E_AFFLICTION_FORGE.Reaction.EffectManagedHint"}}</small>
+                              </div>
+                              <div class="affliction-editor-effect-host" data-reaction-effect-host="{{reaction.stageIndex}}:{{reaction.index}}"></div>
+                            {{else}}
+                              <p class="affliction-editor-empty">{{localize "PF2E_AFFLICTION_FORGE.Reaction.NoEffectDefinition"}}</p>
+                            {{/if}}
+                          </section>
+                        </article>
+                      {{/each}}
+                    </div>
+                  {{else}}
+                    <p class="affliction-editor-empty">{{localize "PF2E_AFFLICTION_FORGE.Reaction.None"}}</p>
+                  {{/if}}
+                </section>
+
                 <section class="affliction-editor-stage-effect-section">
                   <header>
                     <div>

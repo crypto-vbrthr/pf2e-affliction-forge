@@ -111,7 +111,8 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
         blockedCapabilities: []
       },
       effectPersistence: "stage", // stage | affliction | permanent
-      effect: null
+      effect: null,
+      reactions: [] // optional stage-scoped auxiliary checks; see below
     }
   ],
 
@@ -407,3 +408,40 @@ Restrictions are additive schema-v2 fields. Legacy definitions normalize to empt
 - `effectPersistence: "permanent"`: generated persistent output survives later stages and remains as a detached `affliction-residual-effect` after controller end.
 
 `affliction-damage` intentionally does not claim damage caused by unrelated external events, even when the damage type matches a disease rule. Damage-type-wide healing restrictions require a separate future runtime contract.
+
+## Stage event reactions (0.1.50)
+
+Each stage may define zero or more `reactions`. Reactions are auxiliary checks caused by a supported runtime event while that stage is current. They are intentionally separate from the stage check gate: resolving a reaction never changes the Affliction stage by itself.
+
+```js
+{
+  id: "stage-3",
+  number: 3,
+  duration: { value: 1, unit: "days" },
+  reactions: [
+    {
+      id: "slashing-nightmare",
+      label: "Nightmare wound",
+      trigger: {
+        event: "damage-taken",
+        damageTypes: ["slashing"] // optional; [] means any positive damage
+      },
+      checkId: "mind",
+      applyOn: ["failure", "criticalFailure"],
+      effect: {/* Critical Forge Effect Definition */}
+    }
+  ]
+}
+```
+
+Current event catalog:
+
+- `damage-taken`: a PF2e synchronized positive damage-application ChatMessage for the affected Actor.
+
+`damageTypes` is only used by `damage-taken`. The runtime first uses damage typing present on the current PF2e message and, when available, follows PF2e's originating damage-roll message to recover the damage-roll type map. When a reaction requires one or more damage types but the runtime cannot resolve any type, the reaction fails closed and does not trigger.
+
+`checkId` references one of the definition's normal stable save checks and therefore inherits the same fixed/source DC and execution/visibility policies. The active controller already contains materialized source DCs, so reaction checks remain deterministic after application.
+
+`applyOn` lists the degrees of success that execute `effect`. The auxiliary save is reported independently and never invokes the stage progression gate. `effect` is optional at the schema level so editors can build reactions incrementally; a missing effect produces a validation warning and no mechanical reaction output.
+
+The authoritative GM owns event processing. Player-executed reaction saves reuse the ordinary targeted player-save request transport but are tagged with `purpose: "reaction"`, then routed back to the reaction runtime rather than the progression engine.

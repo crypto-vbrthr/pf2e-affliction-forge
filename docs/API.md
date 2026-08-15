@@ -1,4 +1,4 @@
-# Public API 0.1.0 (module 0.1.49)
+# Public API 0.1.0 (module 0.1.50)
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -247,7 +247,7 @@ Stage 0 is reserved for initial exposure/onset runtime state. An already active 
 
 ### API compatibility version
 
-`api.version` is now independent from the module release number. Module `0.1.49` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
+`api.version` is now independent from the module release number. Module `0.1.50` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
 
 ### Pause / resume semantics
 
@@ -683,3 +683,37 @@ spell-cast / supported Item-use     -> on-use
 ```
 
 A matching application is routed through `api.application.applyItemReference(...)`; trigger evaluation never implements Affliction progression itself.
+
+## Event reaction API (0.1.50)
+
+Stage event reactions are authored with the same schema-v2 definition contract and do not require an API-version bump.
+
+```js
+const reaction = api.definitions.createReaction({
+  id: "take-damage",
+  label: "Pain response",
+  event: "damage-taken",
+  damageTypes: ["slashing"],
+  checkId: "mind",
+  applyOn: ["failure", "criticalFailure"]
+});
+
+api.catalogs.reactionEvents(); // ["damage-taken"]
+```
+
+Runtime helpers:
+
+```js
+api.reactions.inspectMessage(message)
+api.reactions.damageTypes(message)
+api.reactions.matches(reaction, event)
+await api.reactions.processMessage(message)
+await api.reactions.acceptPlayerResult(payload)
+api.reactions.status()
+```
+
+Normal consumers do not need to call `processMessage()` themselves. Affliction Forge registers the PF2e ChatMessage hook during `ready` and the authoritative GM processes supported events automatically. The helpers are public for diagnostics and integrations.
+
+A reaction save is auxiliary. It never advances or reduces the Affliction stage. The configured Critical Forge reaction effect is executed only when the degree of success appears in `reaction.applyOn`.
+
+The first supported event is positive PF2e `damage-taken`. Optional `damageTypes` filters are strict: if a typed reaction cannot resolve damage typing from the PF2e message/origin chain, it does not fire.

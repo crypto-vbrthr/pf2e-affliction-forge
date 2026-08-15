@@ -79,6 +79,7 @@
 }
 
 .affliction-editor-grid.two-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.affliction-editor-grid.three-columns { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .affliction-editor-grid.four-columns { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .affliction-editor-grid.five-columns { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 
@@ -362,6 +363,7 @@
     grid-template-columns: 1fr;
   }
 
+  .affliction-editor-grid.three-columns,
   .affliction-editor-grid.four-columns,
   .affliction-editor-grid.five-columns,
   .affliction-editor-outcome-grid {
@@ -380,6 +382,7 @@
     grid-template-columns: 1fr;
   }
 
+  .affliction-editor-grid.three-columns,
   .affliction-editor-grid.four-columns,
   .affliction-editor-grid.five-columns,
   .affliction-editor-outcome-grid {
@@ -2239,4 +2242,86 @@
 
 .affliction-controller-restrictions small {
   opacity: 0.72;
+}
+
+/* 0.1.50: stage-scoped event reactions. */
+.affliction-editor-stage-reaction-section {
+  padding: 0.65rem;
+  border: 1px solid var(--affliction-border);
+  border-radius: 6px;
+  background: var(--affliction-panel-strong);
+}
+
+.affliction-editor-stage-reaction-section > header,
+.affliction-editor-stage-reaction-card > header,
+.affliction-editor-reaction-effect > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.affliction-editor-stage-reaction-section > header {
+  margin-bottom: 0.55rem;
+}
+
+.affliction-editor-stage-reaction-section > header > div,
+.affliction-editor-reaction-effect > header > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.affliction-editor-stage-reaction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.affliction-editor-stage-reaction-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.65rem;
+  border: 1px solid var(--affliction-border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.affliction-editor-stage-reaction-card > header {
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--affliction-border);
+}
+
+.affliction-editor-reaction-outcomes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.affliction-editor-reaction-outcomes > span {
+  font-weight: 700;
+}
+
+.affliction-editor-reaction-effect {
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--affliction-border);
+}
+
+.affliction-editor-reaction-effect > header {
+  margin-bottom: 0.45rem;
+}
+
+.affliction-editor-stage-reaction-section strong,
+.affliction-editor-reaction-effect strong {
+  color: var(--affliction-text);
+}
+
+@media (max-width: 720px) {
+  .affliction-editor-stage-reaction-section > header,
+  .affliction-editor-reaction-effect > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }

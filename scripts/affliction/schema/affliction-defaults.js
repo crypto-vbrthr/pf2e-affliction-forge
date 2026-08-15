@@ -61,6 +61,26 @@ export function createDefaultStageCheck() {
   };
 }
 
+
+export function createDefaultEventReaction({
+  id = "reaction-1",
+  label = "",
+  event = "damage-taken",
+  damageTypes = [],
+  checkId = "primary",
+  applyOn = ["failure", "criticalFailure"],
+  effect = null
+} = {}) {
+  return {
+    id,
+    label,
+    trigger: { event, damageTypes },
+    checkId,
+    applyOn,
+    effect
+  };
+}
+
 export function createDefaultStage({ number = 1 } = {}) {
   return {
     id: `stage-${number}`,
@@ -71,7 +91,8 @@ export function createDefaultStage({ number = 1 } = {}) {
     check: null,
     restrictions: createDefaultRestrictions(),
     effectPersistence: "stage",
-    effect: null
+    effect: null,
+    reactions: []
   };
 }
 
@@ -158,6 +179,12 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
     conditionLocks: "slug-plus-optional-minimum"
   },
   stageEffectPersistence: ["stage", "affliction", "permanent"],
+  eventReactions: {
+    events: ["damage-taken"],
+    optionalDamageTypeFilter: true,
+    outcomeEffect: "critical-forge-effect-definition",
+    stageProgression: "unchanged"
+  },
   deliveryCapabilities: {
     injuryPoison: "weapon-or-melee-reference-with-consumable-charges"
   }
