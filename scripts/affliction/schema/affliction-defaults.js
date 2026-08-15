@@ -122,6 +122,7 @@ export function createDefaultEventReaction({
   checkId = "primary",
   applyOn = ["failure", "criticalFailure"],
   conditionValueDelta = 0,
+  controllerActions = null,
   effect = null
 } = {}) {
   return {
@@ -131,6 +132,12 @@ export function createDefaultEventReaction({
     checkId,
     applyOn,
     conditionValueDelta,
+    controllerActions: controllerActions ?? {
+      criticalSuccess: "none",
+      success: "none",
+      failure: "none",
+      criticalFailure: "none"
+    },
     effect
   };
 }
@@ -142,6 +149,7 @@ export function createDefaultStage({ number = 1 } = {}) {
     name: "",
     description: "",
     duration: { value: 1, unit: "rounds" },
+    expiryAction: "check",
     check: null,
     restrictions: createDefaultRestrictions(),
     effectPersistence: "stage",
@@ -260,13 +268,18 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
     itemActivationIntegration: "public-api-for-external-activation-workflows"
   },
   eventReactions: {
-    events: ["damage-taken", "condition-increased"],
+    events: ["damage-taken", "condition-increased", "initiative-rolled", "turn-start"],
     optionalDamageTypeFilter: true,
     optionalConditionSlugFilter: true,
     optionalSaveCheck: true,
     triggeringConditionValueDelta: true,
     outcomeEffect: "critical-forge-effect-definition",
+    controllerOutcomeActions: ["none", "recover", "end"],
     stageProgression: "unchanged"
+  },
+  stageExpiry: {
+    actions: ["check", "recover", "end", "stay"],
+    default: "check"
   },
   deliveryCapabilities: {
     injuryPoison: "weapon-or-melee-reference-with-consumable-charges"

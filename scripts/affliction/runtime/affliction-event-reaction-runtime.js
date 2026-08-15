@@ -234,6 +234,45 @@ export function inspectPf2eConditionReactionEvent(item, { previousValue = null, 
   });
 }
 
+export function inspectFoundryInitiativeReactionEvent(combatant, changes = {}, { eventId = null } = {}) {
+  const hasInitiativeChange = changes && typeof changes === "object" && Object.prototype.hasOwnProperty.call(changes, "initiative");
+  const actor = combatant?.actor ?? combatant?.token?.actor ?? null;
+  const initiative = Number(combatant?.initiative ?? changes?.initiative);
+  return Object.freeze({
+    matched: Boolean(hasInitiativeChange && actor && Number.isFinite(initiative)),
+    event: hasInitiativeChange ? "initiative-rolled" : null,
+    eventId: eventId ?? `initiative-${++conditionEventSerial}`,
+    actor,
+    actorUuid: actor?.uuid ?? null,
+    combatantUuid: combatant?.uuid ?? null,
+    initiative: Number.isFinite(initiative) ? initiative : null,
+    damageTypes: Object.freeze([]),
+    damageTypesKnown: false,
+    reactionChain: Object.freeze([])
+  });
+}
+
+export function inspectFoundryTurnStartReactionEvent(combat, { eventId = null } = {}) {
+  const combatant = combat?.combatant ?? null;
+  const actor = combatant?.actor ?? combatant?.token?.actor ?? null;
+  const round = Number(combat?.round);
+  const turn = Number(combat?.turn);
+  return Object.freeze({
+    matched: Boolean(actor && combatant),
+    event: actor && combatant ? "turn-start" : null,
+    eventId: eventId ?? `turn-${combat?.id ?? "combat"}-${Number.isFinite(round) ? round : "r"}-${Number.isFinite(turn) ? turn : "t"}-${++conditionEventSerial}`,
+    actor,
+    actorUuid: actor?.uuid ?? null,
+    combatUuid: combat?.uuid ?? null,
+    combatantUuid: combatant?.uuid ?? null,
+    round: Number.isFinite(round) ? round : null,
+    turn: Number.isFinite(turn) ? turn : null,
+    damageTypes: Object.freeze([]),
+    damageTypesKnown: false,
+    reactionChain: Object.freeze([])
+  });
+}
+
 export function eventReactionMatches(reaction, event) {
   if (!reaction || !event?.matched || reaction?.trigger?.event !== event.event) return false;
   if (event.event === "damage-taken") {
@@ -284,6 +323,23 @@ function checkForReaction(definition, reaction) {
 function outcomeApplies(reaction, degree) {
   return OUTCOME_KEYS.includes(degree) && reaction?.applyOn?.includes?.(degree);
 }
+function controllerActionForOutcome(reaction, degree) {
+  if (!OUTCOME_KEYS.includes(degree)) return "none";
+  const action = String(reaction?.controllerActions?.[degree] ?? "none").toLowerCase();
+  return ["recover", "end"].includes(action) ? action : "none";
+}
+
+async function applyControllerOutcome({ controller, reaction, degree }) {
+  const action = controllerActionForOutcome(reaction, degree);
+  if (action === "none") return Object.freeze({ applied: false, action: "none" });
+  const api = globalThis.game?.modules?.get?.(MODULE_ID)?.api;
+  if (typeof api?.instances?.end !== "function") {
+    throw new Error("Affliction instance end API is unavailable for reaction controller outcomes.");
+  }
+  await api.instances.end(controller, { reason: action === "recover" ? "recovered" : "reaction-ended" });
+  return Object.freeze({ applied: true, action });
+}
+
 
 async function executeReactionEffect({ controller, actor, definition, stage, reaction, event, degree = null, direct = false }) {
   if ((!direct && !outcomeApplies(reaction, degree)) || !reaction.effect) return { applied: false, results: [] };
@@ -336,7 +392,7 @@ function gmWhisperIds() {
   return list.filter((user) => user?.isGM).map((user) => user.id);
 }
 
-async function createReactionSummary({ controller, actor, definition, stage, reaction, event, check = null, result = null, effectApplied, conditionAdjustment = null }) {
+async function createReactionSummary({ controller, actor, definition, stage, reaction, event, check = null, result = null, effectApplied, conditionAdjustment = null, controllerOutcome = null }) {
   if (!globalThis.ChatMessage?.create) return null;
   const checkLine = check && result
     ? `<p>${escapeHtml(check.label || check.statistic)} SG ${escapeHtml(check.dc)}: <strong>${escapeHtml(localize(`PF2E_AFFLICTION_FORGE.Runtime.Degree.${result.degree}`, result.degree))}</strong></p>`
@@ -348,12 +404,18 @@ async function createReactionSummary({ controller, actor, definition, stage, rea
         value: conditionAdjustment.value
       }, ({ condition, previous, value }) => `${condition}: ${previous} → ${value}`))}</p>`
     : "";
-  const outputApplied = Boolean(effectApplied || conditionAdjustment?.applied);
+  const controllerLine = controllerOutcome?.applied
+    ? `<p>${escapeHtml(controllerOutcome.action === "recover"
+        ? localize("PF2E_AFFLICTION_FORGE.Reaction.ControllerRecovered", "Leiden durch Reaktion geheilt.")
+        : localize("PF2E_AFFLICTION_FORGE.Reaction.ControllerEnded", "Leiden durch Reaktion beendet."))}</p>`
+    : "";
+  const outputApplied = Boolean(effectApplied || conditionAdjustment?.applied || controllerOutcome?.applied);
   const content = `<div class="pf2e-affliction-reaction-summary">
     <h4><i class="fa-solid fa-bolt"></i> ${escapeHtml(definition.name)} · ${escapeHtml(actor?.name ?? "")}</h4>
     <p><strong>${escapeHtml(reaction.label || localize("PF2E_AFFLICTION_FORGE.Reaction.EventReaction", "Ereignisreaktion"))}</strong></p>
     ${checkLine}
     ${conditionLine}
+    ${controllerLine}
     <p>${escapeHtml(outputApplied
       ? localize("PF2E_AFFLICTION_FORGE.Reaction.EffectApplied", "Reaktionseffekt angewendet.")
       : localize("PF2E_AFFLICTION_FORGE.Reaction.NoEffect", "Kein Reaktionseffekt bei diesem Ergebnis."))}</p>
@@ -404,6 +466,11 @@ function serializeReactionEvent(event) {
     previousValue: Number.isInteger(event.previousValue) ? event.previousValue : null,
     conditionValue: Number.isInteger(event.conditionValue) ? event.conditionValue : null,
     conditionDelta: Number.isInteger(event.conditionDelta) ? event.conditionDelta : null,
+    combatUuid: event.combatUuid ?? null,
+    combatantUuid: event.combatantUuid ?? null,
+    initiative: Number.isFinite(Number(event.initiative)) ? Number(event.initiative) : null,
+    round: Number.isFinite(Number(event.round)) ? Number(event.round) : null,
+    turn: Number.isFinite(Number(event.turn)) ? Number(event.turn) : null,
     reactionChain: [...(event.reactionChain ?? [])],
     damageTypes: [...(event.damageTypes ?? [])],
     damageTypesKnown: Boolean(event.damageTypesKnown)
@@ -433,11 +500,14 @@ async function finalizeReaction({ controller, actor, definition, stage, reaction
   const effect = await executeReactionEffect({
     controller, actor, definition, stage, reaction, event, degree: result?.degree ?? null, direct
   });
+  const controllerOutcome = check && result
+    ? await applyControllerOutcome({ controller, reaction, degree: result.degree })
+    : Object.freeze({ applied: false, action: "none" });
   rememberProcessed(key);
   pendingReactionKeys.delete(key);
   await createReactionSummary({
     controller, actor, definition, stage, reaction, event, check, result,
-    effectApplied: effect.applied, conditionAdjustment
+    effectApplied: effect.applied, conditionAdjustment, controllerOutcome
   });
   const payload = Object.freeze({
     controllerUuid: controller.uuid,
@@ -448,12 +518,13 @@ async function finalizeReaction({ controller, actor, definition, stage, reaction
     checkId: check?.id ?? null,
     result: result ? Object.freeze({ ...result }) : null,
     effectApplied: effect.applied,
-    conditionAdjustment
+    conditionAdjustment,
+    controllerOutcome
   });
   globalThis.Hooks?.callAll?.("pf2eAfflictionForgeReactionResolved", payload);
   return Object.freeze({
     status: "resolved", controller, reaction, event, result,
-    effectApplied: effect.applied, conditionAdjustment
+    effectApplied: effect.applied, conditionAdjustment, controllerOutcome
   });
 }
 
@@ -677,6 +748,24 @@ function onDeleteItem(item) {
   if (key) conditionValueCache.delete(key);
 }
 
+function onUpdateCombatant(combatant, changes = {}) {
+  if (!authoritativeGm()) return;
+  const event = inspectFoundryInitiativeReactionEvent(combatant, changes);
+  if (!event.matched) return;
+  void processAfflictionReactionEvent(event).catch((error) => {
+    console.error(`${MODULE_ID} | Could not process Affliction initiative reaction.`, error);
+  });
+}
+
+function onCombatTurnChange(combat) {
+  if (!authoritativeGm()) return;
+  const event = inspectFoundryTurnStartReactionEvent(combat);
+  if (!event.matched) return;
+  void processAfflictionReactionEvent(event).catch((error) => {
+    console.error(`${MODULE_ID} | Could not process Affliction turn-start reaction.`, error);
+  });
+}
+
 export function afflictionEventReactionRuntimeStatus() {
   return Object.freeze({
     initialized,
@@ -695,5 +784,7 @@ export function initializeAfflictionEventReactionRuntime() {
   globalThis.Hooks?.on?.("createItem", onCreateItem);
   globalThis.Hooks?.on?.("updateItem", onUpdateItem);
   globalThis.Hooks?.on?.("deleteItem", onDeleteItem);
+  globalThis.Hooks?.on?.("updateCombatant", onUpdateCombatant);
+  globalThis.Hooks?.on?.("combatTurnChange", onCombatTurnChange);
   globalThis.Hooks?.on?.("canvasReady", seedConditionValueCache);
 }

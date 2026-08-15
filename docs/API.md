@@ -744,7 +744,9 @@ const reaction = api.definitions.createReaction({
   applyOn: ["failure", "criticalFailure"]
 });
 
-api.catalogs.reactionEvents(); // ["damage-taken", "condition-increased"]
+api.catalogs.reactionEvents(); // ["damage-taken", "condition-increased", "initiative-rolled", "turn-start"]
+api.catalogs.reactionControllerActions(); // ["none", "recover", "end"]
+api.catalogs.stageExpiryActions(); // ["check", "recover", "end", "stay"]
 ```
 
 A condition reaction can resolve directly without an auxiliary save:
@@ -777,7 +779,9 @@ Normal consumers do not need to call the processing helpers themselves. Afflicti
 
 When `checkId` is present, the reaction save is auxiliary and never advances or reduces the Affliction stage. The configured Critical Forge reaction effect executes only when the degree of success appears in `reaction.applyOn`. When `checkId` is `null`, the reaction resolves immediately and any configured effect executes directly.
 
-Supported events are positive PF2e `damage-taken` and valued `condition-increased`. Optional `damageTypes` filters are strict for damage reactions. Optional `conditionSlugs` filters restrict condition reactions. `conditionValueDelta` changes the triggering valued condition and carries a reaction-chain marker so the same reaction cannot recursively trigger itself.
+Supported events are positive PF2e `damage-taken`, valued `condition-increased`, Foundry combatant initiative changes (`initiative-rolled`), and the post-update active combatant (`turn-start`). Optional `damageTypes` filters are strict for damage reactions. Optional `conditionSlugs` filters restrict condition reactions. `conditionValueDelta` changes the triggering valued condition and carries a reaction-chain marker so the same reaction cannot recursively trigger itself.
+
+Checked reactions can additionally use `controllerActions` keyed by degree of success. `recover` applies the normal recovered lifecycle; `end` ends the controller without recovery semantics. These actions are independent of the Critical Forge reaction effect. Public helpers `api.reactions.inspectInitiative()` and `api.reactions.inspectTurnStart()` expose the normalized lifecycle events.
 
 ## Pre-action gate API (0.1.55)
 

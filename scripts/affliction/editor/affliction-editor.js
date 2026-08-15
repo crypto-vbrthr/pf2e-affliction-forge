@@ -10,6 +10,8 @@ import {
   NUMERIC_MODIFIER_TYPES,
   OUTCOME_KEYS,
   RARITIES,
+  REACTION_CONTROLLER_ACTIONS,
+  STAGE_EXPIRY_ACTIONS,
   SAVE_DC_MODES,
   SAVE_EXECUTION_MODES,
   SAVE_STATISTICS,
@@ -30,7 +32,20 @@ const LABELS = Object.freeze({
   },
   reactionEvent: {
     "damage-taken": "PF2E_AFFLICTION_FORGE.Reaction.Event.DamageTaken",
-    "condition-increased": "PF2E_AFFLICTION_FORGE.Reaction.Event.ConditionIncreased"
+    "condition-increased": "PF2E_AFFLICTION_FORGE.Reaction.Event.ConditionIncreased",
+    "initiative-rolled": "PF2E_AFFLICTION_FORGE.Reaction.Event.InitiativeRolled",
+    "turn-start": "PF2E_AFFLICTION_FORGE.Reaction.Event.TurnStart"
+  },
+  reactionControllerAction: {
+    none: "PF2E_AFFLICTION_FORGE.Reaction.ControllerAction.None",
+    recover: "PF2E_AFFLICTION_FORGE.Reaction.ControllerAction.Recover",
+    end: "PF2E_AFFLICTION_FORGE.Reaction.ControllerAction.End"
+  },
+  stageExpiryAction: {
+    check: "PF2E_AFFLICTION_FORGE.StageExpiry.Check",
+    recover: "PF2E_AFFLICTION_FORGE.StageExpiry.Recover",
+    end: "PF2E_AFFLICTION_FORGE.StageExpiry.End",
+    stay: "PF2E_AFFLICTION_FORGE.StageExpiry.Stay"
   },
   numericModifierType: {
     untyped: "PF2E_AFFLICTION_FORGE.NumericModifier.Type.Untyped",
@@ -503,7 +518,12 @@ function prepareReaction(reaction, reactionIndex, checks) {
     outcomes: OUTCOME_KEYS.map((outcome) => ({
       key: outcome,
       label: localize(LABELS.outcome[outcome]),
-      checked: reaction.applyOn?.includes?.(outcome) ?? false
+      checked: reaction.applyOn?.includes?.(outcome) ?? false,
+      controllerActionOptions: optionList(
+        REACTION_CONTROLLER_ACTIONS,
+        reaction.controllerActions?.[outcome] ?? "none",
+        LABELS.reactionControllerAction
+      )
     })),
     hasEffect: Boolean(reaction.effect),
     effectComponentCount: Array.isArray(reaction.effect?.components) ? reaction.effect.components.length : 0
@@ -557,6 +577,7 @@ export async function prepareAfflictionEditorContext(session, {
       canRemove: definition.stages.length > 1,
       collapsed: session.isStageCollapsed(index),
       durationView: prepareDuration(stage.duration, { nullable: false, allowUnlimited: true }),
+      expiryActionOptions: optionList(STAGE_EXPIRY_ACTIONS, stage.expiryAction ?? "check", LABELS.stageExpiryAction),
       usesCustomCheck: Boolean(stage.check),
       customCheck: prepareGate(stage.check, definition.checks),
       restrictionView: prepareRestrictions(stage.restrictions),
@@ -838,6 +859,7 @@ export class EmbeddedAfflictionEditor {
       stage.name = String(stageRegion.querySelector('[data-stage-field="name"]')?.value ?? stage.name);
       stage.description = String(stageRegion.querySelector('[data-stage-field="description"]')?.value ?? stage.description);
       stage.duration = durationFromRegion(stageRegion.querySelector('[data-stage-duration]'), { nullable: false, allowUnlimited: true });
+      stage.expiryAction = String(stageRegion.querySelector('[data-stage-field="expiryAction"]')?.value ?? stage.expiryAction ?? "check");
       const customGate = stageRegion.querySelector('[data-check-gate="stage"]');
       if (stage.check && customGate) stage.check = gateFromRegion(customGate);
       stage.restrictions = restrictionsFromRegion(stageRegion.querySelector('[data-stage-restrictions]'), stage.restrictions);
@@ -899,6 +921,10 @@ export class EmbeddedAfflictionEditor {
         reaction.applyOn = reaction.checkId
           ? [...reactionRegion.querySelectorAll('[data-reaction-outcome]:checked')].map((input) => String(input.value))
           : [];
+        reaction.controllerActions = Object.fromEntries(OUTCOME_KEYS.map((outcome) => [
+          outcome,
+          String(reactionRegion.querySelector(`[data-reaction-controller-action="${outcome}"]`)?.value ?? reaction.controllerActions?.[outcome] ?? "none")
+        ]));
         reaction.conditionValueDelta = Math.trunc(Number(reactionRegion.querySelector('[data-reaction-field="conditionValueDelta"]')?.value ?? 0) || 0);
         synchronizeManagedReactionEffectMetadata(definition, stage, reaction);
       }
@@ -1324,6 +1350,7 @@ export class EmbeddedAfflictionEditor {
       const conditionDelta = card.querySelector('[data-reaction-field="conditionValueDelta"]');
       const check = card.querySelector('[data-reaction-field="checkId"]');
       const outcomes = [...card.querySelectorAll('[data-reaction-outcome]')];
+      const controllerActions = [...card.querySelectorAll('[data-reaction-controller-action]')];
       const update = () => {
         const eventValue = String(event?.value ?? "damage-taken");
         if (damageTypes) damageTypes.disabled = eventValue !== "damage-taken" || this.session.readOnly;
@@ -1331,6 +1358,7 @@ export class EmbeddedAfflictionEditor {
         if (conditionDelta) conditionDelta.disabled = eventValue !== "condition-increased" || this.session.readOnly;
         const hasCheck = Boolean(String(check?.value ?? "").trim());
         for (const outcome of outcomes) outcome.disabled = !hasCheck || this.session.readOnly;
+        for (const action of controllerActions) action.disabled = !hasCheck || this.session.readOnly;
       };
       event?.addEventListener("change", update);
       check?.addEventListener("change", update);

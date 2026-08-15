@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.56
+
+### Lifecycle Reactions & Reactive Recovery
+
+- adds `initiative-rolled` and `turn-start` as generic stage event-reaction triggers, using Foundry V14 combat lifecycle/document hooks on the authoritative GM
+- adds per-degree `controllerActions` to checked reactions; a result can now leave the controller unchanged, recover the affliction, or end it without requiring a Critical Forge effect
+- allows checked reactions with no `applyOn` effect outcomes when a controller outcome action provides the mechanical result
+- adds stage-scoped `expiryAction` with `check | recover | end | stay`; finite no-save stages can therefore recover/end automatically or renew without inventing a stage save
+- exposes lifecycle inspectors plus `reactionControllerActions()` and `stageExpiryActions()` through the public API without changing API compatibility `0.1.0`, Affliction schema v2, or Controller schema v2
+- extends the embedded editor with lifecycle trigger choices, per-degree controller actions, and stage-expiry authoring
+- keeps reaction effects and controller lifecycle outcomes orthogonal, so failure effects and success-based recovery can coexist in one auxiliary save contract
+- full regression suite: 286/286 passing
+
 ## 0.1.55
 
 ### Pre-Action / Concentrate Gates

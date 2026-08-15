@@ -1,4 +1,4 @@
-# Architecture 0.1.55
+# Architecture 0.1.56
 
 ```text
 Affliction Template / Definition
@@ -453,3 +453,12 @@ The event runtime deliberately separates four responsibilities:
 4. Mechanical output may execute a Critical Forge Effect Definition and/or adjust the triggering valued condition directly.
 
 Processed and pending event/controller/reaction keys provide same-session duplicate protection. Built-in condition adjustments carry a reaction-chain marker through the resulting PF2e Item update, preventing a reaction from recursively retriggering itself while allowing the event model to remain generic. Typed damage reactions still fail closed when damage type is unresolved. Runtime resolution emits `pf2eAfflictionForgeReactionResolved` for host integrations and a GM audit summary.
+
+
+## Lifecycle reactions and stage expiry (0.1.56)
+
+The event-reaction runtime also consumes Foundry combat lifecycle signals. `updateCombatant` initiative changes are normalized as `initiative-rolled`, while the post-update `combatTurnChange` hook is normalized as `turn-start` for the new active combatant. Only the authoritative GM resolves these events.
+
+Checked reactions may define `controllerActions` by degree of success. `recover` ends the controller with normal recovered lifecycle semantics; `end` performs a non-recovery end. This output is independent from `applyOn` / Critical Forge reaction effects.
+
+Each stage also has `expiryAction`. `check` preserves the traditional stage-save boundary. `recover` or `end` terminate the controller when the finite duration expires. `stay` renews the same stage clock without replaying instant mechanics. Unlimited stages never reach an expiry action.

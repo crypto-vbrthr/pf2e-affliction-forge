@@ -12,7 +12,9 @@ import {
   SAVE_DC_MODES,
   SAVE_EXECUTION_MODES,
   SAVE_VISIBILITY_MODES,
-  STAGE_EFFECT_PERSISTENCE_MODES
+  STAGE_EFFECT_PERSISTENCE_MODES,
+  REACTION_CONTROLLER_ACTIONS,
+  STAGE_EXPIRY_ACTIONS
 } from "../../constants.js";
 import {
   createAfflictionDefinition,
@@ -207,6 +209,13 @@ function normalizeEventReaction(value, index) {
   const checkId = checkIdSource == null || String(checkIdSource).trim() === ""
     ? null
     : cleanString(checkIdSource, fallback.checkId);
+  const controllerActionSource = source.controllerActions && typeof source.controllerActions === "object" && !Array.isArray(source.controllerActions)
+    ? source.controllerActions
+    : {};
+  const controllerActions = Object.fromEntries(OUTCOME_KEYS.map((outcome) => {
+    const action = cleanString(controllerActionSource[outcome], fallback.controllerActions?.[outcome] ?? "none").toLowerCase();
+    return [outcome, REACTION_CONTROLLER_ACTIONS.includes(action) ? action : "none"];
+  }));
   return {
     id: cleanString(source.id, fallback.id),
     label: String(source.label ?? "").trim(),
@@ -220,6 +229,7 @@ function normalizeEventReaction(value, index) {
       ? uniqueStrings(source.applyOn ?? fallback.applyOn).filter((entry) => OUTCOME_KEYS.includes(entry))
       : [],
     conditionValueDelta: Math.trunc(finiteNumber(source.conditionValueDelta, 0)),
+    controllerActions,
     effect: source.effect == null ? null : deepClone(source.effect)
   };
 }
@@ -261,6 +271,9 @@ function normalizeStage(stage, index) {
     name: String(stage?.name ?? "").trim(),
     description: String(stage?.description ?? ""),
     duration: normalizeDuration(stage?.duration ?? fallback.duration, { allowUnlimited: true }),
+    expiryAction: STAGE_EXPIRY_ACTIONS.includes(String(stage?.expiryAction ?? fallback.expiryAction).toLowerCase())
+      ? String(stage?.expiryAction ?? fallback.expiryAction).toLowerCase()
+      : fallback.expiryAction,
     check: stage?.check == null ? null : normalizeCheckGate(stage.check),
     restrictions: normalizeRestrictions(stage?.restrictions, fallback.restrictions),
     effectPersistence: STAGE_EFFECT_PERSISTENCE_MODES.includes(stage?.effectPersistence)

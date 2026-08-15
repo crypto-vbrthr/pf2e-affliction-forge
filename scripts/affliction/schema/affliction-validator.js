@@ -16,7 +16,9 @@ import {
   SAVE_STATISTICS,
   SAVE_VISIBILITY_MODES,
   STAGE_EFFECT_PERSISTENCE_MODES,
-  TRANSITION_ACTIONS
+  TRANSITION_ACTIONS,
+  REACTION_CONTROLLER_ACTIONS,
+  STAGE_EXPIRY_ACTIONS
 } from "../../constants.js";
 import { AfflictionValidationError, AfflictionValidationReport } from "./validation-report.js";
 
@@ -447,23 +449,37 @@ function validateStageReactions(report, reactions, path, checkIds, effectValidat
     if (hasCheck && !checkIds.has(reaction.checkId)) {
       report.add({ severity: "error", code: "reaction.check.unknown", path: `${reactionPath}.checkId`, message: `Unknown reaction check id: ${reaction.checkId}.` });
     }
-    if (hasCheck) {
-      if (!Array.isArray(reaction.applyOn) || reaction.applyOn.length === 0) {
-        report.add({ severity: "error", code: "reaction.apply-on", path: `${reactionPath}.applyOn`, message: "A checked reaction must apply on at least one degree of success." });
-      } else {
-        for (const [outcomeIndex, outcome] of reaction.applyOn.entries()) {
-          if (!OUTCOME_KEYS.includes(outcome)) report.add({ severity: "error", code: "reaction.apply-on.outcome", path: `${reactionPath}.applyOn.${outcomeIndex}`, message: `Unsupported reaction outcome: ${outcome}.` });
+    if (!Array.isArray(reaction.applyOn)) {
+      report.add({ severity: "error", code: "reaction.apply-on.array", path: `${reactionPath}.applyOn`, message: "applyOn must be an array." });
+    } else {
+      for (const [outcomeIndex, outcome] of reaction.applyOn.entries()) {
+        if (!OUTCOME_KEYS.includes(outcome)) report.add({ severity: "error", code: "reaction.apply-on.outcome", path: `${reactionPath}.applyOn.${outcomeIndex}`, message: `Unsupported reaction outcome: ${outcome}.` });
+      }
+    }
+    if (!isObject(reaction.controllerActions)) {
+      report.add({ severity: "error", code: "reaction.controller-actions.object", path: `${reactionPath}.controllerActions`, message: "controllerActions must be an object." });
+    } else {
+      for (const outcome of OUTCOME_KEYS) {
+        const action = reaction.controllerActions[outcome];
+        if (!REACTION_CONTROLLER_ACTIONS.includes(action)) {
+          report.add({ severity: "error", code: "reaction.controller-action", path: `${reactionPath}.controllerActions.${outcome}`, message: `Unsupported reaction controller action: ${action}.` });
         }
       }
-    } else if (!Array.isArray(reaction.applyOn)) {
-      report.add({ severity: "error", code: "reaction.apply-on.array", path: `${reactionPath}.applyOn`, message: "applyOn must be an array." });
+    }
+    const hasControllerAction = OUTCOME_KEYS.some((outcome) => reaction.controllerActions?.[outcome] && reaction.controllerActions[outcome] !== "none");
+    if (hasCheck && reaction.applyOn.length === 0 && !hasControllerAction) {
+      report.add({ severity: "error", code: "reaction.apply-on", path: `${reactionPath}.applyOn`, message: "A checked reaction requires an effect outcome and/or a controller outcome action." });
+    }
+    if (!hasCheck && hasControllerAction) {
+      report.add({ severity: "warning", code: "reaction.controller-action-without-check", path: `${reactionPath}.controllerActions`, message: "Controller outcome actions require an auxiliary save and are ignored without one." });
     }
     if (!Number.isInteger(reaction.conditionValueDelta)) {
       report.add({ severity: "error", code: "reaction.condition-delta", path: `${reactionPath}.conditionValueDelta`, message: "conditionValueDelta must be an integer." });
     } else if (reaction.conditionValueDelta !== 0 && reaction.trigger?.event !== "condition-increased") {
       report.add({ severity: "warning", code: "reaction.condition-delta-unused", path: `${reactionPath}.conditionValueDelta`, message: "conditionValueDelta is only used by condition-increased reactions." });
     }
-    if (reaction.effect == null && reaction.conditionValueDelta === 0) {
+    const hasControllerOutput = OUTCOME_KEYS.some((outcome) => reaction.controllerActions?.[outcome] && reaction.controllerActions[outcome] !== "none");
+    if (reaction.effect == null && reaction.conditionValueDelta === 0 && !hasControllerOutput) {
       report.add({ severity: "warning", code: "reaction.effect.missing", path: `${reactionPath}.effect`, message: "Reaction has no mechanical output." });
     } else if (reaction.effect != null) {
       validateReactionEffect(report, reaction.effect, `${reactionPath}.effect`, effectValidator);
@@ -525,6 +541,11 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
       }
       if (stage.number !== index + 1) report.add({ severity: "error", code: "stage.number", path: `${path}.number`, message: `Stage number must be ${index + 1}.` });
       validateDuration(report, stage.duration, `${path}.duration`, { nullable: false, allowUnlimited: true });
+      if (!STAGE_EXPIRY_ACTIONS.includes(stage.expiryAction)) {
+        report.add({ severity: "error", code: "stage.expiry-action", path: `${path}.expiryAction`, message: `Unsupported stage expiry action: ${stage.expiryAction}.` });
+      } else if (stage.duration?.unit === "unlimited" && stage.expiryAction !== "check") {
+        report.add({ severity: "warning", code: "stage.expiry-action-unlimited", path: `${path}.expiryAction`, message: "Stage expiry action is never reached for an unlimited stage." });
+      }
       validateCheckGate(report, stage.check, `${path}.check`, checkIds, definition.stages.length);
       validateRestrictions(report, stage.restrictions, `${path}.restrictions`);
       validateNumericModifiers(report, stage.numericModifiers ?? [], `${path}.numericModifiers`);

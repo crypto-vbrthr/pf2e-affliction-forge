@@ -487,3 +487,34 @@ test("pre-action validator rejects unsupported action kinds and invalid flat-che
   assert.ok(report.errors.some((issue) => issue.code === "pre-action.check.dc"));
   assert.ok(report.errors.some((issue) => issue.code === "pre-action.block-on-failure"));
 });
+
+
+test("lifecycle reactions and stage expiry actions remain additive schema-v2 mechanics", () => {
+  const definition = normalizeAfflictionDefinition({
+    ...validDefinition(),
+    checks: [
+      createDefaultSaveCheck({ id: "primary", dc: 28 }),
+      createDefaultSaveCheck({ id: "reactive", statistic: "will", dc: 28 })
+    ],
+    defaultStageCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      duration: { value: 1, unit: "rounds" },
+      expiryAction: "recover",
+      reactions: [{
+        id: "initiative-madness",
+        trigger: { event: "initiative-rolled" },
+        checkId: "reactive",
+        applyOn: [],
+        controllerActions: { criticalSuccess: "recover", success: "recover", failure: "none", criticalFailure: "none" },
+        effect: null
+      }]
+    }]
+  });
+  const stage = definition.stages[0];
+  assert.equal(stage.expiryAction, "recover");
+  assert.equal(stage.reactions[0].trigger.event, "initiative-rolled");
+  assert.equal(stage.reactions[0].controllerActions.success, "recover");
+  assert.deepEqual(stage.reactions[0].applyOn, []);
+  assert.equal(validateAfflictionDefinition(definition).valid, true);
+});

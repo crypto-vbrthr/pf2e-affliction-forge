@@ -507,6 +507,15 @@
                       </select>
                     </label>
                   </div>
+                  <label class="affliction-editor-field full-width">
+                    <span>{{localize "PF2E_AFFLICTION_FORGE.StageExpiry.Title"}}</span>
+                    <select data-stage-field="expiryAction">
+                      {{#each stage.expiryActionOptions as |option|}}
+                        <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                      {{/each}}
+                    </select>
+                    <small>{{localize "PF2E_AFFLICTION_FORGE.StageExpiry.Hint"}}</small>
+                  </label>
                 </div>
 
                 <section class="affliction-editor-stage-check-section">
@@ -911,6 +920,20 @@
                               {{/each}}
                             </div>
                           </div>
+
+                          <div class="affliction-editor-grid two-columns">
+                            {{#each reaction.outcomes as |outcome|}}
+                              <label class="affliction-editor-field">
+                                <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.ControllerAction.Label"}} · {{outcome.label}}</span>
+                                <select data-reaction-controller-action="{{outcome.key}}">
+                                  {{#each outcome.controllerActionOptions as |option|}}
+                                    <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                                  {{/each}}
+                                </select>
+                              </label>
+                            {{/each}}
+                          </div>
+                          <small>{{localize "PF2E_AFFLICTION_FORGE.Reaction.ControllerAction.Hint"}}</small>
 
                           <section class="affliction-editor-reaction-effect">
                             <header>

@@ -753,3 +753,33 @@ test("a single virulent player stage save uses the Affliction batch window trans
     globalThis.ChatMessage = previousChatMessage;
   }
 });
+
+
+test("finite stage can recover automatically at expiry without a stage save", async () => {
+  const stage = createDefaultStage({ number: 1 });
+  stage.duration = { value: 1, unit: "rounds" };
+  stage.expiryAction = "recover";
+  const definition = automaticDefinition({ defaultStageCheck: null, stages: [stage] });
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.expiry",
+    status: "active",
+    currentStage: 1,
+    appliedAt: 1000,
+    stageEnteredAt: 1000,
+    nextCheckAt: 1006,
+    identification: { state: "identified", identifiedAt: 1000, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [],
+    pendingCheck: null,
+    onsetTargetStage: null,
+    lastCheck: null,
+    revision: 1
+  };
+  const { controller } = makeController(definition, { state });
+  const service = serviceFor(controller);
+  const engine = createAfflictionEngine({ instanceService: service });
+  const result = await engine.process(controller, { atTime: 1006 });
+  assert.equal(result.status, "recovered");
+  assert.equal(service.ended, "recovered");
+});

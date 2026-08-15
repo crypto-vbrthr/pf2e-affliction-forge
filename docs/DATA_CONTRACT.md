@@ -572,3 +572,35 @@ Current event catalog:
 When a check exists, `applyOn` lists the degrees of success that execute `effect` and `conditionValueDelta`. The auxiliary save is reported independently and never invokes the stage progression gate. For direct reactions, configured output executes immediately. `effect` remains optional; a reaction with neither an effect nor a nonzero condition delta produces a validation warning.
 
 The authoritative GM owns event processing. Player-executed reaction saves reuse the ordinary targeted player-save request transport but are tagged with `purpose: "reaction"`, then routed back to the reaction runtime rather than the progression engine.
+
+
+## Lifecycle reactions and stage expiry (0.1.56)
+
+Stage reactions keep the schema-v2 shape and add optional controller lifecycle output:
+
+```js
+{
+  id: "wake-on-damage",
+  trigger: { event: "damage-taken", damageTypes: [], conditionSlugs: [] },
+  checkId: "wake",
+  applyOn: [],
+  controllerActions: {
+    criticalSuccess: "recover",
+    success: "recover",
+    failure: "none",
+    criticalFailure: "none"
+  },
+  conditionValueDelta: 0,
+  effect: null
+}
+```
+
+Supported reaction events are `damage-taken | condition-increased | initiative-rolled | turn-start`. Controller actions are `none | recover | end`. A checked reaction may have an empty `applyOn` array when a non-`none` controller action supplies its mechanical result.
+
+Every normalized stage also owns:
+
+```js
+expiryAction: "check" // check | recover | end | stay
+```
+
+`check` preserves the ordinary stage-save lifecycle. `recover` and `end` terminate a finite stage at its duration boundary. `stay` renews the same stage without a save or replay of instant mechanics.

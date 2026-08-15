@@ -28,7 +28,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
   assert.equal(api.version, "0.1.0");
-  assert.equal(api.moduleVersion, "0.1.55");
+  assert.equal(api.moduleVersion, "0.1.56");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -41,7 +41,9 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.deepEqual(api.catalogs.healingRestrictionModes(), ["none", "all", "affliction-damage"]);
   assert.deepEqual(api.catalogs.afflictionCapabilities(), ["speak"]);
   assert.deepEqual(api.catalogs.stageEffectPersistenceModes(), ["stage", "affliction", "permanent"]);
-  assert.deepEqual(api.catalogs.reactionEvents(), ["damage-taken", "condition-increased"]);
+  assert.deepEqual(api.catalogs.reactionEvents(), ["damage-taken", "condition-increased", "initiative-rolled", "turn-start"]);
+  assert.deepEqual(api.catalogs.reactionControllerActions(), ["none", "recover", "end"]);
+  assert.deepEqual(api.catalogs.stageExpiryActions(), ["check", "recover", "end", "stay"]);
   assert.deepEqual(api.catalogs.preActionKinds(), ["spell-cast", "item-activation"]);
   assert.deepEqual(api.catalogs.numericModifierTypes(), ["untyped", "status", "circumstance", "item"]);
   assert.equal(typeof api.definitions.createNumericModifier, "function");
@@ -58,6 +60,8 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.restrictions.recordDamageMessage, "function");
   assert.equal(typeof api.reactions.inspectMessage, "function");
   assert.equal(typeof api.reactions.inspectCondition, "function");
+  assert.equal(typeof api.reactions.inspectInitiative, "function");
+  assert.equal(typeof api.reactions.inspectTurnStart, "function");
   assert.equal(typeof api.reactions.damageTypes, "function");
   assert.equal(typeof api.reactions.matches, "function");
   assert.equal(typeof api.reactions.processEvent, "function");

@@ -353,6 +353,27 @@ export class AfflictionEngine {
       return { status: "not-due", controller, dueAt };
     }
 
+    if (state.status === "active" && state.currentStage > 0) {
+      const stage = current.definition.stages?.find?.((entry) => entry.number === state.currentStage) ?? null;
+      const expiryAction = stage?.expiryAction ?? "check";
+      if (expiryAction === "recover") {
+        await this.instanceService.end(controller, { reason: "recovered" });
+        return { status: "recovered", controller, expiryAction };
+      }
+      if (expiryAction === "end") {
+        await this.instanceService.end(controller, { reason: "stage-expiry" });
+        return { status: "ended", controller, expiryAction };
+      }
+      if (expiryAction === "stay") {
+        await this.instanceService.setStage(controller, state.currentStage, {
+          enteredAt: processAt,
+          refreshPersistent: false,
+          executeInstant: false
+        });
+        return { status: "resolved-no-transition", controller: await this.instanceService.get(controller.uuid), expiryAction };
+      }
+    }
+
     const plan = current.plan;
     if (!plan || plan.checks.length === 0) return { status: "no-check", controller };
     let pending = pendingMatches(state.pendingCheck, plan)

@@ -5,6 +5,8 @@ import {
   eventReactionMatches,
   inspectPf2eAfflictionReactionEvent,
   inspectPf2eConditionReactionEvent,
+  inspectFoundryInitiativeReactionEvent,
+  inspectFoundryTurnStartReactionEvent,
   processAfflictionReactionEvent,
   processAfflictionEventReactionMessage,
   resolvePf2eDamageTypes
@@ -307,4 +309,66 @@ test("condition reaction chain suppresses the same reaction from recursively esc
   const result = await processAfflictionReactionEvent(event, { force: true });
   assert.equal(result.status, "processed");
   assert.equal(result.results[0].status, "reaction-chain-suppressed");
+});
+
+
+test("Foundry combat lifecycle inspectors emit initiative-rolled and turn-start events", () => {
+  const { actor } = installRuntime();
+  const combatant = { id: "c1", uuid: "Combat.test.Combatant.c1", actor, initiative: 23 };
+  const initiative = inspectFoundryInitiativeReactionEvent(combatant, { initiative: 23 }, { eventId: "initiative-test" });
+  assert.equal(initiative.matched, true);
+  assert.equal(initiative.event, "initiative-rolled");
+  assert.equal(initiative.actorUuid, actor.uuid);
+
+  const combat = { id: "combat", uuid: "Combat.combat", round: 2, turn: 0, combatant };
+  const turn = inspectFoundryTurnStartReactionEvent(combat, { eventId: "turn-test" });
+  assert.equal(turn.matched, true);
+  assert.equal(turn.event, "turn-start");
+  assert.equal(turn.round, 2);
+  assert.equal(turn.turn, 0);
+});
+
+test("a reaction save can recover the affliction controller without an outcome effect", async () => {
+  const { actor } = installRuntime({ degree: "success" });
+  let endedReason = null;
+  globalThis.game.modules.set(MODULE_ID, {
+    active: true,
+    api: { instances: { end: async (_controller, { reason }) => { endedReason = reason; return true; } } }
+  });
+  const definition = normalizeAfflictionDefinition({
+    schemaVersion: 2,
+    id: "test.reactive-recovery",
+    name: "Reactive Recovery",
+    afflictionType: "curse",
+    level: 11,
+    rarity: "common",
+    traits: ["curse"],
+    themes: [],
+    saveDefaults: { execution: "automatic", visibility: "public" },
+    identification: { initialState: "identified" },
+    restrictions: { conditionLocks: [], healing: "none", unhealableDamageTypes: [], blockedCapabilities: [] },
+    checks: [{ id: "wake", label: "Will", kind: "save", statistic: "will", dcMode: "fixed", dc: 28, policy: null }],
+    initialCheck: null,
+    onset: null,
+    maximumDuration: null,
+    defaultStageCheck: null,
+    progression: { belowStageOne: "recover", aboveMaximumStage: "clamp", virulent: false },
+    stages: [{
+      id: "stage-1", number: 1, name: "Stage 1", description: "", duration: { unit: "unlimited" }, expiryAction: "check", check: null,
+      restrictions: { conditionLocks: [], healing: "none", unhealableDamageTypes: [], blockedCapabilities: [] },
+      effectPersistence: "stage", effect: null,
+      reactions: [{
+        id: "wake-on-damage", label: "Wake on damage",
+        trigger: { event: "damage-taken", damageTypes: [], conditionSlugs: [] },
+        checkId: "wake", applyOn: [], conditionValueDelta: 0,
+        controllerActions: { criticalSuccess: "recover", success: "recover", failure: "none", criticalFailure: "none" },
+        effect: null
+      }]
+    }],
+    metadata: {}
+  });
+  controllerFor(actor, definition);
+  const result = await processAfflictionEventReactionMessage(damageTakenMessage(actor, { id: "recovery-damage" }), { force: true });
+  assert.equal(result.results[0].controllerOutcome.action, "recover");
+  assert.equal(endedReason, "recovered");
 });

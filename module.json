@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.55 adds resource-safe pre-action flat-check gates for concentrate spell and item workflows.",
-  "version": "0.1.55",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.56 adds lifecycle reactions, reactive recovery/end outcomes, and configurable stage-expiry actions.",
+  "version": "0.1.56",
   "socket": true,
   "authors": [
     {
@@ -55,5 +55,5 @@
   ],
   "url": "https://github.com/crypto-vbrthr/pf2e-affliction-forge",
   "manifest": "https://raw.githubusercontent.com/crypto-vbrthr/pf2e-affliction-forge/main/module.json",
-  "download": "https://github.com/crypto-vbrthr/pf2e-affliction-forge/releases/download/0.1.55/pf2e-affliction-forge.zip"
+  "download": "https://github.com/crypto-vbrthr/pf2e-affliction-forge/releases/download/0.1.56/pf2e-affliction-forge.zip"
 }
