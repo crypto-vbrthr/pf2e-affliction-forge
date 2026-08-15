@@ -1,8 +1,10 @@
 import {
+  AFFLICTION_CAPABILITIES,
   AFFLICTION_SCHEMA_VERSION,
   AFFLICTION_TYPES,
   CHECK_COMBINE_MODES,
   DURATION_UNITS,
+  HEALING_RESTRICTION_MODES,
   OUTCOME_KEYS,
   IDENTIFICATION_STATES,
   RARITIES,
@@ -10,6 +12,7 @@ import {
   SAVE_EXECUTION_MODES,
   SAVE_STATISTICS,
   SAVE_VISIBILITY_MODES,
+  STAGE_EFFECT_PERSISTENCE_MODES,
   TRANSITION_ACTIONS
 } from "../../constants.js";
 import { AfflictionValidationError, AfflictionValidationReport } from "./validation-report.js";
@@ -116,6 +119,44 @@ function validateSavePolicy(report, policy, path, { nullable = false } = {}) {
   }
 }
 
+
+function validateRestrictions(report, restrictions, path) {
+  if (!isObject(restrictions)) {
+    report.add({ severity: "error", code: "restrictions.object", path, message: `${path} must be an object.` });
+    return;
+  }
+  if (!Array.isArray(restrictions.conditionLocks)) {
+    report.add({ severity: "error", code: "restrictions.condition-locks", path: `${path}.conditionLocks`, message: "conditionLocks must be an array." });
+  } else {
+    const slugs = new Set();
+    for (const [index, lock] of restrictions.conditionLocks.entries()) {
+      const lockPath = `${path}.conditionLocks.${index}`;
+      if (!isObject(lock)) {
+        report.add({ severity: "error", code: "restriction.condition-lock.object", path: lockPath, message: "Condition lock must be an object." });
+        continue;
+      }
+      if (requiredString(report, lock.slug, `${lockPath}.slug`, "restriction.condition-lock.slug")) {
+        if (slugs.has(lock.slug)) report.add({ severity: "warning", code: "restriction.condition-lock.duplicate", path: `${lockPath}.slug`, message: `Duplicate condition lock: ${lock.slug}.` });
+        slugs.add(lock.slug);
+      }
+      if (lock.minimum != null && (!Number.isInteger(lock.minimum) || lock.minimum < 1)) {
+        report.add({ severity: "error", code: "restriction.condition-lock.minimum", path: `${lockPath}.minimum`, message: "Condition lock minimum must be a positive integer or null." });
+      }
+    }
+  }
+  if (!HEALING_RESTRICTION_MODES.includes(restrictions.healing)) {
+    report.add({ severity: "error", code: "restrictions.healing", path: `${path}.healing`, message: `Unsupported healing restriction: ${restrictions.healing}.` });
+  }
+  if (!Array.isArray(restrictions.blockedCapabilities)) {
+    report.add({ severity: "error", code: "restrictions.capabilities", path: `${path}.blockedCapabilities`, message: "blockedCapabilities must be an array." });
+  } else {
+    for (const [index, capability] of restrictions.blockedCapabilities.entries()) {
+      if (!AFFLICTION_CAPABILITIES.includes(capability)) {
+        report.add({ severity: "error", code: "restrictions.capability", path: `${path}.blockedCapabilities.${index}`, message: `Unsupported blocked capability: ${capability}.` });
+      }
+    }
+  }
+}
 
 function validateDelivery(report, definition) {
   const delivery = definition.delivery;
@@ -229,6 +270,7 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
   validateSavePolicy(report, definition.saveDefaults, "saveDefaults");
   validateIdentification(report, definition.identification);
   validateDelivery(report, definition);
+  validateRestrictions(report, definition.restrictions, "restrictions");
 
   const checkIds = validateChecks(report, definition.checks);
   const stageCount = Array.isArray(definition.stages) ? definition.stages.length : 0;
@@ -262,6 +304,13 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
       if (stage.number !== index + 1) report.add({ severity: "error", code: "stage.number", path: `${path}.number`, message: `Stage number must be ${index + 1}.` });
       validateDuration(report, stage.duration, `${path}.duration`, { nullable: false, allowUnlimited: true });
       validateCheckGate(report, stage.check, `${path}.check`, checkIds, definition.stages.length);
+      validateRestrictions(report, stage.restrictions, `${path}.restrictions`);
+      if (!STAGE_EFFECT_PERSISTENCE_MODES.includes(stage.effectPersistence)) {
+        report.add({ severity: "error", code: "stage.effect-persistence", path: `${path}.effectPersistence`, message: `Unsupported stage effect persistence: ${stage.effectPersistence}.` });
+      }
+      if (stage.effectPersistence !== "stage" && stage.effect == null) {
+        report.add({ severity: "warning", code: "stage.effect-persistence-without-effect", path: `${path}.effectPersistence`, message: "Persistent stage output has no effect definition to preserve." });
+      }
       if (stage.duration?.unit === "unlimited" && (stage.check ?? definition.defaultStageCheck)) {
         report.add({ severity: "warning", code: "stage.unlimited-with-check", path: `${path}.duration`, message: "An unlimited stage with a progression check has no automatic due time." });
       }

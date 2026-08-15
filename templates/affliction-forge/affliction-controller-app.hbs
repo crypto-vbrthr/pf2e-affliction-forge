@@ -96,6 +96,19 @@
   </section>
 
 
+  {{#if restrictions.hasAny}}
+  <section class="affliction-controller-restrictions">
+    <header><strong><i class="fa-solid fa-shield-virus"></i> {{localize "PF2E_AFFLICTION_FORGE.Restrictions.ActiveTitle"}}</strong></header>
+    {{#if restrictions.conditionLocks.length}}
+      <div><small>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.ConditionLocks"}}</small> <strong>{{restrictions.conditionLocks}}</strong></div>
+    {{/if}}
+    <div><small>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.Healing"}}</small> <strong>{{restrictions.healingLabel}}</strong>{{#if restrictions.unhealableDamage}} · {{restrictions.unhealableDamage}} TP{{/if}}</div>
+    {{#if restrictions.blocksSpeak}}
+      <div><strong>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.CannotSpeak"}}</strong></div>
+    {{/if}}
+  </section>
+  {{/if}}
+
   {{#if mortality}}
   <section class="affliction-controller-mortality">
     <div class="affliction-controller-mortality-icon"><i class="fa-solid fa-skull"></i></div>

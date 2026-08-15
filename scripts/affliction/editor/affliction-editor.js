@@ -2,6 +2,7 @@ import {
   AFFLICTION_TYPES,
   CHECK_COMBINE_MODES,
   DURATION_UNITS,
+  HEALING_RESTRICTION_MODES,
   IDENTIFICATION_STATES,
   MODULE_ID,
   OUTCOME_KEYS,
@@ -10,6 +11,7 @@ import {
   SAVE_EXECUTION_MODES,
   SAVE_STATISTICS,
   SAVE_VISIBILITY_MODES,
+  STAGE_EFFECT_PERSISTENCE_MODES,
   TRANSITION_ACTIONS
 } from "../../constants.js";
 import { getCriticalForgeApi } from "../integration/critical-forge-adapter.js";
@@ -68,6 +70,16 @@ const LABELS = Object.freeze({
     suspected: "PF2E_AFFLICTION_FORGE.Identification.Suspected",
     identified: "PF2E_AFFLICTION_FORGE.Identification.Identified"
   },
+  healingRestriction: {
+    none: "PF2E_AFFLICTION_FORGE.Restrictions.HealingNone",
+    all: "PF2E_AFFLICTION_FORGE.Restrictions.HealingAll",
+    "affliction-damage": "PF2E_AFFLICTION_FORGE.Restrictions.HealingAfflictionDamage"
+  },
+  effectPersistence: {
+    stage: "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceStage",
+    affliction: "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceAffliction",
+    permanent: "PF2E_AFFLICTION_FORGE.Restrictions.PersistencePermanent"
+  },
   action: {
     none: "PF2E_AFFLICTION_FORGE.Transition.None",
     reject: "PF2E_AFFLICTION_FORGE.Transition.Reject",
@@ -101,6 +113,41 @@ function parseStringList(value) {
     .split(/[\n,;]/g)
     .map((entry) => entry.trim())
     .filter(Boolean))];
+}
+
+function conditionLocksToText(locks = []) {
+  return (locks ?? []).map((lock) => Number.isInteger(lock?.minimum)
+    ? `${lock.slug}:${lock.minimum}`
+    : String(lock?.slug ?? "")).filter(Boolean).join(", ");
+}
+
+function parseConditionLocks(value) {
+  const locks = [];
+  for (const entry of parseStringList(value)) {
+    const [slugPart, minimumPart] = entry.split(":", 2);
+    const slug = String(slugPart ?? "").trim().toLowerCase();
+    if (!slug) continue;
+    const parsed = Number.parseInt(String(minimumPart ?? ""), 10);
+    locks.push({ slug, minimum: Number.isInteger(parsed) && parsed > 0 ? parsed : null });
+  }
+  return locks;
+}
+
+function prepareRestrictions(restrictions = {}) {
+  return {
+    conditionLocksText: conditionLocksToText(restrictions.conditionLocks),
+    healingOptions: optionList(HEALING_RESTRICTION_MODES, restrictions.healing ?? "none", LABELS.healingRestriction),
+    speakBlocked: restrictions.blockedCapabilities?.includes("speak") ?? false
+  };
+}
+
+function restrictionsFromRegion(region, fallback = {}) {
+  if (!(region instanceof HTMLElement)) return fallback;
+  return {
+    conditionLocks: parseConditionLocks(region.querySelector('[data-restriction-field="conditionLocks"]')?.value ?? ""),
+    healing: String(region.querySelector('[data-restriction-field="healing"]')?.value ?? "none"),
+    blockedCapabilities: region.querySelector('[data-restriction-field="speak"]')?.checked ? ["speak"] : []
+  };
 }
 
 function integerValue(value, fallback = 0) {
@@ -293,6 +340,7 @@ export async function prepareAfflictionEditorContext(session, {
     identificationOptions: optionList(IDENTIFICATION_STATES, definition.identification.initialState, LABELS.identification),
     isPoison: definition.afflictionType === "poison",
     injuryPoison: definition.delivery?.injuryPoison === true,
+    restrictionView: prepareRestrictions(definition.restrictions),
     checks: definition.checks.map((check, index) => ({
       ...check,
       index,
@@ -319,6 +367,8 @@ export async function prepareAfflictionEditorContext(session, {
       durationView: prepareDuration(stage.duration, { nullable: false, allowUnlimited: true }),
       usesCustomCheck: Boolean(stage.check),
       customCheck: prepareGate(stage.check, definition.checks),
+      restrictionView: prepareRestrictions(stage.restrictions),
+      effectPersistenceOptions: optionList(STAGE_EFFECT_PERSISTENCE_MODES, stage.effectPersistence ?? "stage", LABELS.effectPersistence),
       hasEffect: Boolean(stage.effect),
       effectComponentCount: Array.isArray(stage.effect?.components) ? stage.effect.components.length : 0
     })),
@@ -528,6 +578,8 @@ export class EmbeddedAfflictionEditor {
     if (poisonOptions) poisonOptions.hidden = definition.afflictionType !== "poison";
     if (definition.afflictionType !== "poison" && injuryPoisonControl) injuryPoisonControl.checked = false;
 
+    definition.restrictions = restrictionsFromRegion(root.querySelector('[data-affliction-restrictions="root"]'), definition.restrictions);
+
     this.#refreshRenderedInheritedSavePolicies();
 
     const onsetRegion = root.querySelector('[data-affliction-duration="onset"]');
@@ -577,6 +629,8 @@ export class EmbeddedAfflictionEditor {
       stage.duration = durationFromRegion(stageRegion.querySelector('[data-stage-duration]'), { nullable: false, allowUnlimited: true });
       const customGate = stageRegion.querySelector('[data-check-gate="stage"]');
       if (stage.check && customGate) stage.check = gateFromRegion(customGate);
+      stage.restrictions = restrictionsFromRegion(stageRegion.querySelector('[data-stage-restrictions]'), stage.restrictions);
+      stage.effectPersistence = String(stageRegion.querySelector('[data-stage-field="effectPersistence"]')?.value ?? stage.effectPersistence ?? "stage");
       synchronizeManagedStageEffectMetadata(definition, stage);
     }
 

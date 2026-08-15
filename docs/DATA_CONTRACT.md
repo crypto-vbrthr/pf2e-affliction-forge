@@ -31,6 +31,15 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
     injuryPoison: false
   },
 
+  // Root restrictions are merged with the current stage restrictions.
+  restrictions: {
+    conditionLocks: [
+      { slug: "sickened", minimum: null } // null = cannot reduce/remove current value
+    ],
+    healing: "none", // none | all | affliction-damage
+    blockedCapabilities: [] // currently: speak
+  },
+
   checks: [
     {
       id: "primary",
@@ -96,6 +105,12 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
       description: "...",
       duration: { value: 8, unit: "hours" },
       check: null,
+      restrictions: {
+        conditionLocks: [],
+        healing: "none",
+        blockedCapabilities: []
+      },
+      effectPersistence: "stage", // stage | affliction | permanent
       effect: null
     }
   ],
@@ -377,3 +392,18 @@ This is diagnostic/audit state. The current stage and active generated-effect UU
 `state.events` is a bounded newest-preserving audit history (maximum 50 entries) containing world-time timestamp, event type, optional stage identity, and event-specific data. It is runtime metadata only and does not alter progression.
 
 `state.mortality` remains `null` unless Critical Forge reports that a `death` instant component was actually applied. A death-effect immunity result creates a `death-resisted` event but does not populate mortality, so the Affliction Forge never claims a blocked death effect as the cause of death.
+
+
+## Restriction semantics (0.1.49)
+
+Restrictions are additive schema-v2 fields. Legacy definitions normalize to empty restrictions and `effectPersistence: "stage"`. Root and current-stage restrictions merge at runtime.
+
+- `conditionLocks`: matching PF2e condition Items cannot be deleted. With an integer `minimum`, the value cannot be reduced below it. With `minimum: null`, the value present on that condition Item is the floor for external reductions.
+- `healing: "all"`: blocks Actor HP increases while active.
+- `healing: "affliction-damage"`: protects only HP damage observed around this affliction's own instant stage execution. The protected amount is stored in controller `state.unhealableDamage`.
+- `blockedCapabilities`: machine-readable host-integration restrictions. `speak` is the initial supported capability.
+- `effectPersistence: "stage"`: generated persistent stage output is removed when leaving the stage.
+- `effectPersistence: "affliction"`: generated persistent output survives later stages and is removed when the affliction ends.
+- `effectPersistence: "permanent"`: generated persistent output survives later stages and remains as a detached `affliction-residual-effect` after controller end.
+
+`affliction-damage` intentionally does not claim damage caused by unrelated external events, even when the damage type matches a disease rule. Damage-type-wide healing restrictions require a separate future runtime contract.

@@ -321,6 +321,35 @@
       </div>
     </section>
 
+    <section class="affliction-editor-section affliction-editor-restrictions-section" data-affliction-restrictions="root">
+      <header class="affliction-editor-section-header">
+        <div>
+          <h2>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.Title"}}</h2>
+          <p>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.RootHint"}}</p>
+        </div>
+      </header>
+      <div class="affliction-editor-grid two-columns">
+        <label class="affliction-editor-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.ConditionLocks"}}</span>
+          <input data-restriction-field="conditionLocks" type="text" value="{{restrictionView.conditionLocksText}}" placeholder="sickened:1, fatigued">
+          <small>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.ConditionLocksHint"}}</small>
+        </label>
+        <label class="affliction-editor-field">
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.Healing"}}</span>
+          <select data-restriction-field="healing">
+            {{#each restrictionView.healingOptions as |option|}}
+              <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+            {{/each}}
+          </select>
+          <small>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.HealingHint"}}</small>
+        </label>
+      </div>
+      <label class="affliction-editor-checkbox">
+        <input data-restriction-field="speak" type="checkbox" {{#if restrictionView.speakBlocked}}checked{{/if}}>
+        <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.CannotSpeak"}}</span>
+      </label>
+    </section>
+
     <section class="affliction-editor-section">
       <header class="affliction-editor-section-header">
         <div>
@@ -528,6 +557,43 @@
                   {{else}}
                     <p class="affliction-editor-inherited">{{localize "PF2E_AFFLICTION_FORGE.Editor.InheritsDefaultCheck"}}</p>
                   {{/if}}
+                </section>
+
+                <section class="affliction-editor-stage-check-section affliction-editor-stage-restrictions" data-stage-restrictions>
+                  <header>
+                    <div>
+                      <strong>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.StageTitle"}}</strong>
+                      <small>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.StageHint"}}</small>
+                    </div>
+                  </header>
+                  <div class="affliction-editor-grid two-columns">
+                    <label class="affliction-editor-field">
+                      <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.ConditionLocks"}}</span>
+                      <input data-restriction-field="conditionLocks" type="text" value="{{stage.restrictionView.conditionLocksText}}" placeholder="sickened:2">
+                    </label>
+                    <label class="affliction-editor-field">
+                      <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.Healing"}}</span>
+                      <select data-restriction-field="healing">
+                        {{#each stage.restrictionView.healingOptions as |option|}}
+                          <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                        {{/each}}
+                      </select>
+                    </label>
+                  </div>
+                  <div class="affliction-editor-grid two-columns">
+                    <label class="affliction-editor-checkbox">
+                      <input data-restriction-field="speak" type="checkbox" {{#if stage.restrictionView.speakBlocked}}checked{{/if}}>
+                      <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.CannotSpeak"}}</span>
+                    </label>
+                    <label class="affliction-editor-field">
+                      <span>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.EffectPersistence"}}</span>
+                      <select data-stage-field="effectPersistence">
+                        {{#each stage.effectPersistenceOptions as |option|}}
+                          <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                        {{/each}}
+                      </select>
+                    </label>
+                  </div>
                 </section>
 
                 <section class="affliction-editor-stage-effect-section">

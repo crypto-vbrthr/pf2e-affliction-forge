@@ -35,6 +35,19 @@ function stageEffect(id, instanceId) {
   };
 }
 
+function residualEffect(id, instanceId) {
+  return {
+    id,
+    flags: {
+      [MODULE_ID]: {
+        managed: true,
+        documentKind: "affliction-residual-effect",
+        instanceId
+      }
+    }
+  };
+}
+
 test("player visibility hides hidden controllers and all unidentified stage-effect rows", () => {
   const actor = {
     items: [
@@ -49,4 +62,18 @@ test("player visibility hides hidden controllers and all unidentified stage-effe
 
   const hidden = concealedAfflictionItemIds(actor);
   assert.deepEqual([...hidden].sort(), ["hidden-controller", "hidden-stage", "suspected-stage"]);
+});
+
+
+test("player visibility treats residual effects like stage effects until identification", () => {
+  const actor = {
+    items: [
+      controller("hidden-controller-r", "r", "hidden"),
+      residualEffect("hidden-residual", "r"),
+      controller("identified-controller-r", "s", "identified"),
+      residualEffect("identified-residual", "s")
+    ]
+  };
+  const hidden = concealedAfflictionItemIds(actor);
+  assert.deepEqual([...hidden].sort(), ["hidden-controller-r", "hidden-residual"]);
 });

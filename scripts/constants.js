@@ -1,5 +1,5 @@
 export const MODULE_ID = "pf2e-affliction-forge";
-export const MODULE_VERSION = "0.1.48";
+export const MODULE_VERSION = "0.1.49";
 // Public API compatibility is versioned independently from module releases.
 // Patch/minor module releases may harden runtime behavior without forcing
 // downstream consumers such as Creature Forge to chase a new API number.
@@ -56,6 +56,22 @@ export const IDENTIFICATION_STATES = Object.freeze([
   "hidden",
   "suspected",
   "identified"
+]);
+
+export const HEALING_RESTRICTION_MODES = Object.freeze([
+  "none",
+  "all",
+  "affliction-damage"
+]);
+
+export const AFFLICTION_CAPABILITIES = Object.freeze([
+  "speak"
+]);
+
+export const STAGE_EFFECT_PERSISTENCE_MODES = Object.freeze([
+  "stage",
+  "affliction",
+  "permanent"
 ]);
 
 export const DURATION_UNITS = Object.freeze([

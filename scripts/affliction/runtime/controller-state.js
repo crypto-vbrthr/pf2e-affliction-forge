@@ -30,6 +30,7 @@ export function createAfflictionControllerState(definition, {
   mortality = null,
   pause = null,
   recoverySuccesses = 0,
+  unhealableDamage = 0,
   revision = 1
 } = {}) {
   return {
@@ -48,6 +49,7 @@ export function createAfflictionControllerState(definition, {
       identifiedBy
     },
     recoverySuccesses,
+    unhealableDamage: Math.max(0, Math.trunc(Number(unhealableDamage) || 0)),
     activeStageEffectUuids: [...activeStageEffectUuids],
     pendingCheck: pendingCheck == null ? null : deepClone(pendingCheck),
     onsetTargetStage: onsetTargetStage == null ? null : Math.max(1, Math.trunc(Number(onsetTargetStage) || 1)),
@@ -96,6 +98,7 @@ export function validateAfflictionControllerState(state, definition = null) {
       errors.push("paused controllers require pause metadata.");
     }
     if (!Number.isInteger(state.recoverySuccesses) || state.recoverySuccesses < 0) errors.push("recoverySuccesses must be a non-negative integer.");
+    if (state.unhealableDamage !== undefined && (!Number.isInteger(state.unhealableDamage) || state.unhealableDamage < 0)) errors.push("unhealableDamage must be a non-negative integer when present.");
     if (!Number.isInteger(state.revision) || state.revision < 1) errors.push("revision must be a positive integer.");
     if (state.onsetTargetStage !== null && state.onsetTargetStage !== undefined && (!Number.isInteger(state.onsetTargetStage) || state.onsetTargetStage < 1)) errors.push("onsetTargetStage must be a positive integer or null.");
     if (definition && Number.isInteger(state.onsetTargetStage) && state.onsetTargetStage > definition.stages.length) errors.push("onsetTargetStage exceeds the definition stage count.");

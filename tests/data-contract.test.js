@@ -261,3 +261,50 @@ test("virulent progression is an additive schema-v2 capability and defaults off"
   assert.equal(virulent.progression.virulent, true);
   assert.equal(validateAfflictionDefinition(virulent).valid, true);
 });
+
+test("restrictions and stage-effect persistence are additive schema-v2 capabilities", () => {
+  const definition = normalizeAfflictionDefinition({
+    ...validDefinition(),
+    restrictions: {
+      conditionLocks: [{ slug: "sickened", minimum: 1 }],
+      healing: "affliction-damage",
+      blockedCapabilities: ["speak"]
+    },
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      restrictions: {
+        conditionLocks: [{ slug: "sickened", minimum: 2 }],
+        healing: "all",
+        blockedCapabilities: []
+      },
+      effectPersistence: "permanent",
+      effect: {
+        schemaVersion: 2,
+        id: "persistent.blind",
+        name: "Persistent Blind",
+        duration: { value: -1, unit: "unlimited", expiry: null },
+        components: [],
+        application: {},
+        metadata: {}
+      }
+    }]
+  });
+  assert.equal(definition.schemaVersion, 2);
+  assert.equal(definition.restrictions.healing, "affliction-damage");
+  assert.deepEqual(definition.restrictions.blockedCapabilities, ["speak"]);
+  assert.equal(definition.stages[0].restrictions.healing, "all");
+  assert.equal(definition.stages[0].effectPersistence, "permanent");
+  assert.equal(validateAfflictionDefinition(definition, { effectValidator: () => ({ valid: true, issues: [] }) }).valid, true);
+});
+
+test("restriction validator rejects unsupported healing, capabilities, and persistence", () => {
+  const definition = validDefinition();
+  definition.restrictions.healing = "only-on-tuesdays";
+  definition.restrictions.blockedCapabilities = ["teleport"];
+  definition.stages[0].effectPersistence = "forever-ish";
+  const report = validateAfflictionDefinition(definition);
+  assert.equal(report.valid, false);
+  assert.ok(report.errors.some((issue) => issue.code === "restrictions.healing"));
+  assert.ok(report.errors.some((issue) => issue.code === "restrictions.capability"));
+  assert.ok(report.errors.some((issue) => issue.code === "stage.effect-persistence"));
+});

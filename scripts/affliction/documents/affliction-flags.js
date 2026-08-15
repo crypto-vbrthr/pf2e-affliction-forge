@@ -33,6 +33,11 @@ export function isAfflictionStageEffect(documentOrSource) {
   return flags?.managed === true && flags.documentKind === DOCUMENT_KINDS.STAGE_EFFECT;
 }
 
+export function isAfflictionResidualEffect(documentOrSource) {
+  const flags = getAfflictionFlags(documentOrSource);
+  return flags?.managed === true && flags.documentKind === DOCUMENT_KINDS.RESIDUAL_EFFECT;
+}
+
 export function buildTemplateFlags(definition) {
   return {
     [MODULE_ID]: {

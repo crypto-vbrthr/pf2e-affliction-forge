@@ -2,6 +2,7 @@ import { MODULE_ID } from "../../constants.js";
 import {
   getAfflictionFlags,
   isAfflictionController,
+  isAfflictionResidualEffect,
   isAfflictionStageEffect
 } from "../documents/affliction-flags.js";
 
@@ -51,7 +52,7 @@ export function concealedAfflictionItemIds(actor) {
   }
 
   for (const item of items) {
-    if (!isAfflictionStageEffect(item)) continue;
+    if (!isAfflictionStageEffect(item) && !isAfflictionResidualEffect(item)) continue;
     const flags = getAfflictionFlags(item);
     const identification = controllerStates.get(flags?.instanceId) ?? "identified";
     if (identification !== "identified") concealed.add(item.id);
@@ -106,7 +107,7 @@ export function guardRestrictedAfflictionItemSheet(application) {
   if (isAfflictionController(item)) {
     const state = getAfflictionFlags(item)?.state;
     if (state?.identification?.state !== "hidden") return false;
-  } else if (isAfflictionStageEffect(item)) {
+  } else if (isAfflictionStageEffect(item) || isAfflictionResidualEffect(item)) {
     const flags = getAfflictionFlags(item);
     const controllers = itemCollection(item.parent).filter(isAfflictionController);
     const controller = controllers.find((entry) => {

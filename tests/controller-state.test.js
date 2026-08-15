@@ -80,3 +80,12 @@ test("controller validator rejects semantically impossible status/stage combinat
   pausedWithoutMetadata.pause = null;
   assert.equal(validateAfflictionControllerState(pausedWithoutMetadata, activeDefinition).valid, false);
 });
+
+test("controller state tracks additive unhealable affliction damage", () => {
+  const definition = createAfflictionDefinition({ name: "Leprosy", initialCheck: null });
+  const state = createAfflictionControllerState(definition, { appliedAt: 100 });
+  state.unhealableDamage = 12;
+  assert.equal(validateAfflictionControllerState(state, definition).valid, true);
+  state.unhealableDamage = -1;
+  assert.equal(validateAfflictionControllerState(state, definition).valid, false);
+});

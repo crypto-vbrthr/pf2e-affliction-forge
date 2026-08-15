@@ -11,6 +11,7 @@ import { initializeAfflictionCombatTriggerRuntime } from "./affliction/integrati
 import { initializeAfflictionRichTextDropIntegration } from "./affliction/integration/affliction-rich-text-drop.js";
 import { initializeAfflictionSaveRuntime } from "./affliction/runtime/affliction-save-runtime.js";
 import { initializeAfflictionVisibilityRuntime } from "./affliction/runtime/affliction-visibility-runtime.js";
+import { initializeAfflictionRestrictionRuntime } from "./affliction/runtime/affliction-restriction-runtime.js";
 import { registerAfflictionForgeSettings } from "./settings.js";
 
 Hooks.once("init", () => {
@@ -47,6 +48,7 @@ Hooks.once("ready", async () => {
   initializeAfflictionCombatTriggerRuntime();
   initializeAfflictionSaveRuntime();
   initializeAfflictionVisibilityRuntime();
+  initializeAfflictionRestrictionRuntime();
 
   // Repair stale generated runtime output before the scheduler is allowed to
   // process overdue transitions. This prevents a time catch-up from operating

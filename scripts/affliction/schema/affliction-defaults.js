@@ -8,6 +8,14 @@ export function createDefaultSavePolicy({
   return { execution, visibility };
 }
 
+export function createDefaultRestrictions() {
+  return {
+    conditionLocks: [],
+    healing: "none",
+    blockedCapabilities: []
+  };
+}
+
 export function createDefaultSaveCheck({
   id = "primary",
   label = "",
@@ -61,6 +69,8 @@ export function createDefaultStage({ number = 1 } = {}) {
     description: "",
     duration: { value: 1, unit: "rounds" },
     check: null,
+    restrictions: createDefaultRestrictions(),
+    effectPersistence: "stage",
     effect: null
   };
 }
@@ -78,6 +88,7 @@ export function createAfflictionDefinition({
   saveDefaults = createDefaultSavePolicy(),
   identification = { initialState: "identified" },
   delivery = { injuryPoison: false },
+  restrictions = createDefaultRestrictions(),
   checks = [createDefaultSaveCheck()],
   initialCheck = createDefaultInitialCheck(),
   onset = null,
@@ -101,6 +112,7 @@ export function createAfflictionDefinition({
     saveDefaults,
     identification,
     delivery,
+    restrictions,
     checks,
     initialCheck,
     onset,
@@ -124,7 +136,7 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
   schemaVersion: AFFLICTION_SCHEMA_VERSION,
   requiredRootFields: [
     "schemaVersion", "id", "name", "afflictionType", "level", "rarity",
-    "traits", "themes", "saveDefaults", "identification", "checks", "stages"
+    "traits", "themes", "saveDefaults", "identification", "restrictions", "checks", "stages"
   ],
   savePolicy: {
     defaultsAtRoot: true,
@@ -139,6 +151,13 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
   templateItemType: "effect",
   templateRuleElements: "none",
   activeDefinitionPolicy: "snapshot-on-application",
+  restrictions: {
+    scopes: ["affliction", "stage"],
+    healingModes: ["none", "all", "affliction-damage"],
+    blockedCapabilities: ["speak"],
+    conditionLocks: "slug-plus-optional-minimum"
+  },
+  stageEffectPersistence: ["stage", "affliction", "permanent"],
   deliveryCapabilities: {
     injuryPoison: "weapon-or-melee-reference-with-consumable-charges"
   }

@@ -27,6 +27,16 @@ function merge(target, changes) {
   return target;
 }
 
+function setPath(target, path, value) {
+  const parts = String(path).split(".");
+  let cursor = target;
+  for (const part of parts.slice(0, -1)) {
+    cursor[part] ??= {};
+    cursor = cursor[part];
+  }
+  cursor[parts.at(-1)] = structuredClone(value);
+}
+
 class FakeItem {
   constructor(source, parent) {
     this.documentName = "Item";
@@ -82,6 +92,25 @@ class FakeActor {
     const created = sources.map((source) => new FakeItem(source, this));
     this.items.push(...created);
     return created;
+  }
+
+  async updateEmbeddedDocuments(type, updates) {
+    assert.equal(type, "Item");
+    const updated = [];
+    for (const changes of updates) {
+      const item = this.items.find((entry) => entry.id === changes._id);
+      if (!item) continue;
+      for (const [key, value] of Object.entries(changes)) {
+        if (key === "_id") continue;
+        if (key.includes(".")) setPath(item, key, value);
+        else if (value && typeof value === "object" && !Array.isArray(value)) {
+          item[key] ??= {};
+          merge(item[key], value);
+        } else item[key] = structuredClone(value);
+      }
+      updated.push(item);
+    }
+    return updated;
   }
 
   async deleteEmbeddedDocuments(type, ids) {
@@ -161,7 +190,7 @@ const { createAfflictionDefinition, createDefaultStage } = await import("../scri
 const { createAfflictionInstanceService, scheduledDueAt } = await import("../scripts/affliction/runtime/affliction-instance-service.js");
 const { createAfflictionEngine } = await import("../scripts/affliction/runtime/affliction-engine.js");
 const { createAfflictionScheduler } = await import("../scripts/affliction/runtime/affliction-scheduler.js");
-const { getAfflictionFlags, isAfflictionController, isAfflictionStageEffect } = await import("../scripts/affliction/documents/affliction-flags.js");
+const { getAfflictionFlags, isAfflictionController, isAfflictionStageEffect, isAfflictionResidualEffect } = await import("../scripts/affliction/documents/affliction-flags.js");
 const { MODULE_ID } = await import("../scripts/constants.js");
 
 function effect(id, name) {
@@ -1293,4 +1322,53 @@ test("virulent recovery streak is persisted by the live engine and resets after 
   state = getAfflictionFlags(controller).state;
   assert.equal(state.currentStage, 2, "critical success reduces a virulent affliction by only one stage");
   assert.equal(state.recoverySuccesses, 0);
+});
+
+
+test("affliction-persistent stage output survives stage transitions and is removed when the affliction ends", async () => {
+  const actor = new FakeActor("heroAfflictionPersistent", "Persistent Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Persistent Disease",
+    initialCheck: null,
+    stages: [
+      { ...createDefaultStage({ number: 1 }), effectPersistence: "affliction", effect: effect("persist.stage1", "Persistent stage 1") },
+      { ...createDefaultStage({ number: 2 }), effect: effect("persist.stage2", "Persistent stage 2") }
+    ]
+  });
+  const [controller] = await service.applyDefinition(source, actor);
+  await service.setStage(controller, 2, { notifyLifecycle: false });
+
+  const residual = actor.items.find(isAfflictionResidualEffect);
+  assert.ok(residual);
+  assert.equal(getAfflictionFlags(residual).residualPersistence, "affliction");
+  assert.equal(actor.items.filter(isAfflictionStageEffect).length, 1);
+
+  await service.end(controller, { reason: "recovered", notifyLifecycle: false });
+  assert.equal(actor.items.some(isAfflictionResidualEffect), false);
+});
+
+test("permanent stage output detaches and survives controller end", async () => {
+  const actor = new FakeActor("heroPermanentResidual", "Permanent Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Blinding Disease",
+    initialCheck: null,
+    stages: [
+      { ...createDefaultStage({ number: 1 }), effectPersistence: "permanent", effect: effect("blind.stage1", "Permanent consequence") },
+      { ...createDefaultStage({ number: 2 }), effect: null }
+    ]
+  });
+  const [controller] = await service.applyDefinition(source, actor);
+  await service.setStage(controller, 2, { notifyLifecycle: false });
+  let residual = actor.items.find(isAfflictionResidualEffect);
+  assert.ok(residual);
+  assert.equal(getAfflictionFlags(residual).controllerUuid, controller.uuid);
+
+  await service.end(controller, { reason: "recovered", notifyLifecycle: false });
+  residual = actor.items.find(isAfflictionResidualEffect);
+  assert.ok(residual);
+  assert.equal(getAfflictionFlags(residual).residualPersistence, "permanent");
+  assert.equal(getAfflictionFlags(residual).controllerUuid, null);
+  assert.equal(actor.items.some(isAfflictionController), false);
 });

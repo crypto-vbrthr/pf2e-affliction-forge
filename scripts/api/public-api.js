@@ -1,4 +1,5 @@
 import {
+  AFFLICTION_CAPABILITIES,
   AFFLICTION_SCHEMA_VERSION,
   AFFLICTION_TYPES,
   API_VERSION,
@@ -6,6 +7,7 @@ import {
   CONTROLLER_SCHEMA_VERSION,
   DOCUMENT_KINDS,
   DURATION_UNITS,
+  HEALING_RESTRICTION_MODES,
   IDENTIFICATION_STATES,
   MODULE_ID,
   MODULE_VERSION,
@@ -13,18 +15,27 @@ import {
   SAVE_DC_MODES,
   SAVE_EXECUTION_MODES,
   SAVE_STATISTICS,
-  SAVE_VISIBILITY_MODES
+  SAVE_VISIBILITY_MODES,
+  STAGE_EFFECT_PERSISTENCE_MODES
 } from "../constants.js";
 import {
   AFFLICTION_DATA_CONTRACT_V2,
   createAfflictionDefinition,
   createDefaultInitialCheck,
+  createDefaultRestrictions,
   createDefaultSaveCheck,
   createDefaultSavePolicy,
   createDefaultStage,
   createDefaultStageCheck
 } from "../affliction/schema/affliction-defaults.js";
-import { normalizeAfflictionDefinition, resolveSavePolicy, resolveStageCheck } from "../affliction/schema/affliction-normalizer.js";
+import {
+  mergeRestrictions,
+  normalizeAfflictionDefinition,
+  normalizeRestrictions,
+  resolveAfflictionRestrictions,
+  resolveSavePolicy,
+  resolveStageCheck
+} from "../affliction/schema/affliction-normalizer.js";
 import { assertValidAfflictionDefinition, validateAfflictionDefinition } from "../affliction/schema/affliction-validator.js";
 import {
   buildAfflictionTemplateItemSource,
@@ -70,6 +81,7 @@ import {
 import {
   getDocumentKind,
   isAfflictionController,
+  isAfflictionResidualEffect,
   isAfflictionStageEffect,
   isAfflictionTemplate,
   isManagedAfflictionDocument
@@ -82,6 +94,12 @@ import { createAfflictionInstanceService } from "../affliction/runtime/afflictio
 import { createAfflictionEngine } from "../affliction/runtime/affliction-engine.js";
 import { createAfflictionScheduler } from "../affliction/runtime/affliction-scheduler.js";
 import { combineDegrees, normalizeDegreeOfSuccess, resolveDirective } from "../affliction/runtime/affliction-engine-core.js";
+import {
+  collectActorRestrictions,
+  inspectControllerRestrictions,
+  isAfflictionCapabilityBlocked,
+  restrictionRuntimeStatus
+} from "../affliction/runtime/affliction-restriction-runtime.js";
 import { createAfflictionEditorUiApi } from "../affliction/editor/affliction-editor.js";
 import {
   criticalForgeEffectValidator,
@@ -121,6 +139,9 @@ export function createPublicApi() {
       saveExecutionModes: () => [...SAVE_EXECUTION_MODES],
       saveVisibilityModes: () => [...SAVE_VISIBILITY_MODES],
       identificationStates: () => [...IDENTIFICATION_STATES],
+      healingRestrictionModes: () => [...HEALING_RESTRICTION_MODES],
+      afflictionCapabilities: () => [...AFFLICTION_CAPABILITIES],
+      stageEffectPersistenceModes: () => [...STAGE_EFFECT_PERSISTENCE_MODES],
       durationUnits: () => [...DURATION_UNITS],
       checkCombineModes: () => [...CHECK_COMBINE_MODES],
       documentKinds: () => ({ ...DOCUMENT_KINDS }),
@@ -134,6 +155,7 @@ export function createPublicApi() {
       create: (options = {}) => createAfflictionDefinition(options),
       createCheck: (options = {}) => createDefaultSaveCheck(options),
       createSavePolicy: (options = {}) => createDefaultSavePolicy(options),
+      createRestrictions: () => createDefaultRestrictions(),
       createInitialCheck: () => createDefaultInitialCheck(),
       createStageCheck: () => createDefaultStageCheck(),
       createStage: (options = {}) => createDefaultStage(options),
@@ -144,6 +166,9 @@ export function createPublicApi() {
       assertValid: (definition, options = {}) => assertValidAfflictionDefinition(definition, {
         effectValidator: options.effectValidator ?? effectValidatorOrNull()
       }),
+      normalizeRestrictions: (restrictions) => normalizeRestrictions(restrictions),
+      mergeRestrictions: (...restrictions) => mergeRestrictions(...restrictions),
+      resolveRestrictions: (definition, stageOrNumber = null) => resolveAfflictionRestrictions(definition, stageOrNumber),
       resolveStageCheck: (definition, stageOrNumber) => resolveStageCheck(definition, stageOrNumber),
       resolveSavePolicy: (definition, checkOrId) => resolveSavePolicy(definition, checkOrId)
     }),
@@ -158,7 +183,8 @@ export function createPublicApi() {
       isManaged: (item) => isManagedAfflictionDocument(item),
       isTemplate: (item) => isAfflictionTemplate(item),
       isController: (item) => isAfflictionController(item),
-      isStageEffect: (item) => isAfflictionStageEffect(item)
+      isStageEffect: (item) => isAfflictionStageEffect(item),
+      isResidualEffect: (item) => isAfflictionResidualEffect(item)
     }),
 
     templates: Object.freeze({
@@ -316,6 +342,13 @@ export function createPublicApi() {
       reconcileActor: (actorOrUuid, options = {}) => instanceService.reconcileActor(actorOrUuid, options),
       reconcileAll: (options = {}) => instanceService.reconcileAll(options),
       cleanupDeletedController: (controller) => instanceService.cleanupDeletedController(controller)
+    }),
+
+    restrictions: Object.freeze({
+      forActor: (actor) => collectActorRestrictions(actor),
+      forController: (controller) => inspectControllerRestrictions(controller),
+      isCapabilityBlocked: (actor, capability) => isAfflictionCapabilityBlocked(actor, capability),
+      status: () => restrictionRuntimeStatus()
     }),
 
     ui: Object.freeze({

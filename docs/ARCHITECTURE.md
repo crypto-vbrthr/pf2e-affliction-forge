@@ -1,4 +1,4 @@
-# Architecture 0.1.48
+# Architecture 0.1.49
 
 ```text
 Affliction Template / Definition
@@ -358,7 +358,7 @@ The combat runtime serializes the complete apply/consume transaction per source 
 ## Contract/runtime hardening in 0.1.42
 
 - Runtime application now enforces one live controller per Actor + Affliction `definitionId`, including pending exposure/incubation reservations and concurrent apply calls.
-- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.48`).
+- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.49`).
 - Combat-trigger idempotency is committed only after a successful application or an intentional terminal decision; transient failures remain retryable.
 - Strict reconciliation can verify generated stage-effect content, not merely controller/stage ownership flags.
 - Identification updates use batch embedded-document updates when available and fall back to strict reconciliation after a partial failure.
@@ -394,3 +394,10 @@ Virulent/Ausgeprägt stage progression still performs exactly one save at each n
 - The single due save uses a dedicated virulent window rather than multi-save wording.
 - The window previews the just-rolled degree locally so its consecutive-success counter updates immediately before the authoritative engine finishes/persists the controller transition.
 - Two visible success slots communicate the 2-success recovery requirement without inventing a second immediate saving throw.
+
+
+## Restriction runtime and residual output (0.1.49)
+
+`affliction-restriction-runtime.js` derives root + current-stage restrictions from active controllers. It guards PF2e condition Item reductions/deletions and Actor HP healing without embedding disease-specific logic. Internal Affliction transitions use a scoped bypass so controller-owned cleanup cannot be blocked by the restrictions it is replacing.
+
+Stage output can be residualized on transition. `affliction-residual-effect` Items retain instance provenance while `affliction` persistence is controller-owned; `permanent` residuals are detached from the controller on end so reconciliation and controller deletion do not remove them.

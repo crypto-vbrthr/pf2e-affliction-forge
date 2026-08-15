@@ -1172,7 +1172,8 @@
 
 .affliction-controller-stage,
 .affliction-controller-checks,
-.affliction-controller-identification {
+.affliction-controller-identification,
+.affliction-controller-restrictions {
   border: 1px solid rgba(120, 120, 120, 0.45);
   border-radius: 7px;
   background: rgba(0, 0, 0, 0.08);
@@ -2223,4 +2224,19 @@
 .affliction-save-virulent-next {
   font-size: 0.9em;
   opacity: 0.82;
+}
+
+/* 0.1.49: active Affliction restrictions and healing locks. */
+.affliction-controller-restrictions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.affliction-controller-restrictions header {
+  margin-bottom: 0.15rem;
+}
+
+.affliction-controller-restrictions small {
+  opacity: 0.72;
 }

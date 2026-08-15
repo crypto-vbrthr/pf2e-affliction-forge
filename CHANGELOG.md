@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.49
+
+### Restrictions & Persistent Consequences
+
+- adds root and per-stage `restrictions` to additive Affliction schema v2
+- adds condition locks that prevent matching PF2e conditions from being reduced below a configured minimum or, without a minimum, below their current value while the restriction is active
+- prevents deletion of locked condition Items while the owning restriction is active
+- adds `healing: "all"` to block all HP healing during an active restriction
+- adds `healing: "affliction-damage"` and controller `unhealableDamage` tracking so HP damage caused by Affliction Forge stage execution cannot be healed until that restriction ends, while unrelated damage can still be healed
+- adds a generic blocked-capability contract, initially supporting `speak`, and exposes it through `api.restrictions` for host integrations
+- adds `effectPersistence: "stage" | "affliction" | "permanent"` to stage definitions
+- affliction-persistent stage Effects survive later stage transitions and are removed when the affliction ends
+- permanent stage Effects survive stage transitions and controller cleanup as detached residual managed Effects
+- adds residual-effect document recognition and player-visibility handling
+- adds restriction controls to the embedded Affliction Editor and an active-restriction summary to the controller UI
+- keeps arbitrary external damage-type healing restrictions and event-triggered checks outside this block for later dedicated coverage
+- keeps Affliction schema v2, Controller schema v2, and public API compatibility `0.1.0`
+- expands regression coverage to 240 tests
+
 ## 0.1.48
 
 - Fixed library rows for external provider templates whose additional provider line was clipped by Foundry's default button height.

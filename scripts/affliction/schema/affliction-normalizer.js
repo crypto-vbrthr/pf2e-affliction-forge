@@ -1,16 +1,20 @@
 import {
   AFFLICTION_SCHEMA_VERSION,
+  AFFLICTION_CAPABILITIES,
   CHECK_COMBINE_MODES,
   DURATION_UNITS,
+  HEALING_RESTRICTION_MODES,
   IDENTIFICATION_STATES,
   OUTCOME_KEYS,
   SAVE_DC_MODES,
   SAVE_EXECUTION_MODES,
-  SAVE_VISIBILITY_MODES
+  SAVE_VISIBILITY_MODES,
+  STAGE_EFFECT_PERSISTENCE_MODES
 } from "../../constants.js";
 import {
   createAfflictionDefinition,
   createDefaultInitialCheck,
+  createDefaultRestrictions,
   createDefaultSaveCheck,
   createDefaultSavePolicy,
   createDefaultStage,
@@ -71,6 +75,38 @@ export function normalizeSavePolicy(value, fallback = createDefaultSavePolicy())
 }
 
 
+function normalizeConditionLock(value) {
+  if (typeof value === "string") {
+    const slug = cleanString(value).toLowerCase();
+    return slug ? { slug, minimum: null } : null;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const slug = cleanString(value.slug).toLowerCase();
+  if (!slug) return null;
+  const rawMinimum = value.minimum;
+  const minimum = rawMinimum == null || rawMinimum === ""
+    ? null
+    : Math.max(1, Math.trunc(finiteNumber(rawMinimum, 1)));
+  return { slug, minimum };
+}
+
+export function normalizeRestrictions(value, fallback = createDefaultRestrictions()) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const base = fallback && typeof fallback === "object" ? fallback : createDefaultRestrictions();
+  const conditionLocks = Array.isArray(source.conditionLocks ?? base.conditionLocks)
+    ? (source.conditionLocks ?? base.conditionLocks).map(normalizeConditionLock).filter(Boolean)
+    : [];
+  const healing = cleanString(source.healing, base.healing ?? "none");
+  const blockedCapabilities = uniqueStrings(source.blockedCapabilities ?? base.blockedCapabilities)
+    .map((entry) => entry.toLowerCase())
+    .filter((entry) => AFFLICTION_CAPABILITIES.includes(entry));
+  return {
+    conditionLocks,
+    healing: HEALING_RESTRICTION_MODES.includes(healing) ? healing : "none",
+    blockedCapabilities
+  };
+}
+
 function normalizeDelivery(value, afflictionType, fallback = { injuryPoison: false }) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   return {
@@ -110,6 +146,10 @@ function normalizeStage(stage, index) {
     description: String(stage?.description ?? ""),
     duration: normalizeDuration(stage?.duration ?? fallback.duration, { allowUnlimited: true }),
     check: stage?.check == null ? null : normalizeCheckGate(stage.check),
+    restrictions: normalizeRestrictions(stage?.restrictions, fallback.restrictions),
+    effectPersistence: STAGE_EFFECT_PERSISTENCE_MODES.includes(stage?.effectPersistence)
+      ? stage.effectPersistence
+      : fallback.effectPersistence,
     effect: stage?.effect == null ? null : deepClone(stage.effect)
   };
 }
@@ -145,6 +185,7 @@ export function normalizeAfflictionDefinition(value = {}, { createDefaults = tru
     saveDefaults: normalizeSavePolicy(source.saveDefaults, base.saveDefaults ?? createDefaultSavePolicy()),
     identification: normalizeIdentification(source.identification, base.identification ?? { initialState: "identified" }),
     delivery: normalizeDelivery(source.delivery, afflictionType, base.delivery ?? { injuryPoison: false }),
+    restrictions: normalizeRestrictions(source.restrictions, base.restrictions ?? createDefaultRestrictions()),
     checks: checksSource.map(normalizeCheck),
     initialCheck: source.initialCheck === null
       ? null
@@ -165,6 +206,40 @@ export function normalizeAfflictionDefinition(value = {}, { createDefaults = tru
       ...(deepClone(source.metadata ?? {}))
     }
   };
+}
+
+export function mergeRestrictions(...values) {
+  const normalized = values.filter(Boolean).map((value) => normalizeRestrictions(value));
+  const conditionBySlug = new Map();
+  const blockedCapabilities = new Set();
+  let healing = "none";
+  const healingRank = { none: 0, "affliction-damage": 1, all: 2 };
+
+  for (const restrictions of normalized) {
+    for (const lock of restrictions.conditionLocks) {
+      const previous = conditionBySlug.get(lock.slug);
+      const minimums = [previous?.minimum, lock.minimum].filter((entry) => Number.isInteger(entry));
+      conditionBySlug.set(lock.slug, {
+        slug: lock.slug,
+        minimum: minimums.length > 0 ? Math.max(...minimums) : null
+      });
+    }
+    if ((healingRank[restrictions.healing] ?? 0) > (healingRank[healing] ?? 0)) healing = restrictions.healing;
+    for (const capability of restrictions.blockedCapabilities) blockedCapabilities.add(capability);
+  }
+
+  return {
+    conditionLocks: [...conditionBySlug.values()],
+    healing,
+    blockedCapabilities: [...blockedCapabilities]
+  };
+}
+
+export function resolveAfflictionRestrictions(definition, stageOrNumber = null) {
+  const stage = typeof stageOrNumber === "number"
+    ? definition?.stages?.find((entry) => entry.number === stageOrNumber)
+    : stageOrNumber;
+  return mergeRestrictions(definition?.restrictions, stage?.restrictions);
 }
 
 export function resolveStageCheck(definition, stageOrNumber) {

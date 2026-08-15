@@ -49,6 +49,7 @@ function runtimeEventLabel(event) {
     case "stage-reapplied": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.StageReapplied", { stage });
     case "stage-cleared": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.StageCleared");
     case "runtime-reconciled": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.RuntimeReconciled", { stage });
+    case "unhealable-damage-recorded": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.UnhealableDamage", { value: event.data?.amount ?? 0 });
     case "identification-changed": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.IdentificationChanged", { state: identificationLabel(event.data?.to) });
     case "paused": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.Paused");
     case "resumed": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.Resumed");
@@ -157,6 +158,7 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
     const state = info.state;
     const stage = info.currentStage;
     const engineInfo = await this.#api().engine.inspect(controller);
+    const restrictionInfo = this.#api().restrictions.forController(controller);
     const pending = state.pendingCheck;
     const totalChecks = pending?.checkIds?.length ?? engineInfo.plan?.checks?.length ?? 0;
     const resolvedChecks = pending ? Object.values(pending.results ?? {}).filter((entry) => entry?.degree).length : 0;
@@ -192,6 +194,21 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
         label: localize({ hidden: "PF2E_AFFLICTION_FORGE.Identification.Hidden", suspected: "PF2E_AFFLICTION_FORGE.Identification.Suspected", identified: "PF2E_AFFLICTION_FORGE.Identification.Identified" }[value]),
         selected: state.identification?.state === value
       })),
+      restrictions: restrictionInfo ? {
+        hasAny: (restrictionInfo.restrictions.conditionLocks?.length ?? 0) > 0
+          || restrictionInfo.restrictions.healing !== "none"
+          || (restrictionInfo.restrictions.blockedCapabilities?.length ?? 0) > 0,
+        conditionLocks: (restrictionInfo.restrictions.conditionLocks ?? []).map((lock) => Number.isInteger(lock.minimum)
+          ? `${lock.slug} ≥ ${lock.minimum}`
+          : lock.slug),
+        healingLabel: localize({
+          none: "PF2E_AFFLICTION_FORGE.Restrictions.HealingNone",
+          all: "PF2E_AFFLICTION_FORGE.Restrictions.HealingAll",
+          "affliction-damage": "PF2E_AFFLICTION_FORGE.Restrictions.HealingAfflictionDamage"
+        }[restrictionInfo.restrictions.healing] ?? "PF2E_AFFLICTION_FORGE.Restrictions.HealingNone"),
+        blocksSpeak: restrictionInfo.restrictions.blockedCapabilities?.includes("speak") ?? false,
+        unhealableDamage: restrictionInfo.unhealableDamage ?? 0
+      } : null,
       mortality: state.mortality?.dead ? {
         dead: true,
         stageLabel: state.mortality.stageNumber

@@ -1,4 +1,4 @@
-# Public API 0.1.0 (module 0.1.48)
+# Public API 0.1.0 (module 0.1.49)
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -10,6 +10,10 @@ const api = game.modules.get("pf2e-affliction-forge").api;
 api.definitions.create(options)
 api.definitions.createCheck(options)
 api.definitions.createSavePolicy(options)
+api.definitions.createRestrictions()
+api.definitions.normalizeRestrictions(restrictions)
+api.definitions.mergeRestrictions(...restrictions)
+api.definitions.resolveRestrictions(definition, stageOrNumber)
 api.definitions.createInitialCheck()
 api.definitions.createStageCheck()
 api.definitions.createStage(options)
@@ -29,6 +33,9 @@ api.catalogs.saveExecutionModes()   // ["automatic", "player", "gm"]
 api.catalogs.saveDcModes()          // ["fixed", "source"]
 api.catalogs.saveVisibilityModes()  // ["public", "gmOnly"]
 api.catalogs.identificationStates() // ["hidden", "suspected", "identified"]
+api.catalogs.healingRestrictionModes() // ["none", "all", "affliction-damage"]
+api.catalogs.afflictionCapabilities()    // ["speak"]
+api.catalogs.stageEffectPersistenceModes() // ["stage", "affliction", "permanent"]
 ```
 
 `api.definitions.resolveSavePolicy()` resolves per-check overrides against root `saveDefaults`.
@@ -63,6 +70,24 @@ GM-facing direct application from the Affliction Forge and drag/drop onto an Act
 ### Virulent / Ausgeprägt progression
 
 Set `definition.progression.virulent = true`. The stage engine then applies the Remastered virulent rule to stage saves: two consecutive successful saves are required to reduce the stage by 1, while a critical success reduces the stage by exactly 1 immediately. Failure or critical failure breaks the success streak. The streak is persisted in controller `state.recoverySuccesses`. Initial exposure saves are not altered.
+
+
+### Restrictions and persistent consequences
+
+Root and stage restrictions merge at runtime. The strongest healing restriction wins, condition locks with the same slug use the highest explicit minimum, and blocked capabilities are unioned.
+
+```js
+api.restrictions.forActor(actor)
+api.restrictions.forController(controller)
+api.restrictions.isCapabilityBlocked(actor, "speak")
+api.restrictions.status()
+```
+
+`healing: "all"` clamps Actor HP increases while active. `healing: "affliction-damage"` tracks HP lost to that affliction's own stage execution in controller `state.unhealableDamage`; unrelated damage can still be healed up to the remaining ceiling. The tracked pool clears once no active stage/root restriction protects it.
+
+A stage may set `effectPersistence` to `stage` (default), `affliction`, or `permanent`. Affliction-persistent stage output survives stage transitions but is removed when the controller ends. Permanent output is detached from the controller at the end and remains on the Actor as an Affliction-managed residual Effect.
+
+The initial `speak` capability is a machine-readable restriction for host integrations and controller presentation. Affliction Forge does not suppress ordinary Foundry chat messages, because chat is not a PF2e speech-action contract.
 
 ## Affliction Engine
 
@@ -222,7 +247,7 @@ Stage 0 is reserved for initial exposure/onset runtime state. An already active 
 
 ### API compatibility version
 
-`api.version` is now independent from the module release number. Module `0.1.48` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
+`api.version` is now independent from the module release number. Module `0.1.49` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
 
 ### Pause / resume semantics
 

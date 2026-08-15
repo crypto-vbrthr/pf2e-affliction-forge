@@ -11,16 +11,18 @@ import {
   buildControllerFlags,
   getAfflictionFlags,
   isAfflictionController,
+  isAfflictionResidualEffect,
   isAfflictionStageEffect,
   isAfflictionTemplate
 } from "../documents/affliction-flags.js";
-import { normalizeAfflictionDefinition } from "../schema/affliction-normalizer.js";
+import { normalizeAfflictionDefinition, resolveAfflictionRestrictions } from "../schema/affliction-normalizer.js";
 import { assertValidAfflictionDefinition } from "../schema/affliction-validator.js";
 import { deepClone, randomId } from "../schema/utils.js";
 import {
   createAfflictionControllerState,
   validateAfflictionControllerState
 } from "./controller-state.js";
+import { withAfflictionRestrictionBypass } from "./affliction-restriction-runtime.js";
 
 function nowWorldTime() {
   const value = Number(globalThis.game?.time?.worldTime);
@@ -402,6 +404,7 @@ function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemp
     sourceTemplateUuid: sourceTemplateUuid ?? null,
     stageId: stage.id,
     stageNumber: stage.number,
+    effectPersistence: stage.effectPersistence ?? "stage",
     identifiedPresentation: identifiedPresentation ? deepClone(identifiedPresentation) : null
   };
 }
@@ -538,6 +541,11 @@ function notifyInstantExecutionFailure({ controller, stage, error }) {
   globalThis.ui?.notifications?.error?.(message);
 }
 
+function actorHitPoints(actor) {
+  const value = Number(actor?.system?.attributes?.hp?.value);
+  return Number.isFinite(value) ? value : null;
+}
+
 async function executeStageInstantEffectsSafely(context) {
   try {
     return await executeStageInstantEffects(context);
@@ -548,13 +556,27 @@ async function executeStageInstantEffectsSafely(context) {
 }
 
 
-async function recordInstantExecutionResults({ actor, controller, definition, stage, results, at = nowWorldTime() }) {
+async function recordInstantExecutionResults({ actor, controller, definition, stage, results, hpBefore = null, hpAfter = null, at = nowWorldTime() }) {
   const deathResults = (Array.isArray(results) ? results : []).filter((result) => result?.kind === "death");
-  if (deathResults.length === 0) return controller;
-
   const flags = getAfflictionFlags(controller);
   const state = deepClone(flags?.state ?? {});
   let changed = false;
+
+  const lostHp = Number.isFinite(hpBefore) && Number.isFinite(hpAfter)
+    ? Math.max(0, Math.trunc(hpBefore - hpAfter))
+    : 0;
+  const restrictions = resolveAfflictionRestrictions(definition, stage);
+  if (lostHp > 0 && restrictions.healing === "affliction-damage") {
+    state.unhealableDamage = Math.max(0, Math.trunc(Number(state.unhealableDamage ?? 0))) + lostHp;
+    appendRuntimeEvent(state, {
+      type: "unhealable-damage-recorded",
+      at,
+      stageNumber: stage?.number ?? null,
+      stageId: stage?.id ?? null,
+      data: { amount: lostHp, total: state.unhealableDamage }
+    });
+    changed = true;
+  }
   for (const result of deathResults) {
     const category = result.category === "death-effect" ? "death-effect" : "direct";
     if (result.applied === true) {
@@ -618,10 +640,94 @@ async function recordInstantExecutionResultsSafely(context) {
   }
 }
 
+async function executeAndRecordStageInstantEffectsSafely(context) {
+  const hpBefore = actorHitPoints(context?.actor);
+  const results = await executeStageInstantEffectsSafely(context);
+  const hpAfter = actorHitPoints(context?.actor);
+  await recordInstantExecutionResultsSafely({ ...context, results, hpBefore, hpAfter });
+  return results;
+}
+
 function stageEffectItems(actor, instanceId) {
   return itemCollection(actor).filter((item) => {
     const flags = getAfflictionFlags(item);
     return isAfflictionStageEffect(item) && flags?.instanceId === instanceId;
+  });
+}
+
+function residualEffectItems(actor, instanceId) {
+  return itemCollection(actor).filter((item) => {
+    const flags = getAfflictionFlags(item);
+    return isAfflictionResidualEffect(item) && flags?.instanceId === instanceId;
+  });
+}
+
+async function preserveStageEffects(actor, state, persistence) {
+  if (!actor || !state?.instanceId || !["affliction", "permanent"].includes(persistence)) return [];
+  const items = stageEffectItems(actor, state.instanceId);
+  if (items.length === 0) return [];
+  const updates = items.map((item) => {
+    const flags = deepClone(getAfflictionFlags(item) ?? {});
+    flags.documentKind = DOCUMENT_KINDS.RESIDUAL_EFFECT;
+    flags.residualPersistence = persistence;
+    flags.residualCreatedAt = nowWorldTime();
+    if (persistence === "permanent") flags.detachOnControllerEnd = true;
+    return { _id: item.id, [`flags.${MODULE_ID}`]: flags };
+  });
+  await actor.updateEmbeddedDocuments("Item", updates, {
+    render: false,
+    [MODULE_ID]: { restrictionBypass: true, afflictionResidualize: persistence }
+  });
+  return residualEffectItems(actor, state.instanceId);
+}
+
+async function restoreResidualEffectsAsStage(actor, state, stage) {
+  if (!actor || !state?.instanceId || !stage) return [];
+  const items = residualEffectItems(actor, state.instanceId).filter((item) => {
+    const flags = getAfflictionFlags(item);
+    return flags?.stageId === stage.id && Number(flags?.stageNumber) === Number(stage.number);
+  });
+  if (items.length === 0) return [];
+  const updates = items.map((item) => {
+    const flags = deepClone(getAfflictionFlags(item) ?? {});
+    flags.documentKind = DOCUMENT_KINDS.STAGE_EFFECT;
+    delete flags.residualPersistence;
+    delete flags.residualCreatedAt;
+    delete flags.detachOnControllerEnd;
+    delete flags.detachedAt;
+    return { _id: item.id, [`flags.${MODULE_ID}`]: flags };
+  });
+  await actor.updateEmbeddedDocuments("Item", updates, {
+    render: false,
+    [MODULE_ID]: { restrictionBypass: true, afflictionResidualRollback: true }
+  });
+  return stageEffectItems(actor, state.instanceId);
+}
+
+async function removeResidualEffects(actor, state, { includePermanent = false } = {}) {
+  const items = residualEffectItems(actor, state.instanceId).filter((item) => {
+    const persistence = getAfflictionFlags(item)?.residualPersistence ?? "affliction";
+    return includePermanent || persistence !== "permanent";
+  });
+  if (items.length === 0) return [];
+  return actor.deleteEmbeddedDocuments("Item", items.map((item) => item.id), {
+    render: false,
+    [MODULE_ID]: { restrictionBypass: true, afflictionResidualCleanup: true }
+  });
+}
+
+async function detachPermanentResidualEffects(actor, state) {
+  const items = residualEffectItems(actor, state.instanceId).filter((item) => getAfflictionFlags(item)?.residualPersistence === "permanent");
+  if (items.length === 0) return [];
+  const updates = items.map((item) => {
+    const flags = deepClone(getAfflictionFlags(item) ?? {});
+    flags.controllerUuid = null;
+    flags.detachedAt = nowWorldTime();
+    return { _id: item.id, [`flags.${MODULE_ID}`]: flags };
+  });
+  return actor.updateEmbeddedDocuments("Item", updates, {
+    render: false,
+    [MODULE_ID]: { restrictionBypass: true, afflictionResidualDetach: true }
   });
 }
 
@@ -699,7 +805,7 @@ async function removeStageEffects(actor, state) {
     for (const uuid of state.activeStageEffectUuids ?? []) {
       try {
         const item = await globalThis.fromUuid(uuid);
-        if (item?.parent?.uuid === actor.uuid && item?.id) candidates.set(item.id, item);
+        if (item?.parent?.uuid === actor.uuid && item?.id && isAfflictionStageEffect(item)) candidates.set(item.id, item);
       } catch {
         // Stale UUIDs are expected after manual cleanup and are handled by the actor scan above.
       }
@@ -710,7 +816,7 @@ async function removeStageEffects(actor, state) {
   if (ids.length === 0) return [];
   return actor.deleteEmbeddedDocuments("Item", ids, {
     render: false,
-    [MODULE_ID]: { afflictionStageCleanup: true }
+    [MODULE_ID]: { afflictionStageCleanup: true, restrictionBypass: true }
   });
 }
 
@@ -729,6 +835,9 @@ function buildTransitionState(previous, definition, stageNumber, enteredAt, effe
     : definition.onset;
   next.nextCheckAt = dueAt(duration, enteredAt);
   next.activeStageEffectUuids = [...effectUuids];
+  const nextStage = stageNumber > 0 ? stageDescriptor(definition, stageNumber) : null;
+  const nextRestrictions = resolveAfflictionRestrictions(definition, nextStage);
+  if (nextRestrictions.healing !== "affliction-damage") next.unhealableDamage = 0;
   next.pendingCheck = null;
   next.onsetTargetStage = null;
   next.revision = Number(previous.revision ?? 0) + 1;
@@ -1027,8 +1136,7 @@ export class AfflictionInstanceService {
           const state = deepClone(getAfflictionFlags(controller)?.state ?? {});
           if (state.currentStage <= 0) continue;
           const stage = stageDescriptor(definition, state.currentStage);
-          const instantResults = await executeStageInstantEffectsSafely({ actor, controller, definition, state, stage });
-          await recordInstantExecutionResultsSafely({ actor, controller, definition, state, stage, results: instantResults, at: appliedAt });
+          await executeAndRecordStageInstantEffectsSafely({ actor, controller, definition, state, stage, at: appliedAt });
         }
         return controllers;
       } catch (error) {
@@ -1164,8 +1272,7 @@ export class AfflictionInstanceService {
       });
       await updateController(controller, definition, next);
       if (executeInstant && stage) {
-        const instantResults = await executeStageInstantEffectsSafely({ actor, controller, definition, state: next, stage });
-        await recordInstantExecutionResultsSafely({ actor, controller, definition, state: next, stage, results: instantResults, at: enteredAt });
+        await executeAndRecordStageInstantEffectsSafely({ actor, controller, definition, state: next, stage, at: enteredAt });
       }
       return controller;
     }
@@ -1187,15 +1294,21 @@ export class AfflictionInstanceService {
       }
     }
 
-    await removeStageEffects(actor, previous);
     let created = [];
+    let preservedOld = [];
     try {
-      if (preparedSources.length > 0) {
-        created = await actor.createEmbeddedDocuments("Item", preparedSources, {
-          renderSheet: false,
-          [MODULE_ID]: { afflictionStageApplication: true }
-        });
-      }
+      await withAfflictionRestrictionBypass(actor, async () => {
+        if (oldStage && ["affliction", "permanent"].includes(oldStage.effectPersistence)) {
+          preservedOld = await preserveStageEffects(actor, previous, oldStage.effectPersistence);
+        }
+        await removeStageEffects(actor, previous);
+        if (preparedSources.length > 0) {
+          created = await actor.createEmbeddedDocuments("Item", preparedSources, {
+            renderSheet: false,
+            [MODULE_ID]: { afflictionStageApplication: true, restrictionBypass: true }
+          });
+        }
+      });
       const next = buildTransitionState(previous, definition, stageNumber, enteredAt, created.map((item) => item.uuid));
       if (lastCheck !== undefined) next.lastCheck = lastCheck == null ? null : deepClone(lastCheck);
       next.recoverySuccesses = recoverySuccesses !== undefined
@@ -1214,8 +1327,7 @@ export class AfflictionInstanceService {
       // irreversible, so execution failures are reported but never cause the
       // phase transition to roll back.
       if (executeInstant && stage) {
-        const instantResults = await executeStageInstantEffectsSafely({ actor, controller, definition, state: next, stage });
-        await recordInstantExecutionResultsSafely({ actor, controller, definition, state: next, stage, results: instantResults, at: enteredAt });
+        await executeAndRecordStageInstantEffectsSafely({ actor, controller, definition, state: next, stage, at: enteredAt });
       }
       if (notifyLifecycle && stageNumber > 0 && Number(previous.currentStage ?? 0) !== stageNumber) {
         await createRuntimeChatMessage({
@@ -1231,14 +1343,21 @@ export class AfflictionInstanceService {
       return controller;
     } catch (error) {
       try {
-        if (created.length > 0) await actor.deleteEmbeddedDocuments("Item", created.map((item) => item.id), { render: false });
         let restored = [];
-        if (oldSources.length > 0) {
-          restored = await actor.createEmbeddedDocuments("Item", oldSources, {
-            renderSheet: false,
-            [MODULE_ID]: { afflictionStageRollback: true }
+        await withAfflictionRestrictionBypass(actor, async () => {
+          if (created.length > 0) await actor.deleteEmbeddedDocuments("Item", created.map((item) => item.id), {
+            render: false,
+            [MODULE_ID]: { restrictionBypass: true, afflictionStageRollback: true }
           });
-        }
+          if (preservedOld.length > 0 && oldStage) {
+            restored = await restoreResidualEffectsAsStage(actor, previous, oldStage);
+          } else if (oldSources.length > 0) {
+            restored = await actor.createEmbeddedDocuments("Item", oldSources, {
+              renderSheet: false,
+              [MODULE_ID]: { afflictionStageRollback: true, restrictionBypass: true }
+            });
+          }
+        });
         const restoredState = deepClone(previous);
         restoredState.activeStageEffectUuids = restored.map((item) => item.uuid);
         await updateController(controller, definition, restoredState);
@@ -1277,9 +1396,7 @@ export class AfflictionInstanceService {
     const state = deepClone(flags.state);
     const stage = stageDescriptor(definition, state.currentStage);
     if (!stage || state.status !== "active" || state.mortality?.dead === true) return [];
-    const results = await executeStageInstantEffects({ actor, controller, definition, state, stage });
-    await recordInstantExecutionResultsSafely({ actor, controller, definition, state, stage, results, at: nowWorldTime() });
-    return results;
+    return executeAndRecordStageInstantEffectsSafely({ actor, controller, definition, state, stage, at: nowWorldTime() });
   }
 
   async setIdentification(controllerOrUuid, identificationState, options = {}) {
@@ -1314,7 +1431,10 @@ export class AfflictionInstanceService {
 
     const presentation = runtimePresentation(definition, state);
     const unidentified = identificationState !== "identified";
-    const stageItems = stageEffectItems(actor, state.instanceId);
+    const stageItems = [
+      ...stageEffectItems(actor, state.instanceId),
+      ...residualEffectItems(actor, state.instanceId)
+    ];
     const updates = stageItems.map((item) => {
       const itemFlags = getAfflictionFlags(item) ?? {};
       const identifiedPresentation = itemFlags.identifiedPresentation ?? {};
@@ -1449,7 +1569,15 @@ export class AfflictionInstanceService {
     });
     state.revision = Number(state.revision ?? 0) + 1;
 
-    await removeStageEffects(actor, flags.state);
+    const endingStage = stageDescriptor(definition, flags.state?.currentStage);
+    await withAfflictionRestrictionBypass(actor, async () => {
+      if (endingStage?.effectPersistence === "permanent") {
+        await preserveStageEffects(actor, flags.state, "permanent");
+      }
+      await removeStageEffects(actor, flags.state);
+      await removeResidualEffects(actor, flags.state, { includePermanent: false });
+      await detachPermanentResidualEffects(actor, flags.state);
+    });
     // Persist the terminal state before deletion so hooks and integrations can
     // observe a coherent final controller if they listen to updateItem.
     await updateController(controller, definition, state);
@@ -1696,13 +1824,18 @@ export class AfflictionInstanceService {
     const actor = controller.parent?.documentName === "Actor" ? controller.parent : null;
     const flags = getAfflictionFlags(controller);
     if (!actor || !flags?.instanceId) return false;
-    const stale = stageEffectItems(actor, flags.instanceId);
-    if (stale.length > 0) {
-      await actor.deleteEmbeddedDocuments("Item", stale.map((item) => item.id), {
-        render: false,
-        [MODULE_ID]: { orphanCleanup: true }
-      });
-    }
+    const state = flags.state ?? { instanceId: flags.instanceId };
+    await withAfflictionRestrictionBypass(actor, async () => {
+      const stale = stageEffectItems(actor, flags.instanceId);
+      if (stale.length > 0) {
+        await actor.deleteEmbeddedDocuments("Item", stale.map((item) => item.id), {
+          render: false,
+          [MODULE_ID]: { orphanCleanup: true, restrictionBypass: true }
+        });
+      }
+      await removeResidualEffects(actor, state, { includePermanent: false });
+      await detachPermanentResidualEffects(actor, state);
+    });
     return true;
   }
 }

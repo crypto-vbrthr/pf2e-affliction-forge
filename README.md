@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.48**
+Current release: **0.1.49**
 
-Version **0.1.48** keeps the 0.1.45 grouped-save and dynamic-DC workflow and fixes the single-save UX for Ausgeprägt/Virulent stage checks. A due virulent stage save now opens in the Affliction save window, shows the current consecutive-success progress, and retains the optional PF2e modifier dialog per roll. The rule timing is unchanged: the second required success is the next regular stage save, not an immediate extra roll. The public API remains compatibility version `0.1.0`.
+Version **0.1.49** adds generic Remastered-rules restrictions and persistent consequences without changing Affliction schema v2 or public API compatibility `0.1.0`. Definitions can lock conditions against reduction/removal, block all HP healing or only HP damage caused by the affliction itself, expose blocked capabilities such as speaking, and let a stage Effect persist for the stage, the whole affliction, or permanently after the controller ends.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -17,6 +17,9 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - multiple-save resolution through `single`, `best-degree`, `worst-degree`, `all-success`, and `any-success`
 - degree-of-success directives for reject, recover, stay, stage delta, and explicit stage selection
 - native Ausgeprägt/Virulent progression with consecutive-success tracking and one-stage critical-success reduction
+- root and per-stage restrictions for protected condition values, HP-healing locks, and blocked capabilities such as speaking
+- tracked `affliction-damage` healing protection that preserves only HP loss caused by Affliction Forge stage execution while still allowing unrelated damage to be healed
+- stage Effect persistence modes: stage-only, until the affliction ends, or permanent detached residual output
 - onset, maximum active duration (excluding onset), stage duration, and narrative stage descriptions
 - optional Critical Forge `EffectDefinition` per stage
 - persistent inert PF2e `effect` Items for Affliction Templates
