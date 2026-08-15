@@ -156,3 +156,29 @@ test("duplicating a stage gives event reactions and their effects independent id
   assert.notEqual(copy.effect.id, original.effect.id);
   assert.match(copy.effect.id, new RegExp(session.definition.stages[1].id));
 });
+
+test("editor session manages numeric modifiers and periodic effects with independent duplicate identities", () => {
+  const session = createAfflictionEditorSession(sourceDefinition());
+  session.addStageNumericModifier(0, { id: "slow", selectors: ["all-speeds"], value: -5 });
+  session.addStagePeriodicEffect(0, { id: "pulse", interval: { formula: "1d20", unit: "minutes" } });
+  session.setStagePeriodicEffect(0, 0, {
+    schemaVersion: 2,
+    id: "periodic.effect",
+    name: "Periodic",
+    description: "",
+    img: "icons/svg/aura.svg",
+    duration: { value: 1, unit: "rounds", expiry: null },
+    components: [],
+    application: {},
+    metadata: {}
+  });
+
+  assert.equal(session.definition.stages[0].numericModifiers.length, 1);
+  assert.equal(session.definition.stages[0].periodicEffects.length, 1);
+  session.duplicateStage(0);
+  const original = session.definition.stages[0];
+  const copy = session.definition.stages[1];
+  assert.notEqual(copy.periodicEffects[0].id, original.periodicEffects[0].id);
+  assert.notEqual(copy.periodicEffects[0].effect.id, original.periodicEffects[0].effect.id);
+  assert.deepEqual(copy.numericModifiers[0].selectors, ["all-speeds"]);
+});

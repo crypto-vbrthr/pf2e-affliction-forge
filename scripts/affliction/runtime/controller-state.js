@@ -32,6 +32,7 @@ export function createAfflictionControllerState(definition, {
   recoverySuccesses = 0,
   unhealableDamage = 0,
   unhealableDamageByType = {},
+  periodicSchedule = {},
   revision = 1
 } = {}) {
   return {
@@ -54,6 +55,9 @@ export function createAfflictionControllerState(definition, {
     unhealableDamageByType: Object.fromEntries(Object.entries(unhealableDamageByType ?? {})
       .map(([type, amount]) => [String(type).trim().toLowerCase(), Math.max(0, Math.trunc(Number(amount) || 0))])
       .filter(([type, amount]) => type && amount > 0)),
+    periodicSchedule: Object.fromEntries(Object.entries(periodicSchedule ?? {})
+      .map(([id, entry]) => [String(id).trim(), deepClone(entry)])
+      .filter(([id, entry]) => id && entry && typeof entry === "object" && !Array.isArray(entry))),
     activeStageEffectUuids: [...activeStageEffectUuids],
     pendingCheck: pendingCheck == null ? null : deepClone(pendingCheck),
     onsetTargetStage: onsetTargetStage == null ? null : Math.max(1, Math.trunc(Number(onsetTargetStage) || 1)),
@@ -103,6 +107,16 @@ export function validateAfflictionControllerState(state, definition = null) {
     }
     if (!Number.isInteger(state.recoverySuccesses) || state.recoverySuccesses < 0) errors.push("recoverySuccesses must be a non-negative integer.");
     if (state.unhealableDamage !== undefined && (!Number.isInteger(state.unhealableDamage) || state.unhealableDamage < 0)) errors.push("unhealableDamage must be a non-negative integer when present.");
+    if (state.periodicSchedule !== undefined) {
+      if (!state.periodicSchedule || typeof state.periodicSchedule !== "object" || Array.isArray(state.periodicSchedule)) errors.push("periodicSchedule must be an object when present.");
+      else for (const [id, entry] of Object.entries(state.periodicSchedule)) {
+        if (!id.trim() || !entry || typeof entry !== "object" || Array.isArray(entry)) { errors.push("periodicSchedule entries must be objects keyed by periodic effect id."); continue; }
+        if (entry.nextAt !== null && entry.nextAt !== undefined && !Number.isFinite(entry.nextAt)) errors.push("periodicSchedule.nextAt must be a finite world-time value or null.");
+        if (entry.lastAt !== null && entry.lastAt !== undefined && !Number.isFinite(entry.lastAt)) errors.push("periodicSchedule.lastAt must be a finite world-time value or null.");
+        if (entry.lastIntervalSeconds !== null && entry.lastIntervalSeconds !== undefined && (!Number.isFinite(entry.lastIntervalSeconds) || entry.lastIntervalSeconds <= 0)) errors.push("periodicSchedule.lastIntervalSeconds must be a positive finite duration or null.");
+        if (!Number.isInteger(entry.sequence ?? 0) || Number(entry.sequence ?? 0) < 0) errors.push("periodicSchedule.sequence must be a non-negative integer.");
+      }
+    }
     if (state.unhealableDamageByType !== undefined) {
       if (!state.unhealableDamageByType || typeof state.unhealableDamageByType !== "object" || Array.isArray(state.unhealableDamageByType)) errors.push("unhealableDamageByType must be an object when present.");
       else for (const [type, amount] of Object.entries(state.unhealableDamageByType)) {

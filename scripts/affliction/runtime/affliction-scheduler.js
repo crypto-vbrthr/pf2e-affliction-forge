@@ -2,7 +2,7 @@ import { MODULE_ID } from "../../constants.js";
 import { readSchedulerSettings } from "../../settings.js";
 import { getAfflictionFlags, isAfflictionController } from "../documents/affliction-flags.js";
 import { normalizeAfflictionDefinition } from "../schema/affliction-normalizer.js";
-import { durationToWorldSeconds, scheduledDueAt } from "./affliction-instance-service.js";
+import { durationToWorldSeconds, scheduledDueAt, scheduledPeriodicEvent } from "./affliction-instance-service.js";
 
 function worldTime() {
   const value = Number(globalThis.game?.time?.worldTime);
@@ -182,6 +182,20 @@ export function controllerCanonicalDueAt(controller) {
   const flags = getAfflictionFlags(controller);
   if (!flags?.definitionSnapshot || !flags?.state) return null;
   return scheduledDueAt(flags.definitionSnapshot, flags.state);
+}
+
+export function controllerPeriodicDueEvent(controller) {
+  const flags = getAfflictionFlags(controller);
+  if (!flags?.definitionSnapshot || !flags?.state) return null;
+  return scheduledPeriodicEvent(flags.definitionSnapshot, flags.state);
+}
+
+export function controllerNextDueAt(controller) {
+  const stageDue = controllerCanonicalDueAt(controller);
+  const periodicDue = controllerPeriodicDueEvent(controller)?.dueAt ?? null;
+  if (stageDue == null) return periodicDue;
+  if (periodicDue == null) return stageDue;
+  return Math.min(stageDue, periodicDue);
 }
 
 function terminalResult(status) {
@@ -406,10 +420,18 @@ export class AfflictionScheduler {
       }
 
       const maximumAt = controllerMaximumDurationAt(current);
-      const nextDue = controllerCanonicalDueAt(current);
+      const stageDue = controllerCanonicalDueAt(current);
+      const periodicEvent = controllerPeriodicDueEvent(current);
+      const periodicDue = periodicEvent?.dueAt ?? null;
+      // At an exact tie the stage boundary wins. This prevents a periodic stage
+      // effect from firing after the phase has conceptually reached its save/end
+      // boundary at the same world-time instant.
+      const periodicIsNext = periodicDue != null && (stageDue == null || periodicDue < stageDue);
+      const nextDue = periodicIsNext ? periodicDue : stageDue;
 
       // Maximum duration is another due event. If it occurs before (or at) the
-      // next stage check, the affliction ends without manufacturing a later save.
+      // next stage/periodic event, the affliction ends without manufacturing a
+      // later save or periodic consequence.
       if (Number.isFinite(maximumAt) && maximumAt <= horizon && (nextDue == null || maximumAt <= nextDue)) {
         await this.#instanceService.end(current, { reason: "maximum-duration" });
         actions.push({ type: "maximum-duration", at: maximumAt });
@@ -418,6 +440,23 @@ export class AfflictionScheduler {
 
       if (nextDue == null || nextDue > horizon) {
         return { controllerUuid: current.uuid, status: actions.length ? "caught-up" : "not-due", actions, reason };
+      }
+
+      if (periodicIsNext) {
+        const result = await this.#instanceService.executePeriodic(current, periodicEvent.periodicId, { at: periodicDue });
+        transitions += 1;
+        actions.push({ type: "periodic", periodicId: periodicEvent.periodicId, at: periodicDue, status: result?.status ?? "unknown" });
+        const refreshed = await this.#instanceService.get(current.uuid).catch(() => null);
+        if (!refreshed) return { controllerUuid: current.uuid, status: "removed", actions, reason };
+        if (getAfflictionFlags(refreshed)?.state?.mortality?.dead === true) {
+          return { controllerUuid: current.uuid, status: "dead", actions, reason };
+        }
+        if (mode === "next") return { controllerUuid: current.uuid, status: "processed-next", actions, reason };
+        if (!["executed", "failed"].includes(result?.status)) {
+          return { controllerUuid: current.uuid, status: result?.status ?? "stopped", actions, reason };
+        }
+        current = refreshed;
+        continue;
       }
 
       // A player request or cancelled/manual GM roll must never be re-issued on
@@ -471,7 +510,7 @@ export class AfflictionScheduler {
 
     const refreshed = await this.#instanceService.get(current.uuid).catch(() => null);
     const state = getAfflictionFlags(refreshed)?.state ?? null;
-    const remainingDue = refreshed ? controllerCanonicalDueAt(refreshed) : null;
+    const remainingDue = refreshed ? controllerNextDueAt(refreshed) : null;
     if (state && remainingDue != null && remainingDue <= horizon) {
       notifyWarning("PF2E_AFFLICTION_FORGE.Scheduler.CatchUpLimitReached", {
         name: refreshed?.name ?? controller.name ?? controller.uuid,

@@ -80,6 +80,19 @@
     </div>
   </section>
 
+  {{#if periodicEffects.length}}
+  <section class="affliction-controller-restrictions affliction-controller-periodic">
+    <header><strong><i class="fa-solid fa-clock-rotate-left"></i> {{localize "PF2E_AFFLICTION_FORGE.Periodic.ActiveTitle"}}</strong></header>
+    {{#each periodicEffects as |periodic|}}
+      <div>
+        <small>{{periodic.label}}</small>
+        <strong>{{periodic.dueLabel}}</strong>
+        <span> · {{localize "PF2E_AFFLICTION_FORGE.Periodic.Executions"}}: {{periodic.sequence}}</span>
+      </div>
+    {{/each}}
+  </section>
+  {{/if}}
+
   <section class="affliction-controller-identification">
     <label>
       <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Identification"}}</span>

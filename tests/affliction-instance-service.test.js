@@ -1410,3 +1410,147 @@ test("permanent stage output detaches and survives controller end", async () => 
   assert.equal(getAfflictionFlags(residual).controllerUuid, null);
   assert.equal(actor.items.some(isAfflictionController), false);
 });
+
+test("stage numeric modifiers compile to managed PF2e FlatModifier effect Items", async () => {
+  const actor = new FakeActor("heroNumericModifier", "Numeric Modifier Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Slowing Sickness",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      numericModifiers: [{
+        id: "slow-all-speeds",
+        label: "Slowed by disease",
+        selectors: ["all-speeds"],
+        type: "status",
+        value: -5
+      }]
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  const stageEffects = actor.items.filter(isAfflictionStageEffect);
+  assert.equal(stageEffects.length, 1);
+  assert.deepEqual(stageEffects[0].system.rules, [{
+    key: "FlatModifier",
+    selector: "all-speeds",
+    type: "status",
+    value: -5,
+    slug: `affliction-${getAfflictionFlags(controller).state.instanceId}-stage-1-slow-all-speeds`.replace(/[^a-z0-9-]/gi, "-").toLowerCase(),
+    label: "Slowed by disease"
+  }]);
+  assert.equal(getAfflictionFlags(stageEffects[0]).nativeKind, "numeric-modifiers");
+});
+
+test("periodic stage effects roll their interval, execute through Critical Forge, and reschedule", async () => {
+  globalThis.game.time.worldTime = 1000;
+  const previousRoll = globalThis.Roll;
+  globalThis.Roll = class MockRoll {
+    constructor(formula) { this.formula = formula; this.total = null; }
+    static create(formula) { return new MockRoll(formula); }
+    async evaluate() { this.total = this.formula === "1d20" ? 7 : Number(this.formula); return this; }
+  };
+  instantExecutions.length = 0;
+  try {
+    const actor = new FakeActor("heroPeriodic", "Periodic Hero");
+    const service = createAfflictionInstanceService();
+    const source = createAfflictionDefinition({
+      name: "Recurring Plague",
+      initialCheck: null,
+      stages: [{
+        ...createDefaultStage({ number: 1 }),
+        duration: { value: 1, unit: "hours" },
+        periodicEffects: [{
+          id: "bleed-pulse",
+          label: "Bleeding pulse",
+          interval: { formula: "1d20", unit: "minutes" },
+          effect: damageOnlyEffect("recurring.bleed", "Recurring bleed", "1d6")
+        }]
+      }]
+    });
+
+    const [controller] = await service.applyDefinition(source, actor);
+    let state = getAfflictionFlags(controller).state;
+    assert.deepEqual(state.periodicSchedule["bleed-pulse"], {
+      nextAt: 1420,
+      lastAt: null,
+      sequence: 0,
+      lastIntervalSeconds: 420
+    });
+
+    const result = await service.executePeriodic(controller, "bleed-pulse", { at: 1420 });
+    assert.equal(result.status, "executed");
+    assert.equal(instantExecutions.length, 1);
+    assert.equal(instantExecutions[0].components[0].formula, "1d6");
+    state = getAfflictionFlags(controller).state;
+    assert.equal(state.periodicSchedule["bleed-pulse"].lastAt, 1420);
+    assert.equal(state.periodicSchedule["bleed-pulse"].sequence, 1);
+    assert.equal(state.periodicSchedule["bleed-pulse"].nextAt, 1840);
+    assert.ok(state.events.some((event) => event.type === "periodic-effect" && event.data.periodicId === "bleed-pulse"));
+  } finally {
+    globalThis.Roll = previousRoll;
+  }
+});
+
+test("same-stage renewal preserves an already rolled periodic interval", async () => {
+  globalThis.game.time.worldTime = 1000;
+  const previousRoll = globalThis.Roll;
+  let total = 7;
+  globalThis.Roll = class MockRoll {
+    constructor(formula) { this.formula = formula; this.total = null; }
+    static create(formula) { return new MockRoll(formula); }
+    async evaluate() { this.total = total; return this; }
+  };
+  try {
+    const actor = new FakeActor("heroPeriodicRenewal", "Periodic Renewal Hero");
+    const service = createAfflictionInstanceService();
+    const source = createAfflictionDefinition({
+      name: "Recurring Plague Renewal",
+      initialCheck: null,
+      stages: [{
+        ...createDefaultStage({ number: 1 }),
+        periodicEffects: [{
+          id: "pulse",
+          label: "Pulse",
+          interval: { formula: "1d20", unit: "minutes" },
+          effect: damageOnlyEffect("renewal.pulse", "Pulse", "1")
+        }]
+      }]
+    });
+    const [controller] = await service.applyDefinition(source, actor);
+    assert.equal(getAfflictionFlags(controller).state.periodicSchedule.pulse.nextAt, 1420);
+    total = 19;
+    await service.setStage(controller, 1, { enteredAt: 1100 });
+    assert.equal(getAfflictionFlags(controller).state.periodicSchedule.pulse.nextAt, 1420);
+  } finally {
+    globalThis.Roll = previousRoll;
+  }
+});
+
+test("pause and resume preserve remaining time for periodic effects", async () => {
+  globalThis.game.time.worldTime = 1000;
+  const actor = new FakeActor("heroPeriodicPause", "Periodic Pause Hero");
+  const service = createAfflictionInstanceService();
+  const source = createAfflictionDefinition({
+    name: "Periodic Pause Disease",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      duration: { value: 10, unit: "minutes" },
+      periodicEffects: [{
+        id: "pulse",
+        label: "Pulse",
+        interval: { value: 2, unit: "minutes" },
+        effect: damageOnlyEffect("pause.pulse", "Pulse", "1")
+      }]
+    }]
+  });
+  const [controller] = await service.applyDefinition(source, actor);
+  assert.equal(getAfflictionFlags(controller).state.periodicSchedule.pulse.nextAt, 1120);
+  await service.pause(controller, { pausedAt: 1060 });
+  await service.resume(controller, { resumedAt: 1180 });
+  const state = getAfflictionFlags(controller).state;
+  assert.equal(state.periodicSchedule.pulse.nextAt, 1240);
+  assert.equal(state.nextCheckAt, 1720);
+});

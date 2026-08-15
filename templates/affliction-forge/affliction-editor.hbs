@@ -610,6 +610,149 @@
                   </div>
                 </section>
 
+                <section class="affliction-editor-stage-reaction-section affliction-editor-stage-numeric-modifier-section">
+                  <header>
+                    <div>
+                      <strong>{{localize "PF2E_AFFLICTION_FORGE.NumericModifier.Title"}}</strong>
+                      <small>{{localize "PF2E_AFFLICTION_FORGE.NumericModifier.Hint"}}</small>
+                    </div>
+                    <button type="button" class="affliction-editor-primary" data-affliction-action="addStageNumericModifier" data-index="{{stage.index}}">
+                      <i class="fa-solid fa-plus"></i> {{localize "PF2E_AFFLICTION_FORGE.NumericModifier.Add"}}
+                    </button>
+                  </header>
+
+                  {{#if stage.numericModifiers.length}}
+                    <div class="affliction-editor-stage-reaction-list">
+                      {{#each stage.numericModifiers as |modifier|}}
+                        <article class="affliction-editor-stage-reaction-card" data-stage-modifier-index="{{modifier.index}}">
+                          <header>
+                            <strong>{{localize "PF2E_AFFLICTION_FORGE.NumericModifier.Modifier"}} {{modifier.number}}</strong>
+                            <button type="button" class="icon danger" data-affliction-action="removeStageNumericModifier" data-index="{{modifier.stageIndex}}" data-modifier-index="{{modifier.index}}" title="{{localize 'PF2E_AFFLICTION_FORGE.NumericModifier.Remove'}}">
+                              <i class="fa-solid fa-trash"></i>
+                            </button>
+                          </header>
+                          <div class="affliction-editor-grid two-columns">
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.NumericModifier.Id"}}</span>
+                              <input data-modifier-field="id" type="text" value="{{modifier.id}}" required>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.NumericModifier.Label"}}</span>
+                              <input data-modifier-field="label" type="text" value="{{modifier.label}}">
+                            </label>
+                          </div>
+                          <div class="affliction-editor-grid three-columns">
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.NumericModifier.Selectors"}}</span>
+                              <input data-modifier-field="selectors" type="text" value="{{modifier.selectorsText}}" placeholder="all-speeds, land-speed">
+                              <small>{{localize "PF2E_AFFLICTION_FORGE.NumericModifier.SelectorsHint"}}</small>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.NumericModifier.ModifierType"}}</span>
+                              <select data-modifier-field="type">
+                                {{#each modifier.typeOptions as |option|}}
+                                  <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                                {{/each}}
+                              </select>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.NumericModifier.Value"}}</span>
+                              <input data-modifier-field="value" type="number" step="1" value="{{modifier.value}}">
+                            </label>
+                          </div>
+                        </article>
+                      {{/each}}
+                    </div>
+                  {{else}}
+                    <p class="affliction-editor-empty">{{localize "PF2E_AFFLICTION_FORGE.NumericModifier.None"}}</p>
+                  {{/if}}
+                </section>
+
+                <section class="affliction-editor-stage-reaction-section affliction-editor-stage-periodic-section">
+                  <header>
+                    <div>
+                      <strong>{{localize "PF2E_AFFLICTION_FORGE.Periodic.Title"}}</strong>
+                      <small>{{localize "PF2E_AFFLICTION_FORGE.Periodic.Hint"}}</small>
+                    </div>
+                    <button type="button" class="affliction-editor-primary" data-affliction-action="addStagePeriodicEffect" data-index="{{stage.index}}">
+                      <i class="fa-solid fa-plus"></i> {{localize "PF2E_AFFLICTION_FORGE.Periodic.Add"}}
+                    </button>
+                  </header>
+
+                  {{#if stage.periodicEffects.length}}
+                    <div class="affliction-editor-stage-reaction-list">
+                      {{#each stage.periodicEffects as |periodic|}}
+                        <article class="affliction-editor-stage-reaction-card" data-stage-periodic-index="{{periodic.index}}">
+                          <header>
+                            <strong>{{localize "PF2E_AFFLICTION_FORGE.Periodic.PeriodicEffect"}} {{periodic.number}}</strong>
+                            <button type="button" class="icon danger" data-affliction-action="removeStagePeriodicEffect" data-index="{{periodic.stageIndex}}" data-periodic-index="{{periodic.index}}" title="{{localize 'PF2E_AFFLICTION_FORGE.Periodic.Remove'}}">
+                              <i class="fa-solid fa-trash"></i>
+                            </button>
+                          </header>
+                          <div class="affliction-editor-grid two-columns">
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Periodic.Id"}}</span>
+                              <input data-periodic-field="id" type="text" value="{{periodic.id}}" required>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Periodic.Label"}}</span>
+                              <input data-periodic-field="label" type="text" value="{{periodic.label}}">
+                            </label>
+                          </div>
+                          <div class="affliction-editor-grid three-columns">
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Periodic.IntervalValue"}}</span>
+                              <input data-periodic-field="value" type="number" min="1" step="1" value="{{periodic.intervalValue}}">
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Periodic.IntervalFormula"}}</span>
+                              <input data-periodic-field="formula" type="text" value="{{periodic.intervalFormula}}" placeholder="1d20">
+                              <small>{{localize "PF2E_AFFLICTION_FORGE.Periodic.IntervalFormulaHint"}}</small>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Periodic.IntervalUnit"}}</span>
+                              <select data-periodic-field="unit">
+                                {{#each periodic.intervalUnitOptions as |option|}}
+                                  <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                                {{/each}}
+                              </select>
+                            </label>
+                          </div>
+
+                          <section class="affliction-editor-reaction-effect">
+                            <header>
+                              <div>
+                                <strong>{{localize "PF2E_AFFLICTION_FORGE.Periodic.Effect"}}</strong>
+                                <small>{{localize "PF2E_AFFLICTION_FORGE.Periodic.EffectHint"}}</small>
+                              </div>
+                              {{#if periodic.hasEffect}}
+                                <button type="button" class="danger" data-affliction-action="removePeriodicEffectDefinition" data-index="{{periodic.stageIndex}}" data-periodic-index="{{periodic.index}}">
+                                  <i class="fa-solid fa-trash"></i> {{localize "PF2E_AFFLICTION_FORGE.Periodic.RemoveEffect"}}
+                                </button>
+                              {{else}}
+                                <button type="button" class="affliction-editor-primary" data-affliction-action="addPeriodicEffectDefinition" data-index="{{periodic.stageIndex}}" data-periodic-index="{{periodic.index}}">
+                                  <i class="fa-solid fa-plus"></i> {{localize "PF2E_AFFLICTION_FORGE.Periodic.AddEffect"}}
+                                </button>
+                              {{/if}}
+                            </header>
+                            {{#if periodic.hasEffect}}
+                              <div class="affliction-editor-stage-effect-summary" data-periodic-effect-summary="{{periodic.stageIndex}}:{{periodic.index}}">
+                                <span><i class="fa-solid fa-cubes"></i> <strong data-effect-component-count>{{periodic.effectComponentCount}}</strong> {{localize "PF2E_AFFLICTION_FORGE.Editor.EffectComponents"}}</span>
+                                <small>{{localize "PF2E_AFFLICTION_FORGE.Periodic.EffectManagedHint"}}</small>
+                              </div>
+                              <div class="affliction-editor-effect-host" data-periodic-effect-host="{{periodic.stageIndex}}:{{periodic.index}}"></div>
+                            {{else}}
+                              <p class="affliction-editor-empty">{{localize "PF2E_AFFLICTION_FORGE.Periodic.NoEffectDefinition"}}</p>
+                            {{/if}}
+                          </section>
+                        </article>
+                      {{/each}}
+                    </div>
+                  {{else}}
+                    <p class="affliction-editor-empty">{{localize "PF2E_AFFLICTION_FORGE.Periodic.None"}}</p>
+                  {{/if}}
+                </section>
+
                 <section class="affliction-editor-stage-reaction-section">
                   <header>
                     <div>

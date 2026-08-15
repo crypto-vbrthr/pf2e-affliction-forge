@@ -181,3 +181,21 @@ test("stage event reactions are exposed through the embedded editor and reuse Cr
   assert.match(source, /#mountReactionEffectEditors\(\)/);
   assert.match(source, /synchronizeManagedReactionEffectMetadata/);
 });
+
+test("numeric modifiers and periodic stage effects are authorable in the embedded editor", async () => {
+  const definition = createAfflictionDefinition({ name: "Periodic Editor Probe" });
+  definition.stages[0].numericModifiers = [{ id: "slow", label: "Slow", selectors: ["all-speeds"], type: "status", value: -5 }];
+  definition.stages[0].periodicEffects = [{ id: "pulse", label: "Pulse", interval: { formula: "1d20", unit: "minutes" }, effect: null }];
+  const session = createAfflictionEditorSession(definition);
+  const api = { definitions: { validate: () => ({ valid: true, issues: [], errors: [], warnings: [] }) } };
+  const context = await prepareAfflictionEditorContext(session, { api });
+  assert.equal(context.stages[0].numericModifiers[0].selectorsText, "all-speeds");
+  assert.equal(context.stages[0].periodicEffects[0].intervalFormula, "1d20");
+  assert.match(template, /data-affliction-action="addStageNumericModifier"/);
+  assert.match(template, /data-modifier-field="selectors"/);
+  assert.match(template, /data-affliction-action="addStagePeriodicEffect"/);
+  assert.match(template, /data-periodic-field="formula"/);
+  assert.match(template, /data-periodic-effect-host/);
+  assert.match(source, /#mountPeriodicEffectEditors\(\)/);
+  assert.match(source, /synchronizeManagedPeriodicEffectMetadata/);
+});

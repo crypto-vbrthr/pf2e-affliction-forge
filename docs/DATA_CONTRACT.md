@@ -112,6 +112,8 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
       },
       effectPersistence: "stage", // stage | affliction | permanent
       effect: null,
+      numericModifiers: [], // native PF2e FlatModifier output; see below
+      periodicEffects: [], // repeated Critical Forge effects; see below
       reactions: [] // optional stage-scoped auxiliary checks; see below
     }
   ],
@@ -439,6 +441,64 @@ unhealableDamageByType: {
 ```
 
 Keys are normalized lower-case damage-type slugs and values are non-negative integer HP damage amounts. The field is runtime bookkeeping, not authored template data. Inactive damage-type restrictions are removed from transition state so old protected pools stop blocking healing when their rule ends.
+
+## Numeric stage modifiers (0.1.52)
+
+A stage may declare zero or more `numericModifiers`. They are additive schema-v2 data and compile into an Affliction-owned PF2e `effect` Item with `FlatModifier` Rule Elements. The generated Item uses ordinary stage lifetime and is rebuilt/removed by the same controller ownership rules as other persistent stage output.
+
+```js
+{
+  id: "stage-2",
+  number: 2,
+  numericModifiers: [
+    {
+      id: "reduced-speed",
+      label: "Reduced movement",
+      selectors: ["all-speeds"],
+      type: "status", // untyped | status | circumstance | item
+      value: -5
+    }
+  ]
+}
+```
+
+`selectors` must contain at least one non-empty PF2e selector. The contract deliberately stores selectors rather than hard-coding only movement because later Affliction content can reuse the same generic modifier mechanism.
+
+## Periodic stage effects (0.1.52)
+
+A stage may also declare `periodicEffects`. Each entry owns a Critical Forge Effect Definition and an interval. Fixed intervals use the normal Affliction duration units. A formula interval rolls a positive numeric value in the authored unit and takes precedence over a simultaneously present fixed value.
+
+```js
+{
+  id: "stage-3",
+  number: 3,
+  periodicEffects: [
+    {
+      id: "bleeding-burst",
+      label: "Recurring bleeding",
+      interval: { formula: "1d20", unit: "minutes" },
+      effect: { /* Critical Forge EffectDefinition */ }
+    }
+  ]
+}
+```
+
+The controller stores the already-resolved timing separately in `state.periodicSchedule`. A dice formula is rolled when the stage becomes active and again after every execution. A same-stage renewal preserves the already-rolled next timestamp rather than rerolling it. Entering another stage replaces the schedule with that stage's authored periodic entries.
+
+Controller schema v2 uses the additive runtime shape:
+
+```js
+periodicSchedule: {
+  "bleeding-burst": {
+    nextAt: 123456,
+    lastAt: null,
+    sequence: 0,
+    lastIntervalSeconds: 780
+  }
+}
+```
+
+`nextAt` and `lastAt` are Foundry world-time seconds. `sequence` gives every runtime execution a distinct derived Critical Forge definition identity. `lastIntervalSeconds` is audit/debug data for the most recently rolled or fixed interval.
 
 ## Stage event reactions (0.1.50)
 

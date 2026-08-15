@@ -89,3 +89,16 @@ test("controller state tracks additive unhealable affliction damage", () => {
   state.unhealableDamage = -1;
   assert.equal(validateAfflictionControllerState(state, definition).valid, false);
 });
+
+test("controller state accepts additive periodic schedules and rejects invalid entries", () => {
+  const definition = createAfflictionDefinition({ name: "Recurring Disease", initialCheck: null });
+  const state = createAfflictionControllerState(definition, {
+    appliedAt: 100,
+    periodicSchedule: {
+      pulse: { nextAt: 160, lastAt: null, sequence: 0, lastIntervalSeconds: 60 }
+    }
+  });
+  assert.equal(validateAfflictionControllerState(state, definition).valid, true);
+  state.periodicSchedule.pulse.sequence = -1;
+  assert.equal(validateAfflictionControllerState(state, definition).valid, false);
+});

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.1.53
+
+### Localization Hotfix
+
+- fixes a Foundry localization key collision introduced in 0.1.52: `NumericModifier.Type` was both a leaf translation and the parent namespace for `NumericModifier.Type.*`
+- renames the leaf label to `NumericModifier.ModifierType`, restoring complete DE/EN localization loading in Foundry V14
+- adds regression coverage that rejects localization files containing parent/child key collisions
+- no data-contract, runtime, or public-API changes
+
+## 0.1.52
+
+### Numeric Modifiers & Periodic Stage Effects
+
+- adds stage-scoped `numericModifiers` as an additive schema-v2 mechanic; authored selectors compile into managed PF2e `FlatModifier` Rule Elements with `untyped | status | circumstance | item` modifier types
+- adds stage-scoped `periodicEffects` backed by Critical Forge Effect Definitions
+- supports fixed periodic intervals and dice-formula intervals such as `1d20 minutes`; formulas are evaluated silently and rerolled after every execution
+- stores periodic runtime schedule state per controller and preserves already-rolled timing across same-stage renewals
+- integrates periodic events into the GM-authoritative world-time scheduler and chronological catch-up; an exact stage/periodic tie resolves the stage boundary first
+- shifts periodic schedule anchors across pause/resume and clears obsolete schedules on stage change, onset, recovery, or end
+- adds embedded-editor authoring for numeric modifiers and periodic effects, including an embedded Critical Forge Effect Editor for the repeated effect
+- exposes `api.catalogs.numericModifierTypes()`, `api.definitions.createNumericModifier()`, `api.definitions.createPeriodicEffect()`, and `api.instances.executePeriodic()` without changing public API compatibility `0.1.0`, Affliction schema v2, or Controller schema v2
+- expands schema, editor, runtime, scheduler, controller-state, and API regression coverage; full suite: 264/264 passing
+
 ## 0.1.51
 
 ### Component Persistence & Typed Healing Locks
@@ -16,7 +39,7 @@
 
 ## 0.1.50
 
-### _Triggered Checks & Event Reactions_
+### Triggered Checks & Event Reactions
 
 - adds stage-scoped `reactions` as an additive Affliction schema-v2 capability
 - adds the first supported reaction event, `damage-taken`, driven by PF2e synchronized damage-application ChatMessages

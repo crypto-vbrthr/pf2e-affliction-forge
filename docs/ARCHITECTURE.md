@@ -1,4 +1,4 @@
-# Architecture 0.1.51
+# Architecture 0.1.53
 
 ```text
 Affliction Template / Definition
@@ -154,7 +154,7 @@ For a transition to a different stage:
 ```text
 resolved directive
     ↓
-compile new persistent output through Critical Forge
+compile new persistent output through Critical Forge + native numeric Rule Elements
     ↓
 remove this instance's old persistent stage effects
     ↓
@@ -177,7 +177,7 @@ keep existing persistent stage Items untouched
 execute instant stage mechanics again
 ```
 
-This is the interval behavior needed by poisons and diseases that deal damage or other instant mechanics every phase/round while retaining the same persistent conditions. `reapplyStage()` remains the explicit repair path that rebuilds persistent output as well as rerunning instant mechanics.
+This is the interval behavior needed by poisons and diseases that deal damage or other instant mechanics every phase/round while retaining the same persistent conditions. Native numeric stage modifiers are generated as a separate controller-owned PF2e effect Item and follow the same lifecycle. A same-stage renewal also preserves any already-rolled periodic-effect due timestamps. `reapplyStage()` remains the explicit repair path that rebuilds persistent output as well as rerunning instant mechanics.
 
 `lastCheck` is committed as part of the same stage transition update, avoiding a second state write after progression.
 
@@ -245,12 +245,15 @@ designated active GM only
         ↓
 discover due Affliction controllers
         ↓
-api.engine.process(controller, { atTime: nextCheckAt })
+choose earliest stage/onset or periodic due event
         ↓
-existing save policy / progression / stage transition logic
+periodic → api.instances.executePeriodic(...)
+stage/onset → api.engine.process(..., { atTime })
+        ↓
+continue chronological catch-up
 ```
 
-`nextCheckAt` remains the controller's due-event source of truth. Catch-up processing uses the historical due timestamp as the logical transition time, so a jump from hour 1 to hour 10 can process hour 2, hour 3, and so on without moving all later intervals to hour 10.
+`nextCheckAt` remains the stage/onset due timestamp, while `state.periodicSchedule` stores independent periodic due timestamps. The scheduler chooses the earliest event chronologically. An exact tie favors the stage boundary, preventing a periodic effect from firing after a phase has conceptually reached its save/end boundary. Catch-up processing uses each historical due timestamp as the logical execution time, so a large world-time jump preserves authored interval chronology.
 
 The scheduler scans world Actors plus synthetic token Actors from loaded Scenes. Only Foundry's designated `game.users.activeGM` commits automatic transitions, preventing multiple connected GM clients from processing the same due event independently. Outstanding player/GM manual requests block re-issuance until they are resolved or manually retried.
 
@@ -358,7 +361,7 @@ The combat runtime serializes the complete apply/consume transaction per source 
 ## Contract/runtime hardening in 0.1.42
 
 - Runtime application now enforces one live controller per Actor + Affliction `definitionId`, including pending exposure/incubation reservations and concurrent apply calls.
-- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.51`).
+- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.53`).
 - Combat-trigger idempotency is committed only after a successful application or an intentional terminal decision; transient failures remain retryable.
 - Strict reconciliation can verify generated stage-effect content, not merely controller/stage ownership flags.
 - Identification updates use batch embedded-document updates when available and fall back to strict reconciliation after a partial failure.

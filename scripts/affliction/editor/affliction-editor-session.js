@@ -1,6 +1,8 @@
 import {
   createDefaultEventReaction,
   createDefaultInitialCheck,
+  createDefaultNumericModifier,
+  createDefaultPeriodicEffect,
   createDefaultSaveCheck,
   createDefaultStage,
   createDefaultStageCheck
@@ -169,6 +171,10 @@ export class AfflictionEditorSession {
       reaction.id = randomId(`${reaction.id || `reaction-${reactionIndex + 1}`}-copy`);
       if (reaction.effect?.id) reaction.effect.id = `${this.definition.id}.${copy.id}.${reaction.id}.effect`;
     }
+    for (const [periodicIndex, periodic] of (copy.periodicEffects ?? []).entries()) {
+      periodic.id = randomId(`${periodic.id || `periodic-${periodicIndex + 1}`}-copy`);
+      if (periodic.effect?.id) periodic.effect.id = `${this.definition.id}.${copy.id}.${periodic.id}.periodic-effect`;
+    }
     this.definition.stages.splice(index + 1, 0, copy);
     this.definition.stages = reindexStages(this.definition.stages);
     this.markDirty();
@@ -206,6 +212,56 @@ export class AfflictionEditorSession {
   isStageCollapsed(index) {
     const stage = this.definition.stages[index];
     return Boolean(stage && this.collapsedStages.has(stage.id));
+  }
+
+  addStageNumericModifier(stageIndex, options = {}) {
+    const stage = this.definition.stages[stageIndex];
+    if (!stage) return -1;
+    stage.numericModifiers ??= [];
+    const modifierIndex = stage.numericModifiers.length;
+    stage.numericModifiers.push(createDefaultNumericModifier({
+      id: String(options.id ?? `modifier-${modifierIndex + 1}`).trim() || `modifier-${modifierIndex + 1}`,
+      ...deepClone(options)
+    }));
+    this.markDirty();
+    return modifierIndex;
+  }
+
+  removeStageNumericModifier(stageIndex, modifierIndex) {
+    const stage = this.definition.stages[stageIndex];
+    if (!stage || !Array.isArray(stage.numericModifiers) || modifierIndex < 0 || modifierIndex >= stage.numericModifiers.length) return false;
+    stage.numericModifiers.splice(modifierIndex, 1);
+    this.markDirty();
+    return true;
+  }
+
+  addStagePeriodicEffect(stageIndex, options = {}) {
+    const stage = this.definition.stages[stageIndex];
+    if (!stage) return -1;
+    stage.periodicEffects ??= [];
+    const periodicIndex = stage.periodicEffects.length;
+    stage.periodicEffects.push(createDefaultPeriodicEffect({
+      id: String(options.id ?? `periodic-${periodicIndex + 1}`).trim() || `periodic-${periodicIndex + 1}`,
+      ...deepClone(options)
+    }));
+    this.markDirty();
+    return periodicIndex;
+  }
+
+  removeStagePeriodicEffect(stageIndex, periodicIndex) {
+    const stage = this.definition.stages[stageIndex];
+    if (!stage || !Array.isArray(stage.periodicEffects) || periodicIndex < 0 || periodicIndex >= stage.periodicEffects.length) return false;
+    stage.periodicEffects.splice(periodicIndex, 1);
+    this.markDirty();
+    return true;
+  }
+
+  setStagePeriodicEffect(stageIndex, periodicIndex, effectDefinition) {
+    const periodic = this.definition.stages[stageIndex]?.periodicEffects?.[periodicIndex];
+    if (!periodic) return false;
+    periodic.effect = effectDefinition == null ? null : deepClone(effectDefinition);
+    this.markDirty();
+    return true;
   }
 
   addStageReaction(stageIndex, options = {}) {

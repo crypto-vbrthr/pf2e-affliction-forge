@@ -6,6 +6,7 @@ import {
   DURATION_UNITS,
   HEALING_RESTRICTION_MODES,
   IDENTIFICATION_STATES,
+  NUMERIC_MODIFIER_TYPES,
   OUTCOME_KEYS,
   SAVE_DC_MODES,
   SAVE_EXECUTION_MODES,
@@ -16,6 +17,8 @@ import {
   createAfflictionDefinition,
   createDefaultEventReaction,
   createDefaultInitialCheck,
+  createDefaultNumericModifier,
+  createDefaultPeriodicEffect,
   createDefaultRestrictions,
   createDefaultSaveCheck,
   createDefaultSavePolicy,
@@ -127,6 +130,42 @@ function normalizeIdentification(value, fallback = { initialState: "identified" 
   };
 }
 
+function normalizeNumericModifier(value, index) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const fallback = createDefaultNumericModifier({ id: `modifier-${index + 1}` });
+  const selectorSource = source.selectors ?? source.selector ?? fallback.selectors;
+  const selectors = uniqueStrings(Array.isArray(selectorSource) ? selectorSource : [selectorSource])
+    .map((entry) => entry.toLowerCase());
+  const type = cleanString(source.type, fallback.type).toLowerCase();
+  return {
+    id: cleanString(source.id, fallback.id),
+    label: String(source.label ?? "").trim(),
+    selectors: selectors.length > 0 ? selectors : [...fallback.selectors],
+    type: NUMERIC_MODIFIER_TYPES.includes(type) ? type : fallback.type,
+    value: finiteNumber(source.value, fallback.value)
+  };
+}
+
+function normalizePeriodicInterval(value, fallback = { value: 1, unit: "minutes" }) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const unit = UNIT_ALIASES[cleanString(source.unit, fallback.unit ?? "minutes").toLowerCase()] ?? "minutes";
+  const normalizedUnit = DURATION_UNITS.includes(unit) && unit !== "unlimited" ? unit : "minutes";
+  const formula = String(source.formula ?? "").trim();
+  if (formula) return { formula, unit: normalizedUnit };
+  return { value: Math.max(1, finiteNumber(source.value, fallback.value ?? 1)), unit: normalizedUnit };
+}
+
+function normalizePeriodicEffect(value, index) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const fallback = createDefaultPeriodicEffect({ id: `periodic-${index + 1}` });
+  return {
+    id: cleanString(source.id, fallback.id),
+    label: String(source.label ?? "").trim(),
+    interval: normalizePeriodicInterval(source.interval, fallback.interval),
+    effect: source.effect == null ? null : deepClone(source.effect)
+  };
+}
+
 function normalizeEventReaction(value, index) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const fallback = createDefaultEventReaction({ id: `reaction-${index + 1}` });
@@ -191,6 +230,8 @@ function normalizeStage(stage, index) {
       : fallback.effectPersistence,
     effectComponentPersistence: normalizeEffectComponentPersistence(stage?.effectComponentPersistence, componentCount),
     effect: stage?.effect == null ? null : deepClone(stage.effect),
+    numericModifiers: Array.isArray(stage?.numericModifiers) ? stage.numericModifiers.map(normalizeNumericModifier) : [],
+    periodicEffects: Array.isArray(stage?.periodicEffects) ? stage.periodicEffects.map(normalizePeriodicEffect) : [],
     reactions: Array.isArray(stage?.reactions) ? stage.reactions.map(normalizeEventReaction) : []
   };
 }

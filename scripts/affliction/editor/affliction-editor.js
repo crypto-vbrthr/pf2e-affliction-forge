@@ -6,6 +6,7 @@ import {
   HEALING_RESTRICTION_MODES,
   IDENTIFICATION_STATES,
   MODULE_ID,
+  NUMERIC_MODIFIER_TYPES,
   OUTCOME_KEYS,
   RARITIES,
   SAVE_DC_MODES,
@@ -24,6 +25,12 @@ export const AFFLICTION_EDITOR_TEMPLATE = `modules/${MODULE_ID}/templates/afflic
 const LABELS = Object.freeze({
   reactionEvent: {
     "damage-taken": "PF2E_AFFLICTION_FORGE.Reaction.Event.DamageTaken"
+  },
+  numericModifierType: {
+    untyped: "PF2E_AFFLICTION_FORGE.NumericModifier.Type.Untyped",
+    status: "PF2E_AFFLICTION_FORGE.NumericModifier.Type.Status",
+    circumstance: "PF2E_AFFLICTION_FORGE.NumericModifier.Type.Circumstance",
+    item: "PF2E_AFFLICTION_FORGE.NumericModifier.Type.Item"
   },
   type: {
     poison: "PF2E_AFFLICTION_FORGE.Types.Poison",
@@ -290,6 +297,13 @@ function displayIssue(issue) {
 
 function displayIssuePath(path) {
   const value = String(path ?? "");
+  const periodicEffectComponent = /^stages\.(\d+)\.periodicEffects\.(\d+)\.effect\.components\.(\d+)(?:\.|$)/.exec(value);
+  if (periodicEffectComponent) {
+    const stageNumber = Number(periodicEffectComponent[1]) + 1;
+    const periodicNumber = Number(periodicEffectComponent[2]) + 1;
+    const componentNumber = Number(periodicEffectComponent[3]) + 1;
+    return `${localize("PF2E_AFFLICTION_FORGE.Editor.Stage")} ${stageNumber} · ${localize("PF2E_AFFLICTION_FORGE.Periodic.PeriodicEffect")} ${periodicNumber} · ${localize("PF2E_AFFLICTION_FORGE.Editor.Component")} ${componentNumber}`;
+  }
   const reactionEffectComponent = /^stages\.(\d+)\.reactions\.(\d+)\.effect\.components\.(\d+)(?:\.|$)/.exec(value);
   if (reactionEffectComponent) {
     const stageNumber = Number(reactionEffectComponent[1]) + 1;
@@ -389,6 +403,62 @@ function synchronizeManagedReactionEffectMetadata(definition, stage, reaction) {
   return effect;
 }
 
+function createDefaultPeriodicEffectDefinition(definition, stage, periodic, criticalApi) {
+  const effectId = `${definition.id}.${stage.id}.${periodic.id}.periodic-effect`;
+  const periodicLabel = periodic.label || localize("PF2E_AFFLICTION_FORGE.Periodic.PeriodicEffect");
+  return criticalApi.builders.effect()
+    .setId(effectId)
+    .setName(`${definition.name || localize("PF2E_AFFLICTION_FORGE.Editor.Untitled")} · ${periodicLabel}`)
+    .setImage(definition.img)
+    .setDuration(1, "rounds", null)
+    .setMetadata({
+      originModule: MODULE_ID,
+      originFeature: "affliction-periodic-stage-effect-definition"
+    })
+    .build();
+}
+
+function synchronizeManagedPeriodicEffectMetadata(definition, stage, periodic) {
+  const source = periodic?.effect;
+  if (!source || typeof source !== "object" || Array.isArray(source)) return source;
+  const effect = deepClone(source);
+  const periodicLabel = periodic.label || localize("PF2E_AFFLICTION_FORGE.Periodic.PeriodicEffect");
+  effect.id = `${definition.id}.${stage.id}.${periodic.id}.periodic-effect`;
+  effect.name = `${definition.name || localize("PF2E_AFFLICTION_FORGE.Editor.Untitled")} · ${periodicLabel}`;
+  effect.img = definition.img;
+  effect.metadata = {
+    ...(effect.metadata ?? {}),
+    originModule: MODULE_ID,
+    originFeature: "affliction-periodic-stage-effect-definition"
+  };
+  periodic.effect = effect;
+  return effect;
+}
+
+function prepareNumericModifier(modifier, modifierIndex) {
+  return {
+    ...modifier,
+    index: modifierIndex,
+    number: modifierIndex + 1,
+    selectorsText: (modifier.selectors ?? []).join(", "),
+    typeOptions: optionList(NUMERIC_MODIFIER_TYPES, modifier.type ?? "untyped", LABELS.numericModifierType)
+  };
+}
+
+function preparePeriodicEffect(periodic, periodicIndex) {
+  const interval = periodic.interval ?? { value: 1, unit: "minutes" };
+  return {
+    ...periodic,
+    index: periodicIndex,
+    number: periodicIndex + 1,
+    intervalValue: interval.value ?? 1,
+    intervalFormula: interval.formula ?? "",
+    intervalUnitOptions: optionList(DURATION_UNITS.filter((unit) => unit !== "unlimited"), interval.unit ?? "minutes", LABELS.duration),
+    hasEffect: Boolean(periodic.effect),
+    effectComponentCount: Array.isArray(periodic.effect?.components) ? periodic.effect.components.length : 0
+  };
+}
+
 function prepareReaction(reaction, reactionIndex, checks) {
   return {
     ...reaction,
@@ -465,6 +535,14 @@ export async function prepareAfflictionEditorContext(session, {
       effectComponentPersistenceRows: prepareComponentPersistence(stage),
       hasEffect: Boolean(stage.effect),
       effectComponentCount: Array.isArray(stage.effect?.components) ? stage.effect.components.length : 0,
+      numericModifiers: (stage.numericModifiers ?? []).map((modifier, modifierIndex) => ({
+        ...prepareNumericModifier(modifier, modifierIndex),
+        stageIndex: index
+      })),
+      periodicEffects: (stage.periodicEffects ?? []).map((periodic, periodicIndex) => ({
+        ...preparePeriodicEffect(periodic, periodicIndex),
+        stageIndex: index
+      })),
       reactions: (stage.reactions ?? []).map((reaction, reactionIndex) => ({
         ...prepareReaction(reaction, reactionIndex, definition.checks),
         stageIndex: index
@@ -546,6 +624,7 @@ export class EmbeddedAfflictionEditor {
     this.#bind();
     this.#activateDynamicControls();
     await this.#mountStageEffectEditors();
+    await this.#mountPeriodicEffectEditors();
     await this.#mountReactionEffectEditors();
     if (this.session.readOnly) this.#applyReadOnly();
     return this;
@@ -737,6 +816,29 @@ export class EmbeddedAfflictionEditor {
         const mode = String(select.value ?? "");
         return mode || null;
       });
+      for (const modifierRegion of stageRegion.querySelectorAll("[data-stage-modifier-index]")) {
+        const modifierIndex = Number(modifierRegion.dataset.stageModifierIndex);
+        const modifier = stage.numericModifiers?.[modifierIndex];
+        if (!modifier) continue;
+        modifier.id = String(modifierRegion.querySelector('[data-modifier-field="id"]')?.value ?? modifier.id).trim();
+        modifier.label = String(modifierRegion.querySelector('[data-modifier-field="label"]')?.value ?? modifier.label);
+        modifier.selectors = parseStringList(modifierRegion.querySelector('[data-modifier-field="selectors"]')?.value ?? "").map((entry) => entry.toLowerCase());
+        modifier.type = String(modifierRegion.querySelector('[data-modifier-field="type"]')?.value ?? modifier.type ?? "untyped");
+        modifier.value = Number(modifierRegion.querySelector('[data-modifier-field="value"]')?.value ?? modifier.value ?? 0);
+      }
+      for (const periodicRegion of stageRegion.querySelectorAll("[data-stage-periodic-index]")) {
+        const periodicIndex = Number(periodicRegion.dataset.stagePeriodicIndex);
+        const periodic = stage.periodicEffects?.[periodicIndex];
+        if (!periodic) continue;
+        periodic.id = String(periodicRegion.querySelector('[data-periodic-field="id"]')?.value ?? periodic.id).trim();
+        periodic.label = String(periodicRegion.querySelector('[data-periodic-field="label"]')?.value ?? periodic.label);
+        const formula = String(periodicRegion.querySelector('[data-periodic-field="formula"]')?.value ?? "").trim();
+        const unit = String(periodicRegion.querySelector('[data-periodic-field="unit"]')?.value ?? periodic.interval?.unit ?? "minutes");
+        periodic.interval = formula
+          ? { formula, unit }
+          : { value: Number(periodicRegion.querySelector('[data-periodic-field="value"]')?.value ?? periodic.interval?.value ?? 1), unit };
+        synchronizeManagedPeriodicEffectMetadata(definition, stage, periodic);
+      }
       for (const reactionRegion of stageRegion.querySelectorAll("[data-stage-reaction-index]")) {
         const reactionIndex = Number(reactionRegion.dataset.stageReactionIndex);
         const reaction = stage.reactions?.[reactionIndex];
@@ -841,6 +943,12 @@ export class EmbeddedAfflictionEditor {
     if (output) output.textContent = String(count);
   }
 
+  #updatePeriodicEffectSummary(stageIndex, periodicIndex, effectDefinition) {
+    const count = Array.isArray(effectDefinition?.components) ? effectDefinition.components.length : 0;
+    const output = this.root?.querySelector?.(`[data-periodic-effect-summary="${stageIndex}:${periodicIndex}"] [data-effect-component-count]`);
+    if (output) output.textContent = String(count);
+  }
+
   #emitChange() {
     this.onChange?.(this.session.value, this.session);
   }
@@ -855,6 +963,8 @@ export class EmbeddedAfflictionEditor {
     this.#sync();
     const index = Number(target.dataset.index);
     const reactionIndex = Number(target.dataset.reactionIndex);
+    const modifierIndex = Number(target.dataset.modifierIndex);
+    const periodicIndex = Number(target.dataset.periodicIndex);
 
     if (action === "addCheck") this.session.addCheck();
     else if (action === "removeCheck") this.session.removeCheck(index);
@@ -871,6 +981,18 @@ export class EmbeddedAfflictionEditor {
       return;
     }
     else if (action === "toggleStageCheck") this.session.setStageCheckOverride(index, !this.session.definition.stages[index]?.check);
+    else if (action === "addStageNumericModifier") this.session.addStageNumericModifier(index);
+    else if (action === "removeStageNumericModifier") this.session.removeStageNumericModifier(index, modifierIndex);
+    else if (action === "addStagePeriodicEffect") this.session.addStagePeriodicEffect(index);
+    else if (action === "removeStagePeriodicEffect") this.session.removeStagePeriodicEffect(index, periodicIndex);
+    else if (action === "addPeriodicEffectDefinition") {
+      const stage = this.session.definition.stages[index];
+      const periodic = stage?.periodicEffects?.[periodicIndex];
+      if (stage && periodic && !periodic.effect) {
+        this.session.setStagePeriodicEffect(index, periodicIndex, createDefaultPeriodicEffectDefinition(this.session.definition, stage, periodic, this.#criticalApi()));
+      }
+    }
+    else if (action === "removePeriodicEffectDefinition") this.session.setStagePeriodicEffect(index, periodicIndex, null);
     else if (action === "addStageReaction") this.session.addStageReaction(index);
     else if (action === "removeStageReaction") this.session.removeStageReaction(index, reactionIndex);
     else if (action === "addReactionEffect") {
@@ -945,6 +1067,42 @@ export class EmbeddedAfflictionEditor {
     }
   }
 
+
+  async #mountPeriodicEffectEditors() {
+    if (!(this.root instanceof HTMLElement)) return;
+    const criticalApi = this.#criticalApi();
+    for (const host of this.root.querySelectorAll("[data-periodic-effect-host]")) {
+      const [stageText, periodicText] = String(host.dataset.periodicEffectHost ?? "").split(":");
+      const stageIndex = Number(stageText);
+      const periodicIndex = Number(periodicText);
+      const stage = this.session.definition.stages[stageIndex];
+      const periodic = stage?.periodicEffects?.[periodicIndex];
+      if (!stage || !periodic?.effect) continue;
+      synchronizeManagedPeriodicEffectMetadata(this.session.definition, stage, periodic);
+      const editor = criticalApi.ui.effectEditor.create({
+        definition: periodic.effect,
+        layout: "embedded",
+        onChange: (effectSession) => {
+          const built = effectSession.buildDefinition({ api: criticalApi });
+          this.session.setStagePeriodicEffect(stageIndex, periodicIndex, built);
+          const currentStage = this.session.definition.stages[stageIndex];
+          const currentPeriodic = currentStage?.periodicEffects?.[periodicIndex];
+          const managed = synchronizeManagedPeriodicEffectMetadata(this.session.definition, currentStage, currentPeriodic);
+          this.session.markDirty();
+          this.#updatePeriodicEffectSummary(stageIndex, periodicIndex, managed);
+          this.#refreshValidation();
+          this.#emitChange();
+        }
+      });
+      this.effectEditors.set(`periodic:${stageIndex}:${periodicIndex}`, editor);
+      await editor.mount(host);
+      host.dataset.afflictionEffectEditor = "components-only";
+      editor.root?.setAttribute?.("data-affliction-periodic-effect-editor", "");
+      if (this.session.readOnly) {
+        for (const control of host.querySelectorAll("input, select, textarea, button")) control.disabled = true;
+      }
+    }
+  }
 
   async #mountReactionEffectEditors() {
     if (!(this.root instanceof HTMLElement)) return;

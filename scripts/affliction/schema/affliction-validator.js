@@ -8,6 +8,7 @@ import {
   HEALING_RESTRICTION_MODES,
   OUTCOME_KEYS,
   IDENTIFICATION_STATES,
+  NUMERIC_MODIFIER_TYPES,
   RARITIES,
   SAVE_DC_MODES,
   SAVE_EXECUTION_MODES,
@@ -286,6 +287,80 @@ function validateReactionEffect(report, effect, path, effectValidator) {
   }
 }
 
+function validateNumericModifiers(report, modifiers, path) {
+  if (!Array.isArray(modifiers)) {
+    report.add({ severity: "error", code: "numeric-modifier.array", path, message: "Stage numeric modifiers must be an array." });
+    return;
+  }
+  const ids = new Set();
+  for (const [index, modifier] of modifiers.entries()) {
+    const modifierPath = `${path}.${index}`;
+    if (!isObject(modifier)) {
+      report.add({ severity: "error", code: "numeric-modifier.object", path: modifierPath, message: "Numeric modifier must be an object." });
+      continue;
+    }
+    if (requiredString(report, modifier.id, `${modifierPath}.id`, "numeric-modifier.id")) {
+      if (ids.has(modifier.id)) report.add({ severity: "error", code: "numeric-modifier.id.duplicate", path: `${modifierPath}.id`, message: `Duplicate numeric modifier id: ${modifier.id}.` });
+      ids.add(modifier.id);
+    }
+    if (!Array.isArray(modifier.selectors) || modifier.selectors.length === 0) {
+      report.add({ severity: "error", code: "numeric-modifier.selectors", path: `${modifierPath}.selectors`, message: "At least one PF2e selector is required." });
+    } else {
+      for (const [selectorIndex, selector] of modifier.selectors.entries()) {
+        if (typeof selector !== "string" || !selector.trim()) {
+          report.add({ severity: "error", code: "numeric-modifier.selector", path: `${modifierPath}.selectors.${selectorIndex}`, message: "Numeric modifier selectors must be non-empty strings." });
+        }
+      }
+    }
+    if (!NUMERIC_MODIFIER_TYPES.includes(modifier.type)) {
+      report.add({ severity: "error", code: "numeric-modifier.type", path: `${modifierPath}.type`, message: `Unsupported numeric modifier type: ${modifier.type}.` });
+    }
+    if (!Number.isFinite(modifier.value) || modifier.value === 0) {
+      report.add({ severity: "error", code: "numeric-modifier.value", path: `${modifierPath}.value`, message: "Numeric modifier value must be a non-zero finite number." });
+    }
+  }
+}
+
+function validatePeriodicEffects(report, periodicEffects, path, effectValidator) {
+  if (!Array.isArray(periodicEffects)) {
+    report.add({ severity: "error", code: "periodic.array", path, message: "Periodic stage effects must be an array." });
+    return;
+  }
+  const ids = new Set();
+  for (const [index, periodic] of periodicEffects.entries()) {
+    const periodicPath = `${path}.${index}`;
+    if (!isObject(periodic)) {
+      report.add({ severity: "error", code: "periodic.object", path: periodicPath, message: "Periodic stage effect must be an object." });
+      continue;
+    }
+    if (requiredString(report, periodic.id, `${periodicPath}.id`, "periodic.id")) {
+      if (ids.has(periodic.id)) report.add({ severity: "error", code: "periodic.id.duplicate", path: `${periodicPath}.id`, message: `Duplicate periodic effect id: ${periodic.id}.` });
+      ids.add(periodic.id);
+    }
+    const interval = periodic.interval;
+    if (!isObject(interval)) {
+      report.add({ severity: "error", code: "periodic.interval.object", path: `${periodicPath}.interval`, message: "Periodic interval must be an object." });
+    } else {
+      if (!DURATION_UNITS.includes(interval.unit) || interval.unit === "unlimited") {
+        report.add({ severity: "error", code: "periodic.interval.unit", path: `${periodicPath}.interval.unit`, message: `Unsupported periodic interval unit: ${interval.unit}.` });
+      }
+      const hasFormula = typeof interval.formula === "string" && interval.formula.trim().length > 0;
+      const hasValue = Number.isFinite(interval.value) && interval.value > 0;
+      if (!hasFormula && !hasValue) {
+        report.add({ severity: "error", code: "periodic.interval.value", path: `${periodicPath}.interval`, message: "Periodic interval requires a positive value or a dice formula." });
+      }
+      if (hasFormula && interval.value != null) {
+        report.add({ severity: "warning", code: "periodic.interval.both", path: `${periodicPath}.interval`, message: "Periodic interval contains both formula and value; formula takes precedence." });
+      }
+    }
+    if (periodic.effect == null) {
+      report.add({ severity: "warning", code: "periodic.effect.missing", path: `${periodicPath}.effect`, message: "Periodic stage entry has no effect to execute." });
+    } else {
+      validateReactionEffect(report, periodic.effect, `${periodicPath}.effect`, effectValidator);
+    }
+  }
+}
+
 function validateStageReactions(report, reactions, path, checkIds, effectValidator) {
   if (!Array.isArray(reactions)) {
     report.add({ severity: "error", code: "reaction.array", path, message: "Stage reactions must be an array." });
@@ -388,6 +463,8 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
       validateDuration(report, stage.duration, `${path}.duration`, { nullable: false, allowUnlimited: true });
       validateCheckGate(report, stage.check, `${path}.check`, checkIds, definition.stages.length);
       validateRestrictions(report, stage.restrictions, `${path}.restrictions`);
+      validateNumericModifiers(report, stage.numericModifiers ?? [], `${path}.numericModifiers`);
+      validatePeriodicEffects(report, stage.periodicEffects ?? [], `${path}.periodicEffects`, effectValidator);
       validateStageReactions(report, stage.reactions ?? [], `${path}.reactions`, checkIds, effectValidator);
       if (!STAGE_EFFECT_PERSISTENCE_MODES.includes(stage.effectPersistence)) {
         report.add({ severity: "error", code: "stage.effect-persistence", path: `${path}.effectPersistence`, message: `Unsupported stage effect persistence: ${stage.effectPersistence}.` });

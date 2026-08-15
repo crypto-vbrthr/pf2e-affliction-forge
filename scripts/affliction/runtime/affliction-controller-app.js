@@ -49,6 +49,8 @@ function runtimeEventLabel(event) {
     case "stage-reapplied": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.StageReapplied", { stage });
     case "stage-cleared": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.StageCleared");
     case "runtime-reconciled": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.RuntimeReconciled", { stage });
+    case "periodic-effect": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.PeriodicEffect", { label: event.data?.label || event.data?.periodicId || "" });
+    case "periodic-effect-failed": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.PeriodicEffectFailed", { label: event.data?.label || event.data?.periodicId || "" });
     case "unhealable-damage-recorded": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.UnhealableDamage", { value: event.data?.amount ?? 0 });
     case "identification-changed": return game.i18n.format("PF2E_AFFLICTION_FORGE.Runtime.Event.IdentificationChanged", { state: identificationLabel(event.data?.to) });
     case "paused": return localize("PF2E_AFFLICTION_FORGE.Runtime.Event.Paused");
@@ -187,6 +189,15 @@ export class AfflictionControllerApp extends HandlebarsApplicationMixin(Applicat
       canResume: !lethal && state.status === "paused",
       processLabel: localize(processLabelKey),
       dueLabel: state.status === "paused" ? localize("PF2E_AFFLICTION_FORGE.Runtime.Paused") : formatDueAt(state.nextCheckAt),
+      periodicEffects: (stage?.periodicEffects ?? []).map((periodic) => {
+        const schedule = state.periodicSchedule?.[periodic.id] ?? {};
+        return {
+          id: periodic.id,
+          label: periodic.label || periodic.id,
+          dueLabel: state.status === "paused" ? localize("PF2E_AFFLICTION_FORGE.Runtime.Paused") : formatDueAt(Number(schedule.nextAt)),
+          sequence: Math.max(0, Math.trunc(Number(schedule.sequence ?? 0)))
+        };
+      }),
       pendingSummary: totalChecks > 0 ? `${resolvedChecks}/${totalChecks}` : null,
       lastCheckLabel: lastDegree ? localize(`PF2E_AFFLICTION_FORGE.Runtime.Degree.${lastDegree}`) : localize("PF2E_AFFLICTION_FORGE.Runtime.NoCheckResult"),
       identificationStates: IDENTIFICATION_STATES.map((value) => ({

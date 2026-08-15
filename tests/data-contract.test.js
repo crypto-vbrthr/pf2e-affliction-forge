@@ -361,3 +361,63 @@ test("event reaction validator rejects unsupported triggers, unknown checks, and
   assert.ok(report.errors.some((issue) => issue.code === "reaction.check.unknown"));
   assert.ok(report.errors.some((issue) => issue.code === "reaction.apply-on"));
 });
+
+test("numeric modifiers and periodic stage effects normalize and validate as additive schema-v2 mechanics", () => {
+  const definition = normalizeAfflictionDefinition({
+    ...validDefinition(),
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      numericModifiers: [{
+        id: "slowed-movement",
+        label: "Reduced movement",
+        selectors: ["ALL-SPEEDS", "land-speed"],
+        type: "status",
+        value: -5
+      }],
+      periodicEffects: [{
+        id: "bleeding-burst",
+        label: "Recurring bleeding",
+        interval: { formula: "1d20", unit: "minutes" },
+        effect: {
+          schemaVersion: 2,
+          id: "bleeding-burst.effect",
+          name: "Recurring bleeding",
+          duration: { value: -1, unit: "unlimited", expiry: null },
+          components: [{ type: "damage", formula: "1d6", damageType: "bleed", persistent: true }],
+          application: {},
+          metadata: {}
+        }
+      }]
+    }]
+  });
+
+  const stage = definition.stages[0];
+  assert.deepEqual(stage.numericModifiers[0].selectors, ["all-speeds", "land-speed"]);
+  assert.equal(stage.numericModifiers[0].type, "status");
+  assert.equal(stage.numericModifiers[0].value, -5);
+  assert.deepEqual(stage.periodicEffects[0].interval, { formula: "1d20", unit: "minutes" });
+  assert.equal(validateAfflictionDefinition(definition, { effectValidator: () => ({ valid: true, issues: [] }) }).valid, true);
+});
+
+test("numeric and periodic validators reject invalid authoring values", () => {
+  const definition = validDefinition();
+  definition.stages[0].numericModifiers = [{
+    id: "bad-modifier",
+    label: "Bad",
+    selectors: [],
+    type: "luck",
+    value: 0
+  }];
+  definition.stages[0].periodicEffects = [{
+    id: "bad-periodic",
+    label: "Bad periodic",
+    interval: { value: 0, unit: "minutes" },
+    effect: null
+  }];
+  const report = validateAfflictionDefinition(definition);
+  assert.equal(report.valid, false);
+  assert.ok(report.errors.some((issue) => issue.code === "numeric-modifier.selectors"));
+  assert.ok(report.errors.some((issue) => issue.code === "numeric-modifier.type"));
+  assert.ok(report.errors.some((issue) => issue.code === "numeric-modifier.value"));
+  assert.ok(report.errors.some((issue) => issue.code === "periodic.interval.value"));
+});

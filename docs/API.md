@@ -1,4 +1,4 @@
-# Public API 0.1.0 (module 0.1.51)
+# Public API 0.1.0 (module 0.1.53)
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -17,6 +17,8 @@ api.definitions.resolveRestrictions(definition, stageOrNumber)
 api.definitions.createInitialCheck()
 api.definitions.createStageCheck()
 api.definitions.createStage(options)
+api.definitions.createNumericModifier(options)
+api.definitions.createPeriodicEffect(options)
 api.definitions.normalize(definition)
 api.definitions.validate(definition)
 api.definitions.assertValid(definition)
@@ -36,6 +38,7 @@ api.catalogs.identificationStates() // ["hidden", "suspected", "identified"]
 api.catalogs.healingRestrictionModes() // ["none", "all", "affliction-damage"]
 api.catalogs.afflictionCapabilities()    // ["speak"]
 api.catalogs.stageEffectPersistenceModes() // ["stage", "affliction", "permanent"]
+api.catalogs.numericModifierTypes()          // ["untyped", "status", "circumstance", "item"]
 ```
 
 `api.definitions.resolveSavePolicy()` resolves per-check overrides against root `saveDefaults`.
@@ -71,6 +74,34 @@ GM-facing direct application from the Affliction Forge and drag/drop onto an Act
 
 Set `definition.progression.virulent = true`. The stage engine then applies the Remastered virulent rule to stage saves: two consecutive successful saves are required to reduce the stage by 1, while a critical success reduces the stage by exactly 1 immediately. Failure or critical failure breaks the success streak. The streak is persisted in controller `state.recoverySuccesses`. Initial exposure saves are not altered.
 
+
+### Numeric modifiers and periodic stage effects (0.1.52)
+
+Numeric modifiers are stage-bound native PF2e Rule Element output. The definition stores one or more PF2e selectors, modifier type, and numeric value:
+
+```js
+const modifier = api.definitions.createNumericModifier({
+  id: "reduced-speed",
+  selectors: ["all-speeds"],
+  type: "status",
+  value: -5
+});
+
+api.catalogs.numericModifierTypes();
+// ["untyped", "status", "circumstance", "item"]
+```
+
+Periodic stage effects reuse Critical Forge Effect Definitions and either a fixed interval or a dice formula:
+
+```js
+const periodic = api.definitions.createPeriodicEffect({
+  id: "bleeding-burst",
+  interval: { formula: "1d20", unit: "minutes" },
+  effect: criticalEffectDefinition
+});
+```
+
+The normal scheduler executes due periodic effects automatically. `api.instances.executePeriodic(controllerOrUuid, periodicId, { at })` is exposed primarily for diagnostics/integration tests and performs one authoritative execution plus rescheduling. Formula intervals are rerolled after execution.
 
 ### Restrictions and persistent consequences
 
@@ -226,6 +257,7 @@ api.instances.setStage(controllerOrUuid, stageNumber, options)
 api.instances.advance(controllerOrUuid, delta, options)
 api.instances.reapplyStage(controllerOrUuid, options)
 api.instances.executeStageInstant(controllerOrUuid)
+api.instances.executePeriodic(controllerOrUuid, periodicId, options)
 api.instances.completeOnset(controllerOrUuid, options)
 api.instances.setIdentification(controllerOrUuid, state, options)
 api.instances.pause(controllerOrUuid, options)
@@ -247,7 +279,7 @@ Stage 0 is reserved for initial exposure/onset runtime state. An already active 
 
 ### API compatibility version
 
-`api.version` is now independent from the module release number. Module `0.1.51` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
+`api.version` is now independent from the module release number. Module `0.1.53` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
 
 ### Pause / resume semantics
 

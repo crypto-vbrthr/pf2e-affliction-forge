@@ -88,3 +88,12 @@ Execution of rolls, blind/public chat behavior, and actual player visibility rem
 ## Lethal stage effects
 
 With Critical Forge 1.0.1-rc.3 or later, the embedded Critical Forge Effect Editor exposes the `death` instant component directly inside a stage. Affliction Forge does not duplicate that control or its warning UI; hosts receive the same Critical Forge component editor and validation behavior.
+
+## Numeric and periodic stage mechanics (0.1.52)
+
+The shared editor exposes two additional stage-owned mechanics:
+
+- **Numeric modifiers**: ID, label, one or more PF2e selectors, modifier type, and numeric value.
+- **Periodic effects**: ID, label, fixed or dice-formula interval, plus an embedded Critical Forge Effect Editor for the effect executed at each interval.
+
+These remain definition editing only. The host does not schedule periodic work and does not create PF2e Rule Elements itself. Runtime compilation and world-time execution are owned by the Affliction instance service and scheduler.

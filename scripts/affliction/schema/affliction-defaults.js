@@ -63,6 +63,36 @@ export function createDefaultStageCheck() {
 }
 
 
+export function createDefaultNumericModifier({
+  id = "modifier-1",
+  label = "",
+  selectors = ["all-speeds"],
+  type = "untyped",
+  value = -5
+} = {}) {
+  return {
+    id,
+    label,
+    selectors: Array.isArray(selectors) ? [...selectors] : [selectors],
+    type,
+    value
+  };
+}
+
+export function createDefaultPeriodicEffect({
+  id = "periodic-1",
+  label = "",
+  interval = { value: 1, unit: "minutes" },
+  effect = null
+} = {}) {
+  return {
+    id,
+    label,
+    interval,
+    effect
+  };
+}
+
 export function createDefaultEventReaction({
   id = "reaction-1",
   label = "",
@@ -94,6 +124,8 @@ export function createDefaultStage({ number = 1 } = {}) {
     effectPersistence: "stage",
     effectComponentPersistence: [],
     effect: null,
+    numericModifiers: [],
+    periodicEffects: [],
     reactions: []
   };
 }
@@ -183,6 +215,18 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
   },
   stageEffectPersistence: ["stage", "affliction", "permanent"],
   componentEffectPersistence: "per-component override; null inherits stage persistence",
+  numericModifiers: {
+    scope: "stage",
+    implementation: "pf2e-flat-modifier-rule-element",
+    selectors: "one-or-more-pf2e-selector-slugs",
+    types: ["untyped", "status", "circumstance", "item"]
+  },
+  periodicStageEffects: {
+    scope: "stage",
+    interval: "fixed-duration-or-dice-formula",
+    effect: "critical-forge-effect-definition",
+    schedule: "persisted-per-controller-stage"
+  },
   eventReactions: {
     events: ["damage-taken"],
     optionalDamageTypeFilter: true,

@@ -53,6 +53,69 @@ function dueAt(duration, enteredAt) {
   return seconds == null || !Number.isFinite(enteredAt) ? null : enteredAt + seconds;
 }
 
+function unitToWorldSeconds(value, unit) {
+  return durationToWorldSeconds({ value, unit });
+}
+
+async function evaluateIntervalFormula(formula) {
+  const RollClass = globalThis.Roll;
+  if (!RollClass) throw new Error("Foundry Roll API is unavailable for a periodic Affliction interval formula.");
+  const roll = typeof RollClass.create === "function" ? RollClass.create(formula) : new RollClass(formula);
+  const evaluated = await roll.evaluate?.({ async: true }) ?? roll;
+  const total = Number(evaluated?.total ?? roll?.total);
+  if (!Number.isFinite(total) || total <= 0) throw new Error(`Periodic Affliction interval formula must resolve to a positive number: ${formula}`);
+  return total;
+}
+
+export async function periodicIntervalToWorldSeconds(interval) {
+  if (!interval || interval.unit === "unlimited") return null;
+  const formula = String(interval.formula ?? "").trim();
+  if (formula) {
+    const value = await evaluateIntervalFormula(formula);
+    return unitToWorldSeconds(value, interval.unit);
+  }
+  return durationToWorldSeconds(interval);
+}
+
+async function buildPeriodicSchedule(stage, enteredAt, previousSchedule = null, { preserve = false } = {}) {
+  const schedule = {};
+  const source = previousSchedule && typeof previousSchedule === "object" && !Array.isArray(previousSchedule) ? previousSchedule : {};
+  for (const periodic of stage?.periodicEffects ?? []) {
+    const existing = source[periodic.id];
+    if (preserve && Number.isFinite(Number(existing?.nextAt))) {
+      schedule[periodic.id] = deepClone(existing);
+      continue;
+    }
+    const seconds = await periodicIntervalToWorldSeconds(periodic.interval);
+    schedule[periodic.id] = {
+      nextAt: seconds == null || !Number.isFinite(enteredAt) ? null : enteredAt + seconds,
+      lastAt: null,
+      sequence: 0,
+      lastIntervalSeconds: seconds
+    };
+  }
+  return schedule;
+}
+
+export function scheduledPeriodicEvent(definitionInput, state = {}) {
+  const definition = normalizeAfflictionDefinition(definitionInput);
+  if (state.status !== "active" || Number(state.currentStage) < 1) return null;
+  const stage = stageDescriptor(definition, Number(state.currentStage));
+  if (!stage || (stage.periodicEffects?.length ?? 0) === 0) return null;
+  const activeIds = new Set(stage.periodicEffects.map((entry) => entry.id));
+  const candidates = Object.entries(state.periodicSchedule ?? {})
+    .filter(([id]) => activeIds.has(id))
+    .map(([id, entry]) => ({ periodicId: id, dueAt: finiteTime(entry?.nextAt) }))
+    .filter((entry) => entry.dueAt != null)
+    .sort((a, b) => a.dueAt - b.dueAt || a.periodicId.localeCompare(b.periodicId));
+  return candidates[0] ?? null;
+}
+
+export function scheduledPeriodicDueAt(definitionInput, state = {}) {
+  return scheduledPeriodicEvent(definitionInput, state)?.dueAt ?? null;
+}
+
+
 function finiteTime(value) {
   if (value == null || value === "") return null;
   const number = Number(value);
@@ -392,7 +455,7 @@ function stageDescriptor(definition, stageNumber) {
   return definition.stages?.[stageNumber - 1] ?? null;
 }
 
-function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemplateUuid, identifiedPresentation = null, effectPersistence = null, componentIndices = [] }) {
+function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemplateUuid, identifiedPresentation = null, effectPersistence = null, componentIndices = [], nativeKind = null }) {
   return {
     managed: true,
     documentKind: DOCUMENT_KINDS.STAGE_EFFECT,
@@ -406,6 +469,7 @@ function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemp
     stageNumber: stage.number,
     effectPersistence: effectPersistence ?? stage.effectPersistence ?? "stage",
     componentIndices: Array.isArray(componentIndices) ? [...componentIndices] : [],
+    nativeKind,
     identifiedPresentation: identifiedPresentation ? deepClone(identifiedPresentation) : null
   };
 }
@@ -444,7 +508,7 @@ function buildRuntimeStageEffectDefinition(stage, state) {
   return runtimeEffect;
 }
 
-async function buildStageEffectSources({ actor, controller, definition, state, stage }) {
+async function buildCriticalStageEffectSources({ actor, controller, definition, state, stage }) {
   const runtimeEffect = buildRuntimeStageEffectDefinition(stage, state);
   if (!runtimeEffect) return [];
   const criticalApi = getCriticalForgeApi({ required: true });
@@ -512,6 +576,60 @@ async function buildStageEffectSources({ actor, controller, definition, state, s
   return output;
 }
 
+function buildNumericModifierStageSource({ controller, definition, state, stage }) {
+  const modifiers = Array.isArray(stage?.numericModifiers) ? stage.numericModifiers : [];
+  if (modifiers.length === 0) return null;
+  const presentation = runtimePresentation(definition, state);
+  const unidentified = presentation.identification !== "identified";
+  const stageLabel = stage.name || `Stage ${stage.number}`;
+  const name = unidentified ? presentation.stageEffectName : `${definition.name} · ${stageLabel}`;
+  const rules = modifiers.map((modifier, index) => ({
+    key: "FlatModifier",
+    selector: modifier.selectors.length === 1 ? modifier.selectors[0] : [...modifier.selectors],
+    type: modifier.type ?? "untyped",
+    value: Number(modifier.value),
+    slug: `affliction-${state.instanceId}-${stage.id}-${modifier.id || index + 1}`.replace(/[^a-z0-9-]/gi, "-").toLowerCase(),
+    label: modifier.label || name
+  }));
+  const sourceTemplateUuid = getAfflictionFlags(controller)?.sourceTemplateUuid ?? null;
+  return {
+    name,
+    type: "effect",
+    img: unidentified ? presentation.stageEffectImg : definition.img,
+    system: {
+      description: { value: unidentified ? "" : (stage.description ?? ""), gm: stage.description ?? "" },
+      rules,
+      slug: null,
+      traits: { value: unidentified ? [] : [...definition.traits], otherTags: unidentified ? [] : [...definition.themes] },
+      level: { value: unidentified ? 0 : definition.level },
+      duration: { value: -1, unit: "unlimited", expiry: null, sustained: false },
+      start: { value: 0, initiative: null },
+      badge: null,
+      tokenIcon: { show: presentation.showStageTokenIcon },
+      unidentified
+    },
+    flags: {
+      [MODULE_ID]: stageEffectFlags({
+        definition,
+        state,
+        stage,
+        controllerUuid: controller.uuid,
+        sourceTemplateUuid,
+        effectPersistence: "stage",
+        nativeKind: "numeric-modifiers",
+        identifiedPresentation: { name: `${definition.name} · ${stageLabel}`, img: definition.img, description: stage.description ?? "" }
+      })
+    }
+  };
+}
+
+async function buildStageEffectSources(context) {
+  const sources = await buildCriticalStageEffectSources(context);
+  const numeric = buildNumericModifierStageSource(context);
+  if (numeric) sources.push(numeric);
+  return sources;
+}
+
 async function createStageEffects({ actor, controller, definition, state, stage }) {
   const sources = await buildStageEffectSources({ actor, controller, definition, state, stage });
   if (sources.length === 0) return [];
@@ -576,6 +694,57 @@ async function executeStageInstantEffectsSafely(context) {
   }
 }
 
+
+function buildRuntimePeriodicEffectDefinition(periodic, definition, stage, state) {
+  if (!periodic?.effect) return null;
+  const runtimeEffect = deepClone(periodic.effect);
+  const sourceEffectDefinitionId = runtimeEffect.id;
+  runtimeEffect.id = `${sourceEffectDefinitionId}.${state.instanceId}.${periodic.id}.${Number(state.periodicSchedule?.[periodic.id]?.sequence ?? 0) + 1}`;
+  runtimeEffect.metadata = {
+    ...(runtimeEffect.metadata ?? {}),
+    sourceEffectDefinitionId,
+    afflictionInstanceId: state.instanceId,
+    afflictionStageId: stage.id,
+    afflictionPeriodicEffectId: periodic.id
+  };
+  if (state.identification?.state !== "identified") {
+    runtimeEffect.name = localize("PF2E_AFFLICTION_FORGE.Runtime.HiddenStageEffectLabel", "Unidentified affliction");
+    runtimeEffect.img = GENERIC_AFFLICTION_IMG;
+    runtimeEffect.description = "";
+  }
+  return runtimeEffect;
+}
+
+async function executePeriodicEffect({ actor, controller, definition, state, stage, periodic, at }) {
+  const runtimeEffect = buildRuntimePeriodicEffectDefinition(periodic, definition, stage, state);
+  if (!runtimeEffect) return [];
+  const criticalApi = getCriticalForgeApi({ required: true });
+  if (typeof criticalApi.effects?.execute !== "function") throw new Error("Critical Forge Effect execution API is unavailable.");
+  return criticalApi.effects.execute(runtimeEffect, actor, {
+    context: { actor, target: actor, source: controller, affliction: definition, stage, periodic, at },
+    item: controller,
+    label: periodic.label || `${definition.name} · ${stage.name || `Stage ${stage.number}`}`
+  });
+}
+
+function notifyPeriodicExecutionFailure({ controller, stage, periodic, error }) {
+  console.error(`${MODULE_ID} | Periodic Affliction effect execution failed.`, {
+    controllerUuid: controller?.uuid ?? null,
+    stageId: stage?.id ?? null,
+    stageNumber: stage?.number ?? null,
+    periodicId: periodic?.id ?? null,
+    error
+  });
+  globalThis.Hooks?.callAll?.("pf2eAfflictionForgePeriodicExecutionFailed", {
+    controllerUuid: controller?.uuid ?? null,
+    stageId: stage?.id ?? null,
+    stageNumber: stage?.number ?? null,
+    periodicId: periodic?.id ?? null,
+    error
+  });
+  const key = "PF2E_AFFLICTION_FORGE.Periodic.ExecutionFailed";
+  globalThis.ui?.notifications?.error?.(globalThis.game?.i18n?.localize?.(key) ?? key);
+}
 
 async function recordInstantExecutionResults({ actor, controller, definition, stage, results, hpBefore = null, hpAfter = null, at = nowWorldTime() }) {
   const deathResults = (Array.isArray(results) ? results : []).filter((result) => result?.kind === "death");
@@ -845,7 +1014,7 @@ async function removeStageEffects(actor, state) {
   });
 }
 
-function buildTransitionState(previous, definition, stageNumber, enteredAt, effectUuids = []) {
+function buildTransitionState(previous, definition, stageNumber, enteredAt, effectUuids = [], periodicSchedule = {}) {
   const next = deepClone(previous);
   next.status = stageNumber > 0 ? "active" : (definition.onset ? "incubating" : "pending");
   next.currentStage = stageNumber;
@@ -860,6 +1029,7 @@ function buildTransitionState(previous, definition, stageNumber, enteredAt, effe
     : definition.onset;
   next.nextCheckAt = dueAt(duration, enteredAt);
   next.activeStageEffectUuids = [...effectUuids];
+  next.periodicSchedule = stageNumber > 0 ? deepClone(periodicSchedule ?? {}) : {};
   const nextStage = stageNumber > 0 ? stageDescriptor(definition, stageNumber) : null;
   const nextRestrictions = resolveAfflictionRestrictions(definition, nextStage);
   if (nextRestrictions.healing !== "affliction-damage") next.unhealableDamage = 0;
@@ -1116,6 +1286,9 @@ export class AfflictionInstanceService {
                 ? dueAt(definition.onset, appliedAt)
                 : dueAt(definition.stages?.[0]?.duration, appliedAt)
           });
+          if (initialStage > 0) {
+            state.periodicSchedule = await buildPeriodicSchedule(stageDescriptor(definition, initialStage), appliedAt);
+          }
           appendRuntimeEvent(state, { type: "applied", at: appliedAt });
           if (initialStage > 0) {
             const firstStage = stageDescriptor(definition, initialStage);
@@ -1218,6 +1391,7 @@ export class AfflictionInstanceService {
     state.onsetStartedAt = startedAt;
     state.nextCheckAt = dueAt(definition.onset, startedAt);
     state.activeStageEffectUuids = [];
+    state.periodicSchedule = {};
     state.pendingCheck = null;
     state.onsetTargetStage = Math.max(1, Math.min(definition.stages.length, Math.trunc(Number(targetStage) || 1)));
     state.lastCheck = lastCheck == null ? state.lastCheck ?? null : deepClone(lastCheck);
@@ -1270,6 +1444,9 @@ export class AfflictionInstanceService {
     const sameActiveStage = stageNumber > 0
       && previous.status === "active"
       && previous.currentStage === stageNumber;
+    const nextPeriodicSchedule = stage
+      ? await buildPeriodicSchedule(stage, enteredAt, previous.periodicSchedule, { preserve: sameActiveStage })
+      : {};
 
     // A save can resolve to the same stage. Persistent stage mechanics are
     // already present and must not flicker through remove/recreate cycles. The
@@ -1287,7 +1464,8 @@ export class AfflictionInstanceService {
         definition,
         stageNumber,
         enteredAt,
-        previous.activeStageEffectUuids ?? []
+        previous.activeStageEffectUuids ?? [],
+        nextPeriodicSchedule
       );
       if (lastCheck !== undefined) next.lastCheck = lastCheck == null ? null : deepClone(lastCheck);
       if (recoverySuccesses !== undefined) next.recoverySuccesses = Math.max(0, Math.trunc(Number(recoverySuccesses) || 0));
@@ -1335,7 +1513,7 @@ export class AfflictionInstanceService {
           });
         }
       });
-      const next = buildTransitionState(previous, definition, stageNumber, enteredAt, created.map((item) => item.uuid));
+      const next = buildTransitionState(previous, definition, stageNumber, enteredAt, created.map((item) => item.uuid), nextPeriodicSchedule);
       if (lastCheck !== undefined) next.lastCheck = lastCheck == null ? null : deepClone(lastCheck);
       next.recoverySuccesses = recoverySuccesses !== undefined
         ? Math.max(0, Math.trunc(Number(recoverySuccesses) || 0))
@@ -1423,6 +1601,66 @@ export class AfflictionInstanceService {
     const stage = stageDescriptor(definition, state.currentStage);
     if (!stage || state.status !== "active" || state.mortality?.dead === true) return [];
     return executeAndRecordStageInstantEffectsSafely({ actor, controller, definition, state, stage, at: nowWorldTime() });
+  }
+
+  async executePeriodic(controllerOrUuid, periodicId, { at = nowWorldTime() } = {}) {
+    return this.#serializeMutation(controllerOrUuid, () => this.#executePeriodicUnlocked(controllerOrUuid, periodicId, { at }));
+  }
+
+  async #executePeriodicUnlocked(controllerOrUuid, periodicId, { at = nowWorldTime() } = {}) {
+    const { controller, actor } = await resolveController(controllerOrUuid);
+    const flags = getAfflictionFlags(controller);
+    const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
+    let state = deepClone(flags.state);
+    const stage = stageDescriptor(definition, state.currentStage);
+    if (!stage || state.status !== "active" || state.mortality?.dead === true) return { status: "inactive", results: [] };
+    const periodic = stage.periodicEffects?.find((entry) => entry.id === periodicId) ?? null;
+    if (!periodic) return { status: "missing", results: [] };
+    const scheduled = state.periodicSchedule?.[periodic.id];
+    if (!scheduled || !Number.isFinite(Number(scheduled.nextAt))) return { status: "unscheduled", results: [] };
+
+    const effectiveAt = finiteTime(at) ?? nowWorldTime();
+    const hpBefore = actorHitPoints(actor);
+    let results = [];
+    let failed = false;
+    try {
+      results = await executePeriodicEffect({ actor, controller, definition, state, stage, periodic, at: effectiveAt });
+    } catch (error) {
+      failed = true;
+      notifyPeriodicExecutionFailure({ controller, stage, periodic, error });
+    }
+    const hpAfter = actorHitPoints(actor);
+    await recordInstantExecutionResultsSafely({ actor, controller, definition, stage, results, hpBefore, hpAfter, at: effectiveAt });
+
+    const refreshed = getAfflictionFlags(controller);
+    state = deepClone(refreshed?.state ?? state);
+    const previousEntry = state.periodicSchedule?.[periodic.id] ?? scheduled;
+    let nextSeconds = null;
+    if (state.mortality?.dead !== true) {
+      try { nextSeconds = await periodicIntervalToWorldSeconds(periodic.interval); }
+      catch (error) {
+        failed = true;
+        notifyPeriodicExecutionFailure({ controller, stage, periodic, error });
+      }
+    }
+    state.periodicSchedule ??= {};
+    state.periodicSchedule[periodic.id] = {
+      ...deepClone(previousEntry),
+      lastAt: effectiveAt,
+      sequence: Math.max(0, Math.trunc(Number(previousEntry?.sequence ?? 0))) + 1,
+      lastIntervalSeconds: nextSeconds,
+      nextAt: nextSeconds == null ? null : effectiveAt + nextSeconds
+    };
+    appendRuntimeEvent(state, {
+      type: failed ? "periodic-effect-failed" : "periodic-effect",
+      at: effectiveAt,
+      stageNumber: stage.number,
+      stageId: stage.id,
+      data: { periodicId: periodic.id, label: periodic.label ?? "", nextAt: state.periodicSchedule[periodic.id].nextAt }
+    });
+    state.revision = Number(state.revision ?? 0) + 1;
+    await updateController(controller, definition, state);
+    return { status: failed ? "failed" : "executed", results, nextAt: state.periodicSchedule[periodic.id].nextAt };
   }
 
   async setIdentification(controllerOrUuid, identificationState, options = {}) {
@@ -1557,6 +1795,11 @@ export class AfflictionInstanceService {
     state.activeStartedAt = shift(state.activeStartedAt);
     state.onsetStartedAt = shift(state.onsetStartedAt);
     state.nextCheckAt = shift(state.pause.nextCheckAt);
+    state.periodicSchedule = Object.fromEntries(Object.entries(state.periodicSchedule ?? {}).map(([id, entry]) => [id, {
+      ...deepClone(entry),
+      nextAt: shift(entry?.nextAt),
+      lastAt: shift(entry?.lastAt)
+    }]));
     state.pause = null;
     appendRuntimeEvent(state, {
       type: "resumed",
@@ -1585,6 +1828,7 @@ export class AfflictionInstanceService {
     state.onsetStartedAt = null;
     state.nextCheckAt = null;
     state.activeStageEffectUuids = [];
+    state.periodicSchedule = {};
     state.pendingCheck = null;
     state.onsetTargetStage = null;
     state.pause = null;

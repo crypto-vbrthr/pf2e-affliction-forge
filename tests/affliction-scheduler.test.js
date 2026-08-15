@@ -458,3 +458,71 @@ test("a lethal Affliction controller stops automatic catch-up after death is rec
   assert.equal(parts.service.ended, null);
   assert.equal(result.processed[0].status, "dead");
 });
+
+test("scheduler executes a periodic stage effect before the later stage boundary", async () => {
+  const def = definition({
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      duration: { value: 1, unit: "hours" },
+      periodicEffects: [{
+        id: "bleed-pulse",
+        label: "Bleed pulse",
+        interval: { value: 1, unit: "minutes" },
+        effect: null
+      }]
+    }]
+  });
+  const controller = makeController(def, {
+    stageEnteredAt: 40,
+    nextCheckAt: 3640,
+    periodicSchedule: {
+      "bleed-pulse": { nextAt: 100, lastAt: null, sequence: 0, lastIntervalSeconds: 60 }
+    }
+  });
+  const parts = runtime(controller);
+  const periodicCalls = [];
+  parts.service.executePeriodic = async (_controller, periodicId, { at }) => {
+    periodicCalls.push({ periodicId, at });
+    controller.flags[MODULE_ID].state.periodicSchedule[periodicId] = {
+      nextAt: at + 60,
+      lastAt: at,
+      sequence: 1,
+      lastIntervalSeconds: 60
+    };
+    return { status: "executed", nextAt: at + 60 };
+  };
+  const scheduler = schedulerFor(controller, parts, { catchUpMode: "next" });
+  const result = await scheduler.processDue({ worldTime: 100 });
+  assert.deepEqual(periodicCalls, [{ periodicId: "bleed-pulse", at: 100 }]);
+  assert.deepEqual(parts.calls, []);
+  assert.equal(result.processed[0].actions[0].type, "periodic");
+});
+
+test("an exact periodic/stage-boundary tie resolves the stage boundary first", async () => {
+  const def = definition({
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      duration: { value: 1, unit: "minutes" },
+      periodicEffects: [{
+        id: "pulse",
+        label: "Pulse",
+        interval: { value: 1, unit: "minutes" },
+        effect: null
+      }]
+    }]
+  });
+  const controller = makeController(def, {
+    stageEnteredAt: 40,
+    nextCheckAt: 100,
+    periodicSchedule: {
+      pulse: { nextAt: 100, lastAt: null, sequence: 0, lastIntervalSeconds: 60 }
+    }
+  });
+  const parts = runtime(controller);
+  let periodicCalls = 0;
+  parts.service.executePeriodic = async () => { periodicCalls += 1; return { status: "executed" }; };
+  const scheduler = schedulerFor(controller, parts, { catchUpMode: "next" });
+  await scheduler.processDue({ worldTime: 100 });
+  assert.deepEqual(parts.calls, [100]);
+  assert.equal(periodicCalls, 0);
+});
