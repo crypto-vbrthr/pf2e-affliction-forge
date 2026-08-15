@@ -1,4 +1,4 @@
-# Public API 0.1.0 (module 0.1.43)
+# Public API 0.1.0 (module 0.1.46)
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -26,11 +26,43 @@ Stage Effect Definitions are validated through Critical Forge's public `api.effe
 
 ```js
 api.catalogs.saveExecutionModes()   // ["automatic", "player", "gm"]
+api.catalogs.saveDcModes()          // ["fixed", "source"]
 api.catalogs.saveVisibilityModes()  // ["public", "gmOnly"]
 api.catalogs.identificationStates() // ["hidden", "suspected", "identified"]
 ```
 
 `api.definitions.resolveSavePolicy()` resolves per-check overrides against root `saveDefaults`.
+
+
+### Fixed and source/dynamic save DCs
+
+Each save check has `dcMode: "fixed" | "source"`. Existing schema-v2 definitions without `dcMode` normalize to `fixed`.
+
+```js
+{ id: "primary", kind: "save", statistic: "fortitude", dcMode: "fixed", dc: 27 }
+{ id: "spell", kind: "save", statistic: "fortitude", dcMode: "source", dc: null }
+```
+
+A source-DC template is valid with `dc: null`, but it cannot become an active controller until the application supplies a concrete DC. The runtime snapshots the resolved numeric DC while retaining `dcMode: "source"` for provenance.
+
+```js
+await api.engine.applyTemplate(templateUuid, target, { saveDc: 31 });
+await api.engine.applyTemplate(templateUuid, target, { saveDcs: { primary: 31, mind: 29 } });
+
+await api.application.apply({
+  templateUuid,
+  targets: target,
+  context: { saveDc: 31 }
+});
+```
+
+If a referenced source check has no supplied DC, application fails before creating any controller. This is intentional fail-closed behavior.
+
+GM-facing direct application from the Affliction Forge and drag/drop onto an Actor now prompts for the concrete source DC(s). The public API deliberately does **not** open that dialog: integrations must continue to pass `saveDc`, `saveDcs`, or the equivalent values in `context`.
+
+### Virulent / Ausgeprägt progression
+
+Set `definition.progression.virulent = true`. The stage engine then applies the Remastered virulent rule to stage saves: two consecutive successful saves are required to reduce the stage by 1, while a critical success reduces the stage by exactly 1 immediately. Failure or critical failure breaks the success streak. The streak is persisted in controller `state.recoverySuccesses`. Initial exposure saves are not altered.
 
 ## Affliction Engine
 
@@ -82,6 +114,8 @@ await api.engine.processInitial(controllerUuid);
 ```
 
 Without `force`, a controller whose `nextCheckAt` lies in the future returns `status: "not-due"`. `force: true` is used by the current manual controller UI and is also useful for diagnostics.
+
+For a check gate that references more than one save, GM-manual and player-manual checks are grouped into one Affliction save window. `Roll all` performs the checks directly through PF2e without opening several modifier dialogs; each row also exposes a native PF2e modifier-dialog action for situational adjustments. Multi-save gates are summarized together in GM chat after resolution.
 
 The engine understands:
 
@@ -188,7 +222,7 @@ Stage 0 is reserved for initial exposure/onset runtime state. An already active 
 
 ### API compatibility version
 
-`api.version` is now independent from the module release number. Module `0.1.43` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
+`api.version` is now independent from the module release number. Module `0.1.46` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
 
 ### Pause / resume semantics
 

@@ -6,6 +6,7 @@ import {
   MODULE_ID,
   OUTCOME_KEYS,
   RARITIES,
+  SAVE_DC_MODES,
   SAVE_EXECUTION_MODES,
   SAVE_STATISTICS,
   SAVE_VISIBILITY_MODES,
@@ -53,6 +54,10 @@ const LABELS = Object.freeze({
     automatic: "PF2E_AFFLICTION_FORGE.SaveExecution.Automatic",
     player: "PF2E_AFFLICTION_FORGE.SaveExecution.Player",
     gm: "PF2E_AFFLICTION_FORGE.SaveExecution.GM"
+  },
+  dcMode: {
+    fixed: "PF2E_AFFLICTION_FORGE.Editor.DCModeFixed",
+    source: "PF2E_AFFLICTION_FORGE.Editor.DCModeSource"
   },
   visibility: {
     public: "PF2E_AFFLICTION_FORGE.SaveVisibility.Public",
@@ -294,6 +299,8 @@ export async function prepareAfflictionEditorContext(session, {
       number: index + 1,
       canRemove: definition.checks.length > 1,
       statisticOptions: optionList(SAVE_STATISTICS, check.statistic, LABELS.statistic),
+      dcModeOptions: optionList(SAVE_DC_MODES, check.dcMode, LABELS.dcMode),
+      sourceDc: check.dcMode === "source",
       policyView: prepareSavePolicy(check.policy, definition.saveDefaults)
     })),
     initialCheck: prepareGate(definition.initialCheck, definition.checks),
@@ -510,6 +517,7 @@ export class EmbeddedAfflictionEditor {
     definition.themes = parseStringList(value('[data-affliction-field="themes"]', definition.themes.join(", ")));
     definition.progression.belowStageOne = String(value('[data-affliction-field="belowStageOne"]', definition.progression.belowStageOne));
     definition.progression.aboveMaximumStage = String(value('[data-affliction-field="aboveMaximumStage"]', definition.progression.aboveMaximumStage));
+    definition.progression.virulent = Boolean(root.querySelector('[data-affliction-field="virulent"]')?.checked);
     definition.saveDefaults.execution = String(value('[data-affliction-field="saveDefaultExecution"]', definition.saveDefaults.execution));
     definition.saveDefaults.visibility = String(value('[data-affliction-field="saveDefaultVisibility"]', definition.saveDefaults.visibility));
     definition.identification.initialState = String(value('[data-affliction-field="identificationInitialState"]', definition.identification.initialState));
@@ -536,7 +544,15 @@ export class EmbeddedAfflictionEditor {
       if (nextId && nextId !== oldId) this.session.renameCheck(index, nextId);
       check.label = String(checkRegion.querySelector('[data-check-field="label"]')?.value ?? check.label);
       check.statistic = String(checkRegion.querySelector('[data-check-field="statistic"]')?.value ?? check.statistic);
-      check.dc = integerValue(checkRegion.querySelector('[data-check-field="dc"]')?.value, check.dc);
+      check.dcMode = String(checkRegion.querySelector('[data-check-field="dcMode"]')?.value ?? check.dcMode);
+      const dcControl = checkRegion.querySelector('[data-check-field="dc"]');
+      if (check.dcMode === "source") check.dc = null;
+      else check.dc = integerValue(dcControl?.value, Number.isInteger(check.dc) ? check.dc : 15);
+      if (dcControl) {
+        dcControl.disabled = check.dcMode === "source";
+        if (check.dcMode === "source") dcControl.value = "";
+        else if (!dcControl.value) dcControl.value = String(check.dc);
+      }
       const policyOverride = Boolean(checkRegion.querySelector('[data-check-policy-override]')?.checked);
       check.policy = policyOverride ? {
         execution: String(checkRegion.querySelector('[data-check-policy-execution]')?.value ?? definition.saveDefaults.execution),

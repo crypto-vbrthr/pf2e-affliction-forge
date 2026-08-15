@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.1.46
+
+### Virulent Save Window Follow-up
+
+- routes a single due Ausgeprägt/Virulent stage save through the Affliction save window instead of PF2e's standalone single-save prompt
+- shows the current consecutive-success recovery progress (`0/2` or `1/2`) in that window before the current stage save is rolled
+- keeps the Remastered timing intact: only the save due at the current stage interval is rolled; the second required success remains the next regular stage save, not an immediate extra roll
+- applies the same window behavior to GM-manual and player-owned virulent stage saves
+- keeps the native PF2e modifier dialog available from the per-save advanced button
+- keeps GM chat resolution summaries and Ausgeprägt streak feedback from 0.1.45
+- adds regression coverage for the one-check virulent player-window transport
+
+## 0.1.45
+
+### Save Workflow & Source-DC UX
+
+- adds one persistent Affliction save window for multi-save gates, showing every due check and its result together
+- adds `Roll all` for a single-window workflow plus a per-check PF2e modifier-dialog button for situational modifiers
+- batches player-owned multi-save gates into one targeted request/card instead of opening several independent save prompts
+- adds a GM chat summary for multi-save gates with each individual result and the configured combined degree
+- adds explicit Ausgeprägt/Virulent recovery chat feedback (`1/2`, `2/2`, critical-success reduction, streak broken) without changing the rule timing between stage intervals
+- adds a GM-facing source-DC prompt when a dynamic-DC Affliction is applied directly from the Forge or dropped onto an Actor
+- keeps external API application non-interactive and fail-closed; integrations continue to supply `saveDc`, `saveDcs`, or `context.saveDc/saveDcs`
+- keeps public API compatibility `0.1.0`, Affliction schema v2, and Controller schema v2
+- expands regression coverage to 226 tests
+
+## 0.1.44
+
+### `Remastered Rules Coverage I`
+
+- adds native `progression.virulent` / Ausgeprägt support without changing Affliction schema v2
+- virulent stage progression now requires two consecutive successful stage saves before reducing a stage by 1; a critical success reduces exactly 1 stage immediately
+- persists the consecutive-success streak in existing controller `recoverySuccesses` state and resets it after reduction, failure, critical failure, or ordinary stage changes
+- adds save-check `dcMode: "fixed" | "source"`; legacy/schema-v2 checks normalize to `fixed` automatically
+- source/dynamic DC templates may keep `dc: null` and are materialized to the supplied DC when applied
+- external callers can supply a shared `saveDc`, per-check `saveDcs`, or pass either through `origin.context`; missing source DCs fail closed instead of silently falling back
+- exposes save-DC mode authoring and Ausgeprägt in the embedded Affliction Editor, with DE/EN localization
+- keeps public API compatibility at `0.1.0`, Affliction schema v2, and Controller schema v2
+- adds regression coverage for virulent pure resolution, live runtime streak persistence, source-DC validation, materialization, and missing-DC rejection
+
 ## 0.1.43
 
 ### Final Release

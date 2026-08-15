@@ -4,6 +4,7 @@ import {
   DURATION_UNITS,
   IDENTIFICATION_STATES,
   OUTCOME_KEYS,
+  SAVE_DC_MODES,
   SAVE_EXECUTION_MODES,
   SAVE_VISIBILITY_MODES
 } from "../../constants.js";
@@ -87,12 +88,15 @@ function normalizeIdentification(value, fallback = { initialState: "identified" 
 
 function normalizeCheck(check, index) {
   const fallback = createDefaultSaveCheck({ id: index === 0 ? "primary" : `check-${index + 1}` });
+  const dcMode = SAVE_DC_MODES.includes(check?.dcMode) ? check.dcMode : fallback.dcMode;
+  const hasDc = check?.dc !== null && check?.dc !== undefined && check?.dc !== "";
   return {
     id: cleanString(check?.id, fallback.id),
     label: String(check?.label ?? "").trim(),
     kind: "save",
     statistic: cleanString(check?.statistic, fallback.statistic).toLowerCase(),
-    dc: finiteNumber(check?.dc, fallback.dc),
+    dcMode,
+    dc: dcMode === "source" && !hasDc ? null : finiteNumber(check?.dc, fallback.dc),
     policy: check?.policy == null ? null : normalizeSavePolicy(check.policy)
   };
 }
@@ -152,7 +156,8 @@ export function normalizeAfflictionDefinition(value = {}, { createDefaults = tru
       : normalizeCheckGate(source.defaultStageCheck, base.defaultStageCheck ?? createDefaultStageCheck()),
     progression: {
       belowStageOne: cleanString(source.progression?.belowStageOne, base.progression?.belowStageOne ?? "recover"),
-      aboveMaximumStage: cleanString(source.progression?.aboveMaximumStage, base.progression?.aboveMaximumStage ?? "clamp")
+      aboveMaximumStage: cleanString(source.progression?.aboveMaximumStage, base.progression?.aboveMaximumStage ?? "clamp"),
+      virulent: (source.progression?.virulent ?? base.progression?.virulent) === true
     },
     stages: stagesSource.map(normalizeStage),
     metadata: {

@@ -6,6 +6,7 @@ import {
   OUTCOME_KEYS,
   IDENTIFICATION_STATES,
   RARITIES,
+  SAVE_DC_MODES,
   SAVE_EXECUTION_MODES,
   SAVE_STATISTICS,
   SAVE_VISIBILITY_MODES,
@@ -163,7 +164,13 @@ function validateChecks(report, checks) {
     }
     if (check.kind !== "save") report.add({ severity: "error", code: "check.kind", path: `${path}.kind`, message: "Affliction Forge supports save checks only." });
     if (!SAVE_STATISTICS.includes(check.statistic)) report.add({ severity: "error", code: "check.statistic", path: `${path}.statistic`, message: `Unsupported save statistic: ${check.statistic}.` });
-    if (!Number.isInteger(check.dc) || check.dc < 1 || check.dc > 100) report.add({ severity: "error", code: "check.dc", path: `${path}.dc`, message: "Save DC must be an integer from 1 to 100." });
+    if (!SAVE_DC_MODES.includes(check.dcMode)) report.add({ severity: "error", code: "check.dc-mode", path: `${path}.dcMode`, message: `Unsupported save DC mode: ${check.dcMode}.` });
+    if (check.dcMode === "fixed" && (!Number.isInteger(check.dc) || check.dc < 1 || check.dc > 100)) {
+      report.add({ severity: "error", code: "check.dc", path: `${path}.dc`, message: "Fixed save DC must be an integer from 1 to 100." });
+    }
+    if (check.dcMode === "source" && check.dc != null && (!Number.isInteger(check.dc) || check.dc < 1 || check.dc > 100)) {
+      report.add({ severity: "error", code: "check.dc", path: `${path}.dc`, message: "Resolved source save DC must be an integer from 1 to 100 when present." });
+    }
     validateSavePolicy(report, check.policy, `${path}.policy`, { nullable: true });
   }
   return ids;
@@ -235,6 +242,7 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
   } else {
     if (!["recover", "clamp"].includes(definition.progression.belowStageOne)) report.add({ severity: "error", code: "progression.below", path: "progression.belowStageOne", message: "belowStageOne must be recover or clamp." });
     if (!["clamp", "end"].includes(definition.progression.aboveMaximumStage)) report.add({ severity: "error", code: "progression.above", path: "progression.aboveMaximumStage", message: "aboveMaximumStage must be clamp or end." });
+    if (typeof definition.progression.virulent !== "boolean") report.add({ severity: "error", code: "progression.virulent", path: "progression.virulent", message: "virulent must be a boolean." });
   }
 
   if (!Array.isArray(definition.stages) || definition.stages.length === 0) {

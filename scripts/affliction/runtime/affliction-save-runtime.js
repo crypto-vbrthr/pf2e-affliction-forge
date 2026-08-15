@@ -23,6 +23,15 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function structuredCloneSafe(value) {
+  try {
+    if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(value);
+  } catch {
+    // Fall back below.
+  }
+  try { return JSON.parse(JSON.stringify(value)); } catch { return {}; }
+}
+
 function usersArray() {
   const users = globalThis.game?.users;
   if (!users) return [];
@@ -107,6 +116,173 @@ function statisticLabel(statistic) {
   return translated && translated !== key ? translated : String(statistic ?? "");
 }
 
+let SaveBatchApp = null;
+
+function degreeLabel(degree) {
+  const key = `PF2E_AFFLICTION_FORGE.Runtime.Degree.${degree}`;
+  const value = localize(key);
+  return value && value !== key ? value : String(degree ?? "");
+}
+
+function makeSaveBatchAppClass() {
+  if (SaveBatchApp) return SaveBatchApp;
+  const api = globalThis.foundry?.applications?.api;
+  if (!api?.ApplicationV2 || !api?.HandlebarsApplicationMixin) return null;
+  const { ApplicationV2, HandlebarsApplicationMixin } = api;
+
+  SaveBatchApp = class AfflictionSaveBatchApp extends HandlebarsApplicationMixin(ApplicationV2) {
+    actor;
+    checks;
+    virulentProgress;
+    results = new Map();
+    completion;
+    #resolveCompletion;
+    #settled = false;
+
+    static DEFAULT_OPTIONS = {
+      id: "pf2e-affliction-save-batch",
+      classes: ["pf2e-affliction-forge", "affliction-save-batch-app"],
+      window: {
+        title: "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchTitle",
+        icon: "fa-solid fa-dice-d20",
+        resizable: true
+      },
+      position: { width: 560, height: 520 },
+      actions: {
+        rollCheck: AfflictionSaveBatchApp.#rollCheck,
+        rollCheckDialog: AfflictionSaveBatchApp.#rollCheckDialog,
+        rollAll: AfflictionSaveBatchApp.#rollAll
+      }
+    };
+
+    static PARTS = {
+      main: { template: `modules/${MODULE_ID}/templates/affliction-forge/affliction-save-batch-app.hbs` }
+    };
+
+    constructor({ actor, checks, virulentProgress = null, id = null } = {}, options = {}) {
+      super({ ...options, ...(id ? { id } : {}) });
+      this.actor = actor;
+      this.checks = (checks ?? []).map((check) => ({ ...check }));
+      this.virulentProgress = virulentProgress ? { ...virulentProgress } : null;
+      this.completion = new Promise((resolve) => { this.#resolveCompletion = resolve; });
+    }
+
+    async _prepareContext() {
+      const virulent = this.virulentProgress?.active === true
+        ? {
+          active: true,
+          successes: Math.max(0, Math.trunc(Number(this.virulentProgress.successes ?? 0))),
+          required: Math.max(1, Math.trunc(Number(this.virulentProgress.required ?? 2)))
+        }
+        : null;
+      return {
+        actorName: this.actor?.name ?? "",
+        complete: this.checks.length > 0 && this.checks.every((check) => this.results.has(check.id)),
+        virulent,
+        checks: this.checks.map((check) => {
+          const result = this.results.get(check.id) ?? null;
+          const label = String(check.label ?? "").trim() || statisticLabel(check.statistic);
+          return {
+            id: check.id,
+            label,
+            statisticLabel: statisticLabel(check.statistic),
+            dc: check.dc,
+            showDc: check.dcVisible !== false,
+            resolved: Boolean(result),
+            total: result?.total ?? null,
+            d20: result?.d20 ?? null,
+            degreeLabel: result?.degree ? degreeLabel(result.degree) : ""
+          };
+        })
+      };
+    }
+
+    #finishIfComplete() {
+      if (this.#settled || this.checks.length === 0 || !this.checks.every((check) => this.results.has(check.id))) return;
+      this.#settled = true;
+      this.#resolveCompletion({
+        complete: true,
+        results: Object.fromEntries(this.results)
+      });
+    }
+
+    async #rollOne(checkId, { nativeDialog = false } = {}) {
+      const check = this.checks.find((entry) => entry.id === checkId);
+      if (!check || this.results.has(checkId)) return;
+      const result = await rollPf2eSave(this.actor, check, {
+        skipDialog: !nativeDialog,
+        visibility: check.visibility ?? "public",
+        execution: check.execution ?? "gm",
+        dcVisible: check.dcVisible !== false,
+        extraRollOptions: check.extraRollOptions ?? []
+      });
+      if (!result) return;
+      this.results.set(checkId, result);
+      await this.render({ force: true });
+      this.#finishIfComplete();
+    }
+
+    static async #rollCheck(event, target) {
+      event?.preventDefault?.();
+      await this.#rollOne(String(target?.dataset?.checkId ?? ""), { nativeDialog: false });
+    }
+
+    static async #rollCheckDialog(event, target) {
+      event?.preventDefault?.();
+      await this.#rollOne(String(target?.dataset?.checkId ?? ""), { nativeDialog: true });
+    }
+
+    static async #rollAll(event) {
+      event?.preventDefault?.();
+      for (const check of this.checks) {
+        if (!this.results.has(check.id)) await this.#rollOne(check.id, { nativeDialog: false });
+      }
+    }
+
+    async close(options = {}) {
+      if (!this.#settled) {
+        this.#settled = true;
+        this.#resolveCompletion({
+          complete: false,
+          results: Object.fromEntries(this.results)
+        });
+      }
+      return super.close(options);
+    }
+  };
+  return SaveBatchApp;
+}
+
+/**
+ * Show all saves belonging to one check gate in one persistent Affliction
+ * window. "Roll all" stays in that window and delegates each roll directly to
+ * PF2e. The per-row advanced button can still open PF2e's native modifier
+ * dialog when a situational modifier has to be entered manually.
+ */
+export async function openAfflictionSaveBatchDialog(actor, checks, { id = null, virulentProgress = null } = {}) {
+  const list = (checks ?? []).filter(Boolean);
+  if (list.length === 0) return { complete: true, results: {} };
+  const App = makeSaveBatchAppClass();
+  if (!App) {
+    // Test/headless fallback. Foundry clients always take the ApplicationV2 path.
+    const results = {};
+    for (const check of list) {
+      const result = await rollPf2eSave(actor, check, {
+        skipDialog: false,
+        visibility: check.visibility ?? "public",
+        execution: check.execution ?? "gm",
+        dcVisible: check.dcVisible !== false,
+        extraRollOptions: check.extraRollOptions ?? []
+      });
+      if (result) results[check.id] = result;
+    }
+    return { complete: list.every((check) => results[check.id]), results };
+  }
+  const app = new App({ actor, checks: list, virulentProgress, id });
+  await app.render({ force: true });
+  return app.completion;
+}
+
 export async function createPlayerSaveRequestMessage(actor, requestData) {
   if (!globalThis.ChatMessage?.create) return null;
   const identified = requestData.identificationState === "identified";
@@ -142,6 +318,46 @@ export async function createPlayerSaveRequestMessage(actor, requestData) {
   });
 }
 
+export async function createPlayerSaveBatchRequestMessage(actor, batchData) {
+  if (!globalThis.ChatMessage?.create) return null;
+  const checks = batchData?.checks ?? [];
+  const identified = batchData.identificationState === "identified";
+  const single = checks.length === 1;
+  const title = identified
+    ? localize(single ? "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchRequestTitleSingle" : "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchRequestTitle")
+    : localize(single ? "PF2E_AFFLICTION_FORGE.Runtime.HiddenSaveBatchRequestTitleSingle" : "PF2E_AFFLICTION_FORGE.Runtime.HiddenSaveBatchRequestTitle");
+  const rows = checks.map((request) => {
+    const detail = identified
+      ? globalThis.game?.i18n?.format?.("PF2E_AFFLICTION_FORGE.Runtime.SaveRequestDetail", {
+        statistic: statisticLabel(request.statistic),
+        dc: request.dc
+      })
+      : globalThis.game?.i18n?.format?.("PF2E_AFFLICTION_FORGE.Runtime.HiddenSaveRequestDetail", {
+        statistic: statisticLabel(request.statistic)
+      });
+    return `<li>${escapeHtml(request.label || statisticLabel(request.statistic))}: ${escapeHtml(detail)}</li>`;
+  }).join("");
+  const content = `
+    <div class="pf2e-affliction-save-request pf2e-affliction-save-batch-request" data-affliction-save-batch="${escapeHtml(batchData.requestId)}">
+      <h4><i class="fa-solid fa-dice-d20"></i> ${escapeHtml(title)}</h4>
+      <ul>${rows}</ul>
+      <button type="button" data-action="afflictionRollSaveBatch">
+        <i class="fa-solid fa-dice"></i> ${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Runtime.OpenSaveBatch"))}
+      </button>
+    </div>`;
+  const whisper = [...new Set([...(batchData.userIds ?? []), ...gmIds()])];
+  return ChatMessage.create({
+    speaker: ChatMessage.getSpeaker?.({ actor }) ?? {},
+    content,
+    whisper,
+    flags: {
+      [MODULE_ID]: {
+        saveRequestBatch: structuredCloneSafe(batchData)
+      }
+    }
+  });
+}
+
 /** Broadcast a targeted request which causes the selected player's client to
  * invoke PF2e's own Statistic#roll workflow. The module socket broadcasts to
  * connected clients, so recipients must filter on targetUserId. */
@@ -152,6 +368,20 @@ export function emitPlayerSavePrompt(requestData) {
     type: "save-request",
     request: {
       ...requestData,
+      targetUserId,
+      userIds: [targetUserId]
+    }
+  });
+  return true;
+}
+
+export function emitPlayerSaveBatchPrompt(batchData) {
+  const targetUserId = batchData?.targetUserId ?? batchData?.userIds?.[0] ?? null;
+  if (!targetUserId) return false;
+  globalThis.game?.socket?.emit?.(SOCKET_NAME, {
+    type: "save-request-batch",
+    batch: {
+      ...structuredCloneSafe(batchData),
       targetUserId,
       userIds: [targetUserId]
     }
@@ -216,6 +446,53 @@ async function performPlayerRequest(request, button = null) {
   }
 }
 
+async function performPlayerBatchRequest(batch, button = null) {
+  const userId = globalThis.game?.user?.id;
+  const key = `${batch?.requestId ?? ""}:batch`;
+  const requests = (batch?.checks ?? []).filter((request) => request?.userIds?.includes(userId) && !isRequestSubmitted(request));
+  if (!batch || requests.length === 0 || activePlayerPrompts.has(key)) return;
+  for (const request of requests) registerPlayerRequest(request);
+  activePlayerPrompts.add(key);
+  if (button) button.disabled = true;
+  try {
+    const actor = await globalThis.fromUuid?.(batch.actorUuid);
+    if (!actor) throw new Error(localize("PF2E_AFFLICTION_FORGE.Runtime.ActorUnavailable"));
+    const checks = requests.map((request) => ({
+      id: request.checkId,
+      label: request.label ?? "",
+      statistic: request.statistic,
+      dc: request.dc,
+      visibility: request.visibility,
+      execution: "player",
+      dcVisible: request.identificationState === "identified",
+      extraRollOptions: [
+        `affliction-forge:request:${encodeURIComponent(request.requestId)}`,
+        `affliction-forge:controller:${encodeURIComponent(request.controllerUuid)}`
+      ]
+    }));
+    const batchResult = await openAfflictionSaveBatchDialog(actor, checks, {
+      id: `pf2e-affliction-save-batch-${String(batch.requestId ?? "request").replace(/[^a-zA-Z0-9_-]/g, "-")}`,
+      virulentProgress: batch.virulentProgress ?? null
+    });
+    for (const request of requests) {
+      const result = batchResult?.results?.[request.checkId];
+      if (!result || isRequestSubmitted(request)) continue;
+      emitPlayerResult(request, result);
+    }
+    if (button && batchResult?.complete) {
+      button.innerHTML = `<i class="fa-solid fa-check"></i> ${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Runtime.SaveSubmitted"))}`;
+    } else if (button) {
+      button.disabled = false;
+    }
+  } catch (error) {
+    console.error(`${MODULE_ID} | Player Affliction save batch failed.`, error);
+    globalThis.ui?.notifications?.error?.(String(error?.message ?? error));
+    if (button) button.disabled = false;
+  } finally {
+    activePlayerPrompts.delete(key);
+  }
+}
+
 export async function handlePlayerSavePrompt(payload) {
   const request = payload?.request ?? null;
   const user = globalThis.game?.user;
@@ -228,6 +505,15 @@ export async function handlePlayerSavePrompt(payload) {
   // performPlayerRequest delegates the UI to PF2e's native save modifier
   // dialog instead of trying to emulate it in the Affliction Forge.
   await performPlayerRequest(request);
+}
+
+export async function handlePlayerSaveBatchPrompt(payload) {
+  const batch = payload?.batch ?? null;
+  const user = globalThis.game?.user;
+  if (!batch || !user || user.isGM) return;
+  const targetUserId = batch.targetUserId ?? batch.userIds?.[0] ?? null;
+  if (targetUserId !== user.id) return;
+  await performPlayerBatchRequest(batch);
 }
 
 function bindSaveRequest(message, html) {
@@ -247,6 +533,29 @@ function bindSaveRequest(message, html) {
     event.preventDefault();
     event.stopPropagation();
     void performPlayerRequest(request, button);
+  });
+}
+
+function bindSaveBatchRequest(message, html) {
+  const batch = message?.flags?.[MODULE_ID]?.saveRequestBatch;
+  const userId = globalThis.game?.user?.id;
+  if (!batch || !batch.userIds?.includes(userId)) return;
+  const requests = batch.checks ?? [];
+  for (const request of requests) registerPlayerRequest(request);
+  const root = html?.querySelector?.(".pf2e-affliction-save-batch-request");
+  const button = root?.querySelector?.('[data-action="afflictionRollSaveBatch"]');
+  if (!button) return;
+  if (requests.every((request) => isRequestSubmitted(request))) {
+    button.disabled = true;
+    button.innerHTML = `<i class="fa-solid fa-check"></i> ${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Runtime.SaveSubmitted"))}`;
+    return;
+  }
+  if (button.dataset.afflictionBound === "true") return;
+  button.dataset.afflictionBound = "true";
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void performPlayerBatchRequest(batch, button);
   });
 }
 
@@ -310,6 +619,8 @@ function requestsFromMessages() {
   for (const message of values) {
     const request = message?.flags?.[MODULE_ID]?.saveRequest;
     if (request) found.push(request);
+    const batch = message?.flags?.[MODULE_ID]?.saveRequestBatch;
+    if (batch?.checks) found.push(...batch.checks);
   }
   return found;
 }
@@ -360,14 +671,18 @@ export function captureManualPlayerSaveMessage(message) {
   return { status: "submitted", request };
 }
 
+function requestFromMessage(message, requestId, checkId = null) {
+  const request = message?.flags?.[MODULE_ID]?.saveRequest;
+  if (request?.requestId === requestId && (!checkId || request?.checkId === checkId)) return request;
+  const batch = message?.flags?.[MODULE_ID]?.saveRequestBatch;
+  return (batch?.checks ?? []).find((entry) => entry?.requestId === requestId && (!checkId || entry?.checkId === checkId)) ?? null;
+}
+
 function findRequestMessage(requestId, checkId = null) {
   const messages = globalThis.game?.messages;
   if (!messages) return null;
   const values = Array.isArray(messages) ? messages : [...messages];
-  return values.find((message) => {
-    const request = message?.flags?.[MODULE_ID]?.saveRequest;
-    return request?.requestId === requestId && (!checkId || request?.checkId === checkId);
-  }) ?? null;
+  return values.find((message) => requestFromMessage(message, requestId, checkId)) ?? null;
 }
 
 /**
@@ -406,7 +721,7 @@ export function captureTaggedPlayerSaveMessageForGm(message) {
   if (!requestId || !checkId) return { status: "ignored" };
 
   const requestMessage = findRequestMessage(requestId, checkId);
-  const request = requestMessage?.flags?.[MODULE_ID]?.saveRequest;
+  const request = requestMessage ? requestFromMessage(requestMessage, requestId, checkId) : null;
   if (!request) return { status: "orphaned" };
 
   const authorId = messageAuthorId(message);
@@ -440,7 +755,24 @@ export function captureTaggedPlayerSaveMessageForGm(message) {
   return { status: "submitted", request, payload };
 }
 
+export function handleIncomingSaveRequestBatchMessage(message) {
+  const batch = message?.flags?.[MODULE_ID]?.saveRequestBatch;
+  const user = globalThis.game?.user;
+  if (!batch || !user || user.isGM) return { status: "ignored" };
+  const targetUserId = batch.targetUserId ?? batch.userIds?.[0] ?? null;
+  if (targetUserId !== user.id || !batch.userIds?.includes(user.id)) return { status: "ignored" };
+  for (const request of batch.checks ?? []) registerPlayerRequest(request);
+  const schedule = globalThis.queueMicrotask ?? ((callback) => Promise.resolve().then(callback));
+  schedule(() => void performPlayerBatchRequest(batch));
+  return { status: "prompted", batch };
+}
+
 function onCreateChatMessage(message) {
+  const batch = message?.flags?.[MODULE_ID]?.saveRequestBatch;
+  if (batch) {
+    handleIncomingSaveRequestBatchMessage(message);
+    return;
+  }
   const request = message?.flags?.[MODULE_ID]?.saveRequest;
   if (request) {
     handleIncomingSaveRequestMessage(message);
@@ -471,6 +803,10 @@ async function handleSocket(payload) {
     await handlePlayerSavePrompt(payload);
     return;
   }
+  if (payload?.type === "save-request-batch") {
+    await handlePlayerSaveBatchPrompt(payload);
+    return;
+  }
   if (payload?.type !== "save-result" || !shouldHandleResult(payload)) return;
   try {
     const api = globalThis.game?.modules?.get?.(MODULE_ID)?.api;
@@ -489,5 +825,6 @@ export function initializeAfflictionSaveRuntime() {
   initialized = true;
   globalThis.game?.socket?.on?.(SOCKET_NAME, handleSocket);
   globalThis.Hooks?.on?.("renderChatMessageHTML", bindSaveRequest);
+  globalThis.Hooks?.on?.("renderChatMessageHTML", bindSaveBatchRequest);
   globalThis.Hooks?.on?.("createChatMessage", onCreateChatMessage);
 }

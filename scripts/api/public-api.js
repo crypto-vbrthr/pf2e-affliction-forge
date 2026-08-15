@@ -10,6 +10,7 @@ import {
   MODULE_ID,
   MODULE_VERSION,
   RARITIES,
+  SAVE_DC_MODES,
   SAVE_EXECUTION_MODES,
   SAVE_STATISTICS,
   SAVE_VISIBILITY_MODES
@@ -116,6 +117,7 @@ export function createPublicApi() {
       afflictionTypes: () => [...AFFLICTION_TYPES],
       rarities: () => [...RARITIES],
       saveStatistics: () => [...SAVE_STATISTICS],
+      saveDcModes: () => [...SAVE_DC_MODES],
       saveExecutionModes: () => [...SAVE_EXECUTION_MODES],
       saveVisibilityModes: () => [...SAVE_VISIBILITY_MODES],
       identificationStates: () => [...IDENTIFICATION_STATES],

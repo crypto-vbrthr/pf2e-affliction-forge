@@ -151,7 +151,7 @@
                 <i class="fa-solid fa-trash"></i>
               </button>
             </header>
-            <div class="affliction-editor-grid four-columns">
+            <div class="affliction-editor-grid five-columns">
               <label class="affliction-editor-field">
                 <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.CheckId"}}</span>
                 <input data-check-field="id" type="text" value="{{check.id}}" required>
@@ -169,8 +169,17 @@
                 </select>
               </label>
               <label class="affliction-editor-field">
+                <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DCMode"}}</span>
+                <select data-check-field="dcMode">
+                  {{#each check.dcModeOptions as |option|}}
+                    <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                  {{/each}}
+                </select>
+              </label>
+              <label class="affliction-editor-field">
                 <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DC"}}</span>
-                <input data-check-field="dc" type="number" min="1" max="100" step="1" value="{{check.dc}}">
+                <input data-check-field="dc" type="number" min="1" max="100" step="1" value="{{check.dc}}" {{#if check.sourceDc}}disabled{{/if}}>
+                {{#if check.sourceDc}}<small>{{localize "PF2E_AFFLICTION_FORGE.Editor.DCSourceHint"}}</small>{{/if}}
               </label>
             </div>
 
@@ -367,6 +376,14 @@
       {{else}}
         <p class="affliction-editor-empty">{{localize "PF2E_AFFLICTION_FORGE.Editor.NoDefaultStageCheck"}}</p>
       {{/if}}
+
+      <div class="affliction-editor-delivery-options">
+        <label class="affliction-editor-checkbox">
+          <input data-affliction-field="virulent" type="checkbox" {{#if definition.progression.virulent}}checked{{/if}}>
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Virulent"}}</span>
+        </label>
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.VirulentHint"}}</small>
+      </div>
 
       <div class="affliction-editor-grid two-columns affliction-editor-progression-boundaries">
         <label class="affliction-editor-field">

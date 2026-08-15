@@ -293,3 +293,75 @@ test("authoritative GM resolves a uniquely tagged PF2e player-save ChatMessage w
     rollId: "gm-visible-roll"
   });
 });
+
+test("a grouped player-save request resolves two checks through one batch workflow", async () => {
+  emitted.length = 0;
+  globalThis.game.user = { id: "player-1", isGM: false };
+  globalThis.game.users = [{ id: "player-1", isGM: false, active: true }];
+  let rollCount = 0;
+  globalThis.fromUuid = async () => ({
+    uuid: "Actor.hero",
+    name: "Hero",
+    getStatistic: () => ({
+      roll: async (params) => {
+        rollCount += 1;
+        return {
+          id: `batch-roll-${rollCount}`,
+          degreeOfSuccess: rollCount === 1 ? "success" : "failure",
+          total: rollCount === 1 ? 25 : 18,
+          dice: [{ total: rollCount === 1 ? 13 : 7 }],
+          options: params
+        };
+      }
+    })
+  });
+
+  const { handlePlayerSaveBatchPrompt } = await import("../scripts/affliction/runtime/affliction-save-runtime.js");
+  await handlePlayerSaveBatchPrompt({
+    type: "save-request-batch",
+    batch: {
+      requestId: "req-batch-two",
+      controllerUuid: "Actor.hero.Item.affliction",
+      actorUuid: "Actor.hero",
+      identificationState: "identified",
+      targetUserId: "player-1",
+      userIds: ["player-1"],
+      requestedByUserId: "gm-1",
+      checks: [
+        {
+          requestId: "req-batch-two",
+          controllerUuid: "Actor.hero.Item.affliction",
+          actorUuid: "Actor.hero",
+          checkId: "body",
+          label: "Body",
+          statistic: "fortitude",
+          dc: 22,
+          visibility: "public",
+          identificationState: "identified",
+          targetUserId: "player-1",
+          userIds: ["player-1"],
+          requestedByUserId: "gm-1"
+        },
+        {
+          requestId: "req-batch-two",
+          controllerUuid: "Actor.hero.Item.affliction",
+          actorUuid: "Actor.hero",
+          checkId: "mind",
+          label: "Mind",
+          statistic: "will",
+          dc: 24,
+          visibility: "public",
+          identificationState: "identified",
+          targetUserId: "player-1",
+          userIds: ["player-1"],
+          requestedByUserId: "gm-1"
+        }
+      ]
+    }
+  });
+
+  assert.equal(rollCount, 2);
+  const results = emitted.filter((entry) => entry[1]?.type === "save-result");
+  assert.equal(results.length, 2);
+  assert.deepEqual(results.map((entry) => entry[1].checkId), ["body", "mind"]);
+});

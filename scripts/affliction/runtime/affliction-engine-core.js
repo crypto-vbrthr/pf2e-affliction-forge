@@ -139,6 +139,46 @@ export function resolveDirective(definition, state, directive) {
   return { type: "stage", targetStage };
 }
 
+
+function transitionReduction(state, transition) {
+  const current = Number(state?.currentStage ?? 0);
+  if (!Number.isInteger(current) || current < 1 || !transition) return 0;
+  if (["recover", "reject", "end"].includes(transition.type)) return current;
+  if (transition.type !== "stage") return 0;
+  return Math.max(0, current - Number(transition.targetStage ?? current));
+}
+
+function capReductionToOne(state, transition) {
+  const current = Number(state?.currentStage ?? 0);
+  if (transitionReduction(state, transition) <= 1) return transition;
+  if (current <= 1) return { type: "recover", targetStage: 0 };
+  return { type: "stage", targetStage: current - 1 };
+}
+
+function applyVirulentProgression(definition, state, plan, degree, transition) {
+  const previous = Math.max(0, Math.trunc(Number(state?.recoverySuccesses ?? 0)));
+  if (plan?.kind !== "stage" || definition?.progression?.virulent !== true) {
+    return { transition, recoverySuccesses: 0 };
+  }
+
+  if (degree === "criticalSuccess") {
+    return { transition: capReductionToOne(state, transition), recoverySuccesses: 0 };
+  }
+
+  if (degree === "success" && transitionReduction(state, transition) > 0) {
+    const successes = previous + 1;
+    if (successes < 2) {
+      return {
+        transition: { type: "stage", targetStage: state.currentStage },
+        recoverySuccesses: successes
+      };
+    }
+    return { transition: capReductionToOne(state, transition), recoverySuccesses: 0 };
+  }
+
+  return { transition, recoverySuccesses: 0 };
+}
+
 export function resolveCheckResults(definition, state, plan, resultMap) {
   const ordered = plan.checks.map((check) => resultMap?.[check.id]?.degree ?? null);
   if (ordered.some((degree) => normalizeDegreeOfSuccess(degree) == null)) {
@@ -146,6 +186,13 @@ export function resolveCheckResults(definition, state, plan, resultMap) {
   }
   const degree = combineDegrees(ordered, plan.combine);
   const directive = directiveForDegree(plan, degree);
-  const transition = resolveDirective(definition, state, directive);
-  return { complete: true, degree, directive, transition };
+  const baseTransition = resolveDirective(definition, state, directive);
+  const progression = applyVirulentProgression(definition, state, plan, degree, baseTransition);
+  return {
+    complete: true,
+    degree,
+    directive,
+    transition: progression.transition,
+    recoverySuccesses: progression.recoverySuccesses
+  };
 }

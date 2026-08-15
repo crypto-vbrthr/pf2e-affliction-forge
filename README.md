@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.43**
+Current release: **0.1.46**
 
-Version **0.1.43** is the final release cut of the hardened 0.1.x runtime: combat-trigger failures remain retryable, an Actor can hold only one live controller for a given Affliction `definitionId`, strict reconciliation can rebuild manually altered stage output, identification changes recover from partial updates, pause/resume freezes affliction clocks, controller stage navigation cannot bypass exposure/onset gates or enter reserved stage 0, lethal controllers are terminal, level-bounded library searches reject malformed levels, and wound poisons can be attached to weapons/attack Items with consumable charges and visible Strike feedback. The public API remains compatibility version `0.1.0`.
+Version **0.1.46** keeps the 0.1.45 grouped-save and dynamic-DC workflow and fixes the single-save UX for Ausgeprägt/Virulent stage checks. A due virulent stage save now opens in the Affliction save window, shows the current consecutive-success progress, and retains the optional PF2e modifier dialog per roll. The rule timing is unchanged: the second required success is the next regular stage save, not an immediate extra roll. The public API remains compatibility version `0.1.0`.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -10,12 +10,13 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 
 - versioned `AfflictionDefinition` schema v2
 - poison, disease, curse, and custom affliction types
-- reusable save-check definitions
+- reusable save-check definitions with fixed or external/dynamic source DCs
 - saving-throw defaults plus per-check overrides (`automatic | player | gm`, `public | gmOnly`)
 - identification state (`hidden | suspected | identified`)
 - initial exposure checks and per-stage checks
 - multiple-save resolution through `single`, `best-degree`, `worst-degree`, `all-success`, and `any-success`
 - degree-of-success directives for reject, recover, stay, stage delta, and explicit stage selection
+- native Ausgeprägt/Virulent progression with consecutive-success tracking and one-stage critical-success reduction
 - onset, maximum active duration (excluding onset), stage duration, and narrative stage descriptions
 - optional Critical Forge `EffectDefinition` per stage
 - persistent inert PF2e `effect` Items for Affliction Templates
@@ -26,10 +27,13 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - manual stage transitions, reapplication, identification changes, and cleanup
 - Affliction Engine execution of initial and stage saves
 - automatic saves without a modifier dialog
-- GM-manual saves with the PF2e roll dialog
-- player-manual saves opened directly as PF2e roll dialogs on the selected owner client
+- GM-manual single saves with the PF2e roll dialog
+- multi-save gates grouped in one Affliction save window with per-row results, `Roll all`, and optional native PF2e modifier dialogs
+- player-manual single saves opened directly as PF2e roll dialogs on the selected owner client; multi-save gates are sent as one grouped player request
 - whispered player-save cards retained as audit/retry fallback
 - public and GM-only result routing
+- GM chat summaries for multi-save gates and Ausgeprägt/Virulent recovery streaks
+- GM source-DC prompt for direct Forge/Actor-drop application of dynamic-DC templates
 - hidden/suspected save requests that do not reveal the affliction identity or DC in the request text
 - player-facing identification presentation: hidden controllers concealed, suspected controllers generic, identified controllers fully restored
 - hidden/suspected stage-effect rows concealed from non-GM Actor-sheet presentation

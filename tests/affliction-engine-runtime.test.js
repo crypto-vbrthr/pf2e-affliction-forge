@@ -8,7 +8,7 @@ globalThis.game.user = { id: "gm", isGM: true };
 globalThis.game.time = { worldTime: 1000 };
 globalThis.game.users = [];
 
-const { createAfflictionDefinition, createDefaultStage } = await import("../scripts/affliction/schema/affliction-defaults.js");
+const { createAfflictionDefinition, createDefaultSaveCheck, createDefaultStage } = await import("../scripts/affliction/schema/affliction-defaults.js");
 const { createAfflictionEngine } = await import("../scripts/affliction/runtime/affliction-engine.js");
 const { MODULE_ID } = await import("../scripts/constants.js");
 
@@ -632,4 +632,124 @@ test("engine processing treats a recorded lethal Affliction as terminal", async 
   assert.equal(result.status, "dead");
   assert.equal(actor.lastRollOptions, undefined);
   assert.equal(controller.flags[MODULE_ID].state.currentStage, 1);
+});
+
+
+test("two GM-manual saves in one gate are resolved as one batch and summarized together in GM chat", async () => {
+  const definition = createAfflictionDefinition({
+    name: "Twin Save Affliction",
+    saveDefaults: { execution: "gm", visibility: "gmOnly" },
+    checks: [
+      createDefaultSaveCheck({ id: "body", label: "Body", statistic: "fortitude", dc: 20 }),
+      createDefaultSaveCheck({ id: "mind", label: "Mind", statistic: "will", dc: 22 })
+    ],
+    initialCheck: {
+      checkIds: ["body", "mind"],
+      combine: "all-success",
+      outcomes: {
+        criticalSuccess: { action: "reject" },
+        success: { action: "reject" },
+        failure: { action: "set-stage", stage: 1 },
+        criticalFailure: { action: "set-stage", stage: 1 }
+      }
+    },
+    stages: [createDefaultStage({ number: 1 })]
+  });
+  const { actor, controller } = makeController(definition, { degrees: ["success", "failure"] });
+  let rollCount = 0;
+  const originalGetStatistic = actor.getStatistic.bind(actor);
+  actor.getStatistic = (statistic) => {
+    const wrapped = originalGetStatistic(statistic);
+    return {
+      roll: async (options) => {
+        rollCount += 1;
+        return wrapped.roll(options);
+      }
+    };
+  };
+  const service = serviceFor(controller);
+  const engine = createAfflictionEngine({ instanceService: service });
+
+  const previousChatMessage = globalThis.ChatMessage;
+  const chat = [];
+  globalThis.ChatMessage = {
+    create: async (data) => { chat.push(data); return data; },
+    getSpeaker: () => ({}),
+    getWhisperRecipients: () => [{ id: "gm" }]
+  };
+  try {
+    const result = await engine.processInitial(controller);
+    assert.equal(result.status, "stage-changed");
+    assert.equal(rollCount, 2);
+    const lastCheck = controller.flags[MODULE_ID].state.lastCheck;
+    assert.equal(lastCheck.results.body.degree, "success");
+    assert.equal(lastCheck.results.mind.degree, "failure");
+    assert.equal(lastCheck.degree, "failure");
+    const summary = chat.find((entry) => entry.flags?.[MODULE_ID]?.runtimeEvent === "affliction-save-resolved");
+    assert.ok(summary);
+    assert.match(summary.content, /Body/);
+    assert.match(summary.content, /Mind/);
+  } finally {
+    globalThis.ChatMessage = previousChatMessage;
+  }
+});
+
+test("a single virulent player stage save uses the Affliction batch window transport with recovery progress", async () => {
+  const previousUsers = globalThis.game.users;
+  const previousChatMessage = globalThis.ChatMessage;
+  const player = { id: "player-virulent", isGM: false, active: true };
+  const gm = { id: "gm", isGM: true, active: true };
+  const users = [gm, player];
+  users.get = (id) => users.find((entry) => entry.id === id);
+  globalThis.game.users = users;
+
+  const definition = automaticDefinition({
+    saveDefaults: { execution: "player", visibility: "public" },
+    progression: { belowStageOne: "recover", aboveMaximumStage: "clamp", virulent: true }
+  });
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.virulent-player-window",
+    status: "active",
+    currentStage: 1,
+    appliedAt: 900,
+    stageEnteredAt: 900,
+    activeStartedAt: 900,
+    onsetStartedAt: null,
+    nextCheckAt: 1000,
+    identification: { state: "identified", identifiedAt: 900, identifiedBy: null },
+    recoverySuccesses: 1,
+    activeStageEffectUuids: [],
+    pendingCheck: null,
+    onsetTargetStage: null,
+    lastCheck: null,
+    revision: 2
+  };
+  const { actor, controller } = makeController(definition, { state });
+  actor.testUserPermission = (user) => user?.id === player.id;
+  const created = [];
+  globalThis.ChatMessage = {
+    create: async (data) => { created.push(data); return data; },
+    getSpeaker: () => ({}),
+    getWhisperRecipients: () => [gm]
+  };
+
+  try {
+    const engine = createAfflictionEngine({ instanceService: serviceFor(controller) });
+    const result = await engine.process(controller, { force: true });
+    assert.equal(result.status, "pending");
+    assert.equal(actor.lastRollOptions, undefined, "the GM must not open PF2e's native single-save dialog for a player-owned virulent save");
+    const batch = created.find((entry) => entry.flags?.[MODULE_ID]?.saveRequestBatch);
+    assert.ok(batch, "virulent stage saves should use the Affliction batch/window request even with one check");
+    assert.equal(batch.flags[MODULE_ID].saveRequestBatch.checks.length, 1);
+    assert.deepEqual(batch.flags[MODULE_ID].saveRequestBatch.virulentProgress, {
+      active: true,
+      successes: 1,
+      required: 2
+    });
+    assert.equal(created.some((entry) => entry.flags?.[MODULE_ID]?.saveRequest), false);
+  } finally {
+    globalThis.game.users = previousUsers;
+    globalThis.ChatMessage = previousChatMessage;
+  }
 });

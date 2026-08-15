@@ -68,3 +68,39 @@ test("progression boundaries recover below stage one and clamp above maximum by 
   assert.equal(above.type, "stage");
   assert.equal(above.targetStage, definition.stages.length);
 });
+
+test("virulent stage progression requires two consecutive successes and caps critical success at one stage", () => {
+  const virulent = createAfflictionDefinition({
+    name: "Virulent Test",
+    progression: { belowStageOne: "recover", aboveMaximumStage: "clamp", virulent: true },
+    stages: [
+      { id: "stage-1", number: 1, name: "", description: "", duration: { value: 1, unit: "rounds" }, check: null, effect: null },
+      { id: "stage-2", number: 2, name: "", description: "", duration: { value: 1, unit: "rounds" }, check: null, effect: null },
+      { id: "stage-3", number: 3, name: "", description: "", duration: { value: 1, unit: "rounds" }, check: null, effect: null }
+    ]
+  });
+
+  const firstState = { status: "active", currentStage: 2, recoverySuccesses: 0 };
+  const plan = buildCheckPlan(virulent, firstState);
+  const first = resolveCheckResults(virulent, firstState, plan, { primary: { degree: "success" } });
+  assert.equal(first.transition.type, "stage");
+  assert.equal(first.transition.targetStage, 2);
+  assert.equal(first.recoverySuccesses, 1);
+
+  const secondState = { ...firstState, recoverySuccesses: 1 };
+  const second = resolveCheckResults(virulent, secondState, plan, { primary: { degree: "success" } });
+  assert.equal(second.transition.type, "stage");
+  assert.equal(second.transition.targetStage, 1);
+  assert.equal(second.recoverySuccesses, 0);
+
+  const criticalState = { status: "active", currentStage: 3, recoverySuccesses: 1 };
+  const criticalPlan = buildCheckPlan(virulent, criticalState);
+  const critical = resolveCheckResults(virulent, criticalState, criticalPlan, { primary: { degree: "criticalSuccess" } });
+  assert.equal(critical.transition.type, "stage");
+  assert.equal(critical.transition.targetStage, 2);
+  assert.equal(critical.recoverySuccesses, 0);
+
+  const failed = resolveCheckResults(virulent, secondState, plan, { primary: { degree: "failure" } });
+  assert.equal(failed.recoverySuccesses, 0);
+  assert.equal(failed.transition.targetStage, 3);
+});

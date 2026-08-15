@@ -1216,3 +1216,81 @@ test("recorded lethal Afflictions are terminal for stage, pause, and instant ret
   assert.deepEqual(retry, []);
   assert.equal(instantExecutions.length, beforeExecutions + 1);
 });
+
+test("source DC checks are materialized from application context before the controller snapshot is created", async () => {
+  const actor = new FakeActor("sourceDcHero", "Source DC Hero");
+  const service = createAfflictionInstanceService();
+  const source = definition();
+  source.checks[0].dcMode = "source";
+  source.checks[0].dc = null;
+
+  const [controller] = await service.applyDefinition(source, actor, { saveDc: 31 });
+  const snapshot = getAfflictionFlags(controller).definitionSnapshot;
+  assert.equal(snapshot.checks[0].dcMode, "source");
+  assert.equal(snapshot.checks[0].dc, 31);
+});
+
+test("source DC checks fail closed when an external DC was not supplied", async () => {
+  const actor = new FakeActor("missingSourceDcHero", "Missing Source DC Hero");
+  const service = createAfflictionInstanceService();
+  const source = definition();
+  source.checks[0].dcMode = "source";
+  source.checks[0].dc = null;
+
+  await assert.rejects(
+    () => service.applyDefinition(source, actor),
+    /requires an external source DC/
+  );
+  assert.equal(actor.items.length, 0);
+});
+
+test("source DC can be supplied through origin context for external application facades", async () => {
+  const actor = new FakeActor("originSourceDcHero", "Origin Source DC Hero");
+  const service = createAfflictionInstanceService();
+  const source = definition();
+  source.checks[0].dcMode = "source";
+  source.checks[0].dc = null;
+
+  const [controller] = await service.applyDefinition(source, actor, {
+    origin: { context: { saveDc: 37 } }
+  });
+  assert.equal(getAfflictionFlags(controller).definitionSnapshot.checks[0].dc, 37);
+});
+
+test("virulent recovery streak is persisted by the live engine and resets after a stage reduction", async () => {
+  globalThis.game.time.worldTime = 8000;
+  const actor = new FakeActor("virulentRuntimeHero", "Virulent Runtime Hero");
+  actor.saveDegrees = ["success", "success", "criticalSuccess"];
+  const source = createAfflictionDefinition({
+    name: "Ausgeprägtes Testgift",
+    initialCheck: null,
+    saveDefaults: { execution: "automatic", visibility: "public" },
+    progression: { belowStageOne: "recover", aboveMaximumStage: "clamp", virulent: true },
+    stages: [
+      createDefaultStage({ number: 1 }),
+      createDefaultStage({ number: 2 }),
+      createDefaultStage({ number: 3 })
+    ]
+  });
+
+  const service = createAfflictionInstanceService();
+  const engine = createAfflictionEngine({ instanceService: service });
+  const [controller] = await service.applyDefinition(source, actor);
+  await service.setStage(controller, 2, { enteredAt: 8000 });
+
+  await engine.process(controller, { force: true, atTime: 8006 });
+  let state = getAfflictionFlags(controller).state;
+  assert.equal(state.currentStage, 2);
+  assert.equal(state.recoverySuccesses, 1);
+
+  await engine.process(controller, { force: true, atTime: 8012 });
+  state = getAfflictionFlags(controller).state;
+  assert.equal(state.currentStage, 1);
+  assert.equal(state.recoverySuccesses, 0);
+
+  await service.setStage(controller, 3, { enteredAt: 8012 });
+  await engine.process(controller, { force: true, atTime: 8018 });
+  state = getAfflictionFlags(controller).state;
+  assert.equal(state.currentStage, 2, "critical success reduces a virulent affliction by only one stage");
+  assert.equal(state.recoverySuccesses, 0);
+});

@@ -37,6 +37,7 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
       label: "",
       kind: "save",
       statistic: "fortitude",
+      dcMode: "fixed", // fixed | source
       dc: 27,
 
       // null inherits saveDefaults
@@ -47,7 +48,8 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
       label: "Verdeckter Verlauf",
       kind: "save",
       statistic: "will",
-      dc: 25,
+      dcMode: "source",
+      dc: null, // supplied by the applying source
       policy: {
         execution: "gm",
         visibility: "gmOnly"
@@ -82,7 +84,8 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
 
   progression: {
     belowStageOne: "recover",
-    aboveMaximumStage: "clamp"
+    aboveMaximumStage: "clamp",
+    virulent: false
   },
 
   stages: [
@@ -103,6 +106,10 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
   }
 }
 ```
+
+## Save DC source
+
+Each check stores `dcMode`. `fixed` uses the authored integer `dc`. `source` allows `dc: null` on the reusable template and requires the applying caller to provide a concrete DC through `saveDc`, `saveDcs[checkId]`, or the equivalent `origin.context` fields. Active controller snapshots store the resolved number so later progression is deterministic even if the originating spellcaster/item changes. Missing source DCs reject application before controller creation.
 
 ## Saving-throw policy
 
@@ -163,6 +170,10 @@ When an injury poison is attached, the host reference stores:
 ```
 
 The attachment dialog defaults to one charge but accepts any positive integer. At runtime, direct positive applied damage from the coated weapon/attack applies the poison first and consumes one charge second. An `attack-roll` critical failure consumes one charge without applying the poison. At zero charges the reference is removed from the host Item.
+
+## Virulent / Ausgeprägt progression
+
+`progression.virulent` is an additive schema-v2 boolean. When true, stage-save progression tracks consecutive successful saves in controller `state.recoverySuccesses`: the first success remains in the current stage and records one success; the second consecutive success reduces by exactly one stage; a critical success reduces by exactly one stage immediately; failure and critical failure clear the streak. Initial exposure resolution is unchanged.
 
 ## Check gates and multiple saves
 

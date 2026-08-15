@@ -230,3 +230,34 @@ test("injury-poison delivery is rejected for non-poison Afflictions", () => {
   assert.equal(report.valid, false);
   assert.ok(report.errors.some((issue) => issue.code === "delivery.injury-poison-type"));
 });
+
+test("save checks support fixed and external source DC modes", () => {
+  const external = validDefinition();
+  external.checks[0].dcMode = "source";
+  external.checks[0].dc = null;
+  const normalized = normalizeAfflictionDefinition(external);
+  assert.equal(normalized.checks[0].dcMode, "source");
+  assert.equal(normalized.checks[0].dc, null);
+  assert.equal(validateAfflictionDefinition(normalized).valid, true);
+
+  const fixed = validDefinition();
+  fixed.checks[0].dcMode = "fixed";
+  fixed.checks[0].dc = null;
+  const report = validateAfflictionDefinition(fixed);
+  assert.equal(report.valid, false);
+  assert.ok(report.errors.some((issue) => issue.code === "check.dc"));
+});
+
+test("virulent progression is an additive schema-v2 capability and defaults off", () => {
+  const ordinary = validDefinition();
+  assert.equal(ordinary.progression.virulent, false);
+  assert.equal(validateAfflictionDefinition(ordinary).valid, true);
+
+  const virulent = normalizeAfflictionDefinition({
+    ...ordinary,
+    progression: { ...ordinary.progression, virulent: true }
+  });
+  assert.equal(virulent.schemaVersion, 2);
+  assert.equal(virulent.progression.virulent, true);
+  assert.equal(validateAfflictionDefinition(virulent).valid, true);
+});

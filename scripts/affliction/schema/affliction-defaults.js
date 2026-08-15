@@ -13,6 +13,7 @@ export function createDefaultSaveCheck({
   label = "",
   statistic = "fortitude",
   dc = 15,
+  dcMode = "fixed",
   policy = null
 } = {}) {
   return {
@@ -20,6 +21,7 @@ export function createDefaultSaveCheck({
     label,
     kind: "save",
     statistic,
+    dcMode,
     dc,
     policy
   };
@@ -106,7 +108,8 @@ export function createAfflictionDefinition({
     defaultStageCheck,
     progression: progression ?? {
       belowStageOne: "recover",
-      aboveMaximumStage: "clamp"
+      aboveMaximumStage: "clamp",
+      virulent: false
     },
     stages,
     metadata: {
@@ -127,7 +130,9 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
     defaultsAtRoot: true,
     perCheckOverride: true,
     executionModes: ["automatic", "player", "gm"],
-    visibilityModes: ["public", "gmOnly"]
+    visibilityModes: ["public", "gmOnly"],
+    dcModes: ["fixed", "source"],
+    sourceDcApplicationOptions: ["saveDc", "saveDcs"]
   },
   identificationStates: ["hidden", "suspected", "identified"],
   stageEffectOwnership: "affliction-engine",

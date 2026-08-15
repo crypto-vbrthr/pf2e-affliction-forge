@@ -10,7 +10,10 @@ import {
 import { rollPf2eSave } from "./pf2e-save-roller.js";
 import {
   createPlayerSaveRequestMessage,
+  createPlayerSaveBatchRequestMessage,
   emitPlayerSavePrompt,
+  emitPlayerSaveBatchPrompt,
+  openAfflictionSaveBatchDialog,
   preferredPlayerOwnerId
 } from "./affliction-save-runtime.js";
 import { scheduledDueAt } from "./affliction-instance-service.js";
@@ -83,6 +86,80 @@ async function createAfflictionAppliedGmMessage(controller) {
     });
   } catch (error) {
     console.warn(`${MODULE_ID} | GM Affliction application chat message could not be created.`, error);
+    return null;
+  }
+}
+
+function saveStatisticLabel(statistic) {
+  const key = {
+    fortitude: "PF2E.SavesFortitude",
+    reflex: "PF2E.SavesReflex",
+    will: "PF2E.SavesWill"
+  }[statistic];
+  const translated = key ? globalThis.game?.i18n?.localize?.(key) : null;
+  return translated && translated !== key ? translated : String(statistic ?? "");
+}
+
+function degreeLabel(degree) {
+  return localize(`PF2E_AFFLICTION_FORGE.Runtime.Degree.${degree}`, String(degree ?? ""));
+}
+
+async function createAfflictionCheckResolvedGmMessage({ controller, definition, state, plan, pending, resolution }) {
+  const ChatMessage = globalThis.ChatMessage;
+  if (!ChatMessage?.create || !controller?.parent || !resolution?.complete) return null;
+  const actor = controller.parent;
+  const rows = plan.checks.map((check) => {
+    const result = pending.results?.[check.id] ?? {};
+    const label = escapeHtml(String(check.label ?? "").trim() || saveStatisticLabel(check.statistic));
+    const statistic = escapeHtml(saveStatisticLabel(check.statistic));
+    const degree = escapeHtml(degreeLabel(result.degree));
+    const total = result.total == null ? "—" : escapeHtml(result.total);
+    const d20 = result.d20 == null ? "—" : escapeHtml(result.d20);
+    return `<li><strong>${label}</strong> · ${statistic} ${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Runtime.DCShort", "SG"))} ${escapeHtml(check.dc)} · ${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Runtime.TotalShort", "Gesamt"))} ${total} · d20 ${d20} · <strong>${degree}</strong></li>`;
+  }).join("");
+
+  const combined = plan.checks.length > 1
+    ? `<p><strong>${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Runtime.CombinedResult", "Gesamtergebnis"))}:</strong> ${escapeHtml(degreeLabel(resolution.degree))}</p>`
+    : "";
+
+  let virulent = "";
+  if (pending.kind === "stage" && definition?.progression?.virulent === true) {
+    const prior = Math.max(0, Math.trunc(Number(state?.recoverySuccesses ?? 0)));
+    if (resolution.degree === "criticalSuccess") {
+      virulent = `<p class="pf2e-affliction-virulent"><strong>${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Editor.Virulent", "Ausgeprägt"))}:</strong> ${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Runtime.VirulentCriticalSuccess"))}</p>`;
+    } else if (resolution.degree === "success" && prior >= 1) {
+      virulent = `<p class="pf2e-affliction-virulent"><strong>${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Editor.Virulent", "Ausgeprägt"))}:</strong> ${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Runtime.VirulentTwoSuccesses"))}</p>`;
+    } else if (resolution.degree === "success") {
+      virulent = `<p class="pf2e-affliction-virulent"><strong>${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Editor.Virulent", "Ausgeprägt"))}:</strong> ${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Runtime.VirulentOneSuccess"))}</p>`;
+    } else if (prior > 0) {
+      virulent = `<p class="pf2e-affliction-virulent"><strong>${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Editor.Virulent", "Ausgeprägt"))}:</strong> ${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Runtime.VirulentStreakBroken"))}</p>`;
+    }
+  }
+
+  const content = `
+    <div class="pf2e-affliction-save-summary">
+      <h4><i class="fa-solid fa-dice-d20"></i> ${escapeHtml(definition?.name ?? "")} · ${escapeHtml(actor?.name ?? "")}</h4>
+      <ul>${rows}</ul>
+      ${combined}
+      ${virulent}
+    </div>`;
+  try {
+    return await ChatMessage.create({
+      content,
+      speaker: ChatMessage.getSpeaker?.({ actor }) ?? {},
+      whisper: gmWhisperIds(),
+      flags: {
+        [MODULE_ID]: {
+          runtimeEvent: "affliction-save-resolved",
+          controllerUuid: controller.uuid ?? null,
+          requestId: pending.requestId,
+          kind: pending.kind,
+          stageNumber: pending.stageNumber
+        }
+      }
+    });
+  } catch (error) {
+    console.warn(`${MODULE_ID} | Affliction save summary chat message could not be created.`, error);
     return null;
   }
 }
@@ -285,8 +362,31 @@ export class AfflictionEngine {
       await this.instanceService.setPendingCheck(controller, pending);
     }
 
-    for (const check of plan.checks) {
-      if (pending.results?.[check.id]?.degree) continue;
+    const unresolved = plan.checks.filter((check) => !pending.results?.[check.id]?.degree);
+    const playerGroups = new Map();
+    const gmChecks = [];
+    const automaticChecks = [];
+
+    for (const check of unresolved) {
+      const policy = check.policy ?? current.definition.saveDefaults ?? { execution: "player", visibility: "public" };
+      if (policy.execution === "automatic") {
+        automaticChecks.push(check);
+        continue;
+      }
+      if (policy.execution === "player") {
+        const targetUserId = preferredPlayerOwnerId(current.actor);
+        if (targetUserId) {
+          const group = playerGroups.get(targetUserId) ?? [];
+          group.push(check);
+          playerGroups.set(targetUserId, group);
+          continue;
+        }
+      }
+      gmChecks.push(check);
+    }
+
+    // Automatic checks remain non-interactive and are resolved immediately.
+    for (const check of automaticChecks) {
       const result = await this.#executeCheck({ controller, actor: current.actor, definition: current.definition, state, pending, check });
       if (!result) continue;
       pending.results[check.id] = result;
@@ -296,6 +396,130 @@ export class AfflictionEngine {
         resolvedAt: result.resolvedAt
       };
       await this.instanceService.setPendingCheck(controller, pending);
+    }
+
+    // Multiple player-owned saves from the same gate are presented as one
+    // Affliction window. A single virulent stage save also uses that window so
+    // the current consecutive-success progress remains visible; ordinary single
+    // checks retain PF2e's native modifier-dialog path.
+    const virulentStage = pending.kind === "stage" && current.definition?.progression?.virulent === true;
+    const virulentProgress = virulentStage
+      ? { active: true, successes: Math.max(0, Math.trunc(Number(state.recoverySuccesses ?? 0))), required: 2 }
+      : null;
+    for (const [targetUserId, checks] of playerGroups) {
+      if (checks.length === 1 && !virulentStage) {
+        const check = checks[0];
+        const result = await this.#executeCheck({ controller, actor: current.actor, definition: current.definition, state, pending, check });
+        if (result) {
+          pending.results[check.id] = result;
+          pending.requests[check.id] = {
+            ...(pending.requests[check.id] ?? {}),
+            status: "resolved",
+            resolvedAt: result.resolvedAt
+          };
+          await this.instanceService.setPendingCheck(controller, pending);
+        }
+        continue;
+      }
+
+      const requests = [];
+      let createdRequest = false;
+      for (const check of checks) {
+        const policy = check.policy ?? current.definition.saveDefaults ?? { execution: "player", visibility: "public" };
+        let request = pending.requests?.[check.id];
+        if (!request || request.status !== "awaiting-player") {
+          request = {
+            requestId: pending.requestId,
+            controllerUuid: controller.uuid,
+            actorUuid: current.actor.uuid,
+            checkId: check.id,
+            label: check.label ?? "",
+            statistic: check.statistic,
+            dc: check.dc,
+            visibility: policy.visibility,
+            identificationState: state.identification?.state ?? "identified",
+            targetUserId,
+            userIds: [targetUserId],
+            requestedByUserId: currentUserId()
+          };
+          pending.requests[check.id] = { ...request, status: "awaiting-player" };
+          createdRequest = true;
+        }
+        requests.push({ ...request });
+      }
+      if (createdRequest) {
+        await this.instanceService.setPendingCheck(controller, pending);
+        const batchData = {
+          requestId: pending.requestId,
+          controllerUuid: controller.uuid,
+          actorUuid: current.actor.uuid,
+          identificationState: state.identification?.state ?? "identified",
+          targetUserId,
+          userIds: [targetUserId],
+          requestedByUserId: currentUserId(),
+          virulentProgress,
+          checks: requests
+        };
+        await createPlayerSaveBatchRequestMessage(current.actor, batchData);
+        emitPlayerSaveBatchPrompt(batchData);
+      }
+    }
+
+    // Several GM-manual saves in one gate use the same persistent batch window.
+    // "Roll all" performs them without spawning several modifier dialogs; each
+    // row also offers the native PF2e dialog when a situational modifier is needed.
+    if (gmChecks.length > 1 || (gmChecks.length === 1 && virulentStage)) {
+      const batchChecks = gmChecks.map((check) => {
+        const policy = check.policy ?? current.definition.saveDefaults ?? { execution: "gm", visibility: "public" };
+        return {
+          ...check,
+          execution: "gm",
+          visibility: policy.visibility,
+          dcVisible: true
+        };
+      });
+      const batch = await openAfflictionSaveBatchDialog(current.actor, batchChecks, {
+        id: `pf2e-affliction-save-batch-${String(pending.requestId).replace(/[^a-zA-Z0-9_-]/g, "-")}`,
+        virulentProgress
+      });
+      for (const check of gmChecks) {
+        const result = batch?.results?.[check.id];
+        if (result) {
+          const resolved = pendingResult(check, result, {
+            execution: "gm",
+            visibility: (check.policy ?? current.definition.saveDefaults)?.visibility ?? "public",
+            userId: currentUserId()
+          });
+          pending.results[check.id] = resolved;
+          pending.requests[check.id] = {
+            checkId: check.id,
+            status: "resolved",
+            execution: "gm",
+            visibility: resolved.visibility,
+            resolvedAt: resolved.resolvedAt
+          };
+        } else {
+          pending.requests[check.id] = {
+            checkId: check.id,
+            status: "awaiting-gm",
+            execution: "gm",
+            visibility: (check.policy ?? current.definition.saveDefaults)?.visibility ?? "public"
+          };
+        }
+      }
+      await this.instanceService.setPendingCheck(controller, pending);
+    } else if (gmChecks.length === 1) {
+      const check = gmChecks[0];
+      const result = await this.#executeCheck({ controller, actor: current.actor, definition: current.definition, state, pending, check });
+      if (result) {
+        pending.results[check.id] = result;
+        pending.requests[check.id] = {
+          ...(pending.requests[check.id] ?? {}),
+          status: "resolved",
+          resolvedAt: result.resolvedAt
+        };
+        await this.instanceService.setPendingCheck(controller, pending);
+      }
     }
 
     return this.#finalizeIfComplete(controller, pending);
@@ -478,6 +702,17 @@ export class AfflictionEngine {
       };
     }
 
+    if (plan.checks.length > 1 || (pending.kind === "stage" && current.definition?.progression?.virulent === true)) {
+      await createAfflictionCheckResolvedGmMessage({
+        controller: current.controller,
+        definition: current.definition,
+        state: current.state,
+        plan,
+        pending,
+        resolution
+      });
+    }
+
     const transitionAt = pending.effectiveAt != null && Number.isFinite(Number(pending.effectiveAt))
       ? Number(pending.effectiveAt)
       : nowWorldTime();
@@ -519,7 +754,8 @@ export class AfflictionEngine {
         // exposure already tells the GM that the Affliction took hold. Avoid a
         // second stage-entry message for the same instant. Onset completion and
         // later stage changes still use the normal lifecycle notification path.
-        notifyLifecycle: pending.kind !== "initial"
+        notifyLifecycle: pending.kind !== "initial",
+        recoverySuccesses: resolution.recoverySuccesses
       });
       const refreshed = await this.instanceService.get(controller.uuid);
       if (pending.kind === "initial") await createAfflictionAppliedGmMessage(refreshed);
@@ -534,7 +770,8 @@ export class AfflictionEngine {
         enteredAt: transitionAt,
         lastCheck,
         refreshPersistent: false,
-        executeInstant: false
+        executeInstant: false,
+        recoverySuccesses: resolution.recoverySuccesses
       });
       return {
         status: "resolved-no-transition",
@@ -547,6 +784,7 @@ export class AfflictionEngine {
     const nextState = deepClone(current.state);
     nextState.pendingCheck = null;
     nextState.lastCheck = lastCheck;
+    nextState.recoverySuccesses = Math.max(0, Math.trunc(Number(resolution.recoverySuccesses ?? 0)));
     nextState.nextCheckAt = null;
     nextState.revision = Number(nextState.revision ?? 0) + 1;
     await this.instanceService.updateRuntimeState(controller, nextState);

@@ -783,6 +783,34 @@ function descriptor(controller) {
   });
 }
 
+function normalizeApplicationDc(value, label = "save DC") {
+  const dc = Number(value);
+  if (!Number.isInteger(dc) || dc < 1 || dc > 100) {
+    throw new RangeError(`${label} must be an integer from 1 to 100.`);
+  }
+  return dc;
+}
+
+function resolveSourceDcDefinition(definition, { saveDc = null, saveDcs = null, origin = {} } = {}) {
+  const resolved = deepClone(definition);
+  const mapped = saveDcs && typeof saveDcs === "object" && !Array.isArray(saveDcs)
+    ? saveDcs
+    : origin?.context?.saveDcs && typeof origin.context.saveDcs === "object" && !Array.isArray(origin.context.saveDcs)
+      ? origin.context.saveDcs
+      : {};
+  const shared = saveDc ?? origin?.context?.saveDc ?? null;
+
+  for (const check of resolved.checks ?? []) {
+    if (check.dcMode !== "source") continue;
+    const candidate = Object.prototype.hasOwnProperty.call(mapped, check.id) ? mapped[check.id] : shared;
+    if (candidate == null || candidate === "") {
+      throw new Error(`Affliction save check "${check.id}" requires an external source DC. Pass saveDc or saveDcs when applying it.`);
+    }
+    check.dc = normalizeApplicationDc(candidate, `Source DC for check ${check.id}`);
+  }
+  return resolved;
+}
+
 export class AfflictionInstanceService {
   #mutationQueues = new Map();
   #applicationQueues = new Map();
@@ -898,9 +926,13 @@ export class AfflictionInstanceService {
     sourceTemplateUuid = null,
     sourceDefinitionVersion = null,
     origin = {},
+    saveDc = null,
+    saveDcs = null,
     appliedAt = nowWorldTime()
   } = {}) {
-    const definition = normalizeAfflictionDefinition(definitionInput);
+    const templateDefinition = normalizeAfflictionDefinition(definitionInput);
+    assertValidAfflictionDefinition(templateDefinition, { effectValidator: this.effectValidator });
+    const definition = resolveSourceDcDefinition(templateDefinition, { saveDc, saveDcs, origin });
     assertValidAfflictionDefinition(definition, { effectValidator: this.effectValidator });
     const list = Array.isArray(targets) ? targets : [targets];
     const actors = [];
@@ -1079,6 +1111,7 @@ export class AfflictionInstanceService {
   async #setStageUnlocked(controllerOrUuid, requestedStage, {
     enteredAt = nowWorldTime(),
     lastCheck = undefined,
+    recoverySuccesses = undefined,
     refreshPersistent = false,
     executeInstant = true,
     notifyLifecycle = true
@@ -1121,6 +1154,7 @@ export class AfflictionInstanceService {
         previous.activeStageEffectUuids ?? []
       );
       if (lastCheck !== undefined) next.lastCheck = lastCheck == null ? null : deepClone(lastCheck);
+      if (recoverySuccesses !== undefined) next.recoverySuccesses = Math.max(0, Math.trunc(Number(recoverySuccesses) || 0));
       appendRuntimeEvent(next, {
         type: "stage-renewed",
         at: enteredAt,
@@ -1164,6 +1198,9 @@ export class AfflictionInstanceService {
       }
       const next = buildTransitionState(previous, definition, stageNumber, enteredAt, created.map((item) => item.uuid));
       if (lastCheck !== undefined) next.lastCheck = lastCheck == null ? null : deepClone(lastCheck);
+      next.recoverySuccesses = recoverySuccesses !== undefined
+        ? Math.max(0, Math.trunc(Number(recoverySuccesses) || 0))
+        : (Number(previous.currentStage ?? 0) === stageNumber ? Number(previous.recoverySuccesses ?? 0) : 0);
       appendRuntimeEvent(next, {
         type: refreshPersistent && previous.currentStage === stageNumber ? "stage-reapplied" : (stageNumber > 0 ? "stage-entered" : "stage-cleared"),
         at: enteredAt,

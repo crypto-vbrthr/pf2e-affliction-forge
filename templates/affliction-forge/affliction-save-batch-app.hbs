@@ -1,0 +1,52 @@
+<div class="affliction-save-batch-shell">
+  <header class="affliction-save-batch-header">
+    <div>
+      <h2><i class="fa-solid fa-dice-d20"></i> {{localize "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchTitle"}}</h2>
+      <p>{{localize "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchHint"}} <strong>{{actorName}}</strong></p>
+    </div>
+    <button type="button" data-action="rollAll" {{#if complete}}disabled{{/if}}>
+      <i class="fa-solid fa-dice"></i> {{localize "PF2E_AFFLICTION_FORGE.Runtime.RollAllSaves"}}
+    </button>
+  </header>
+
+  {{#if virulent.active}}
+    <div class="affliction-save-virulent-progress">
+      <i class="fa-solid fa-virus"></i>
+      <div>
+        <strong>{{localize "PF2E_AFFLICTION_FORGE.Editor.Virulent"}}</strong>
+        <span>{{localize "PF2E_AFFLICTION_FORGE.Runtime.VirulentWindowHint"}} {{virulent.successes}}/{{virulent.required}}</span>
+      </div>
+    </div>
+  {{/if}}
+
+  <div class="affliction-save-batch-list">
+    {{#each checks as |check|}}
+      <article class="affliction-save-batch-row {{#if check.resolved}}resolved{{/if}}">
+        <div class="affliction-save-batch-info">
+          <strong>{{check.label}}</strong>
+          <span>{{check.statisticLabel}}{{#if check.showDc}} · {{localize "PF2E_AFFLICTION_FORGE.Runtime.DCShort"}} {{check.dc}}{{/if}}</span>
+        </div>
+        <div class="affliction-save-batch-result">
+          {{#if check.resolved}}
+            <strong>{{check.degreeLabel}}</strong>
+            <span>{{localize "PF2E_AFFLICTION_FORGE.Runtime.TotalShort"}} {{check.total}}{{#if check.d20}} · d20 {{check.d20}}{{/if}}</span>
+          {{else}}
+            <span>—</span>
+          {{/if}}
+        </div>
+        <div class="affliction-save-batch-actions">
+          <button type="button" data-action="rollCheck" data-check-id="{{check.id}}" {{#if check.resolved}}disabled{{/if}} title="{{localize 'PF2E_AFFLICTION_FORGE.Runtime.RollSaveDirect'}}">
+            <i class="fa-solid fa-dice-d20"></i>
+          </button>
+          <button type="button" data-action="rollCheckDialog" data-check-id="{{check.id}}" {{#if check.resolved}}disabled{{/if}} title="{{localize 'PF2E_AFFLICTION_FORGE.Runtime.RollSaveWithDialog'}}">
+            <i class="fa-solid fa-sliders"></i>
+          </button>
+        </div>
+      </article>
+    {{/each}}
+  </div>
+
+  {{#if complete}}
+    <p class="affliction-save-batch-complete"><i class="fa-solid fa-circle-check"></i> {{localize "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchComplete"}}</p>
+  {{/if}}
+</div>

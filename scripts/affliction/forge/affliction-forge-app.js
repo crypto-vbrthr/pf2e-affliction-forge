@@ -1,4 +1,5 @@
 import { AFFLICTION_DRAG_MIME, MODULE_ID } from "../../constants.js";
+import { promptSourceDcApplication } from "../integration/source-dc-prompt.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin, DialogV2 } = foundry.applications.api;
 
@@ -653,10 +654,14 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
       return [];
     }
 
+    const sourceDcOptions = await promptSourceDcApplication(definition);
+    if (sourceDcOptions === null) return [];
+
     const stableTemplateReference = this.currentTemplate && !this.editor?.dirty
       ? this.currentTemplate
       : null;
     const options = {
+      ...sourceDcOptions,
       sourceTemplateUuid: stableTemplateReference?.uuid ?? null,
       sourceDefinitionVersion: stableTemplateReference?.definitionVersion ?? null,
       origin: {

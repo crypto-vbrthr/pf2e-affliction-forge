@@ -1,4 +1,4 @@
-# Architecture 0.1.43
+# Architecture 0.1.46
 
 ```text
 Affliction Template / Definition
@@ -358,7 +358,7 @@ The combat runtime serializes the complete apply/consume transaction per source 
 ## Contract/runtime hardening in 0.1.42
 
 - Runtime application now enforces one live controller per Actor + Affliction `definitionId`, including pending exposure/incubation reservations and concurrent apply calls.
-- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.43`).
+- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.46`).
 - Combat-trigger idempotency is committed only after a successful application or an intentional terminal decision; transient failures remain retryable.
 - Strict reconciliation can verify generated stage-effect content, not merely controller/stage ownership flags.
 - Identification updates use batch embedded-document updates when available and fall back to strict reconciliation after a partial failure.
@@ -368,3 +368,21 @@ The combat runtime serializes the complete apply/consume transaction per source 
 - Controller-state validation enforces status/stage and pause-metadata invariants so malformed runtime states cannot be persisted by ordinary mutations.
 - A committed lethal result is terminal for engine progression and ordinary manual stage/pause/instant retry mutations; reconciliation, identification, inspection, and explicit end remain available for audit/cleanup.
 - Poison definitions can opt into injury-poison delivery. Charge state is host-local, positive weapon damage applies before consuming a charge, critical attack failure consumes without application, and the last charge removes the reference.
+
+
+## Remastered rules coverage in 0.1.45
+
+The definition layer now models virulent/Ausgeprägt progression natively and distinguishes authored fixed save DCs from source/dynamic DCs. Dynamic DCs are resolved at the application boundary and snapshotted into the active controller definition; the runtime never reaches back into a mutable originating spell/item to recalculate an already active affliction.
+
+
+## Grouped save UX and source-DC application in 0.1.45
+
+A gate with several `checkIds` is still one progression decision, but its interactive saves are now surfaced as one batch. GM-manual checks open one persistent Affliction save application; player-owned checks are delivered in one targeted batch request and use the same application on the selected owner's client. The window records every individual result and leaves the final results visible after resolution. `Roll all` uses PF2e's statistic roll directly, while an advanced per-row action retains the native PF2e modifier dialog for situational modifiers.
+
+Once all checks in a multi-save gate are resolved, the authoritative GM writes one summary card containing the individual results and the configured combined result. Ausgeprägt/Virulent is not converted into two simultaneous rolls: its two successful stage saves remain separated by the Affliction's normal stage interval. Chat reporting instead exposes the persisted consecutive-success state (`1/2`, `2/2`, interrupted, or critical-success reduction).
+
+Dynamic/source save DCs remain an application-boundary concern. The Forge's direct Apply action and Actor-sheet template drop prompt the GM for source DCs before creating a controller. External consumers remain non-interactive and must pass `saveDc`, `saveDcs`, or equivalent values through application context. The resolved numeric DC is snapshotted into the controller definition while `dcMode: "source"` remains as provenance.
+
+## Virulent single-save window in 0.1.46
+
+Virulent/Ausgeprägt stage progression still performs exactly one save at each normal stage interval. Unlike ordinary single-save gates, a due virulent stage save is routed through the Affliction save window so the current consecutive-success streak is visible before rolling. The next required success remains a later regular stage save; the UI never synthesizes an immediate second save.

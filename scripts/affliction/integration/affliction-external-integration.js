@@ -1,6 +1,7 @@
 import { AFFLICTION_DRAG_MIME, MODULE_ID } from "../../constants.js";
 import { extractAfflictionDefinitionFromItem } from "../documents/affliction-item-adapter.js";
 import { getAfflictionFlags, isAfflictionTemplate } from "../documents/affliction-flags.js";
+import { promptSourceDcApplication } from "./source-dc-prompt.js";
 
 let textIntegrationInitialized = false;
 let referenceLinkDelegationInitialized = false;
@@ -12,6 +13,14 @@ function localize(key) {
 
 function api() {
   return globalThis.game?.modules?.get?.(MODULE_ID)?.api ?? null;
+}
+
+async function promptSourceDcForTemplate(templateUuid) {
+  if (!templateUuid || typeof globalThis.fromUuid !== "function") return {};
+  const template = await globalThis.fromUuid(templateUuid);
+  if (!template || !isAfflictionTemplate(template)) return {};
+  const definition = extractAfflictionDefinitionFromItem(template, { normalize: true });
+  return promptSourceDcApplication(definition);
 }
 
 function authoritativeGm() {
@@ -116,6 +125,8 @@ function clearDirectoryDropHighlight(root) {
 async function applyDirectoryDrop(actor, parsed) {
   if (!actor || !parsed) return false;
   try {
+    const sourceDcOptions = await promptSourceDcForTemplate(parsed.templateUuid);
+    if (sourceDcOptions === null) return false;
     await api()?.application?.applyDropData?.({
       type: "Affliction",
       source: MODULE_ID,
@@ -125,6 +136,7 @@ async function applyDirectoryDrop(actor, parsed) {
       sourceUuid: parsed.sourceUuid,
       referenceId: parsed.referenceId
     }, actor, {
+      ...sourceDcOptions,
       application: "drag-drop-actor-directory"
     });
     notify("info", "PF2E_AFFLICTION_FORGE.Reference.DropApplied", {
@@ -316,15 +328,21 @@ function scheduleTemplateApplication({ document, data, options = {} }) {
   const sourceDefinitionVersion = Number(flags.definitionVersion ?? 1);
   const schedule = globalThis.queueMicrotask ?? ((callback) => Promise.resolve().then(callback));
   schedule(() => {
-    void moduleApi?.engine?.applyDefinition?.(definition, actor, {
-      sourceTemplateUuid,
+    void (async () => {
+      const sourceDcOptions = await promptSourceDcApplication(definition);
+      if (sourceDcOptions === null) return null;
+      return moduleApi?.engine?.applyDefinition?.(definition, actor, {
+        ...sourceDcOptions,
+        sourceTemplateUuid,
       sourceDefinitionVersion,
       origin: {
         application: "drag-drop-actor-sheet",
         userId: globalThis.game?.user?.id ?? null,
         sourceTemplateUuid
       }
-    }).then((result) => {
+      });
+    })().then((result) => {
+      if (!result) return;
       const count = result?.created?.length ?? 0;
       if (count > 0) notify("info", "PF2E_AFFLICTION_FORGE.Reference.DropApplied", { name: definition.name });
     }).catch((error) => {
@@ -361,7 +379,10 @@ async function applyCustomDropToActor(actor, data) {
     return true;
   }
   try {
+    const sourceDcOptions = await promptSourceDcForTemplate(parsed.templateUuid);
+    if (sourceDcOptions === null) return true;
     await moduleApi.application.applyDropData(data, actor, {
+      ...sourceDcOptions,
       application: "drag-drop-actor-sheet"
     });
     notify("info", "PF2E_AFFLICTION_FORGE.Reference.DropApplied", { name: parsed.label ?? localize("PF2E_AFFLICTION_FORGE.Reference.Affliction") });
@@ -428,7 +449,10 @@ export function handleAfflictionCanvasDrop(canvas, data, _event) {
       return;
     }
     try {
+      const sourceDcOptions = await promptSourceDcForTemplate(templateUuid);
+      if (sourceDcOptions === null) return;
       await api()?.application?.apply?.({
+        ...sourceDcOptions,
         templateUuid,
         targets: token,
         application: "drag-drop-canvas",
