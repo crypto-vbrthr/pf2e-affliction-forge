@@ -529,5 +529,10 @@
   "PF2E_AFFLICTION_FORGE.Reference.Cancel": "Abbrechen",
   "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonDamageTypeAmbiguous": "„{affliction}“ auf „{item}“: PF2e lieferte keine eindeutige Schadensart. Die Ladung bleibt erhalten; bitte den Fall manuell prüfen.",
   "PF2E_AFFLICTION_FORGE.Runtime.IncapacitationAdjusted": "Kampfunfähig: Der Erfolgsgrad wurde wegen der höheren Stufe des Ziels um eine Stufe verbessert.",
-  "PF2E_AFFLICTION_FORGE.Forge.SourcePageShort": "S. {page}"
+  "PF2E_AFFLICTION_FORGE.Forge.SourcePageShort": "S. {page}",
+  "PF2E_AFFLICTION_FORGE.Forge.FilterType": "Leidensart",
+  "PF2E_AFFLICTION_FORGE.Forge.FilterAllTypes": "Alle Leidensarten",
+  "PF2E_AFFLICTION_FORGE.Forge.FilterLevel": "Stufe",
+  "PF2E_AFFLICTION_FORGE.Forge.FilterMinLevel": "Min.",
+  "PF2E_AFFLICTION_FORGE.Forge.FilterMaxLevel": "Max."
 }

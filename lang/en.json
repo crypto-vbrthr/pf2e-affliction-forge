@@ -529,5 +529,10 @@
   "PF2E_AFFLICTION_FORGE.Reference.Cancel": "Cancel",
   "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonDamageTypeAmbiguous": "“{affliction}” on “{item}”: PF2e did not provide an unambiguous damage type. The charge remains; resolve this case manually.",
   "PF2E_AFFLICTION_FORGE.Runtime.IncapacitationAdjusted": "Incapacitation: the degree of success was improved by one step because the target is higher level.",
-  "PF2E_AFFLICTION_FORGE.Forge.SourcePageShort": "p. {page}"
+  "PF2E_AFFLICTION_FORGE.Forge.SourcePageShort": "p. {page}",
+  "PF2E_AFFLICTION_FORGE.Forge.FilterType": "Affliction Type",
+  "PF2E_AFFLICTION_FORGE.Forge.FilterAllTypes": "All Affliction Types",
+  "PF2E_AFFLICTION_FORGE.Forge.FilterLevel": "Level",
+  "PF2E_AFFLICTION_FORGE.Forge.FilterMinLevel": "Min.",
+  "PF2E_AFFLICTION_FORGE.Forge.FilterMaxLevel": "Max."
 }

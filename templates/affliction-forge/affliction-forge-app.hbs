@@ -108,9 +108,28 @@
           </label>
         </div>
 
+        <div class="affliction-forge-library-criteria">
+          <label>
+            <span>{{localize "PF2E_AFFLICTION_FORGE.Forge.FilterType"}}</span>
+            <select data-affliction-library-type>
+              {{#each afflictionTypeFilters as |option|}}
+                <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+              {{/each}}
+            </select>
+          </label>
+          <label class="affliction-forge-library-level-range">
+            <span>{{localize "PF2E_AFFLICTION_FORGE.Forge.FilterLevel"}}</span>
+            <span class="affliction-forge-library-level-inputs">
+              <input type="number" min="0" step="1" data-affliction-library-min-level value="{{minLevelFilter}}" placeholder="{{localize "PF2E_AFFLICTION_FORGE.Forge.FilterMinLevel"}}" aria-label="{{localize "PF2E_AFFLICTION_FORGE.Forge.FilterMinLevel"}}">
+              <span aria-hidden="true">–</span>
+              <input type="number" min="0" step="1" data-affliction-library-max-level value="{{maxLevelFilter}}" placeholder="{{localize "PF2E_AFFLICTION_FORGE.Forge.FilterMaxLevel"}}" aria-label="{{localize "PF2E_AFFLICTION_FORGE.Forge.FilterMaxLevel"}}">
+            </span>
+          </label>
+        </div>
+
         <div class="affliction-forge-library-filter">
           <i class="fa-solid fa-magnifying-glass"></i>
-          <input type="search" data-affliction-library-filter placeholder="{{localize "PF2E_AFFLICTION_FORGE.Forge.SearchTemplates"}}">
+          <input type="search" data-affliction-library-filter value="{{librarySearchQuery}}" placeholder="{{localize "PF2E_AFFLICTION_FORGE.Forge.SearchTemplates"}}">
         </div>
 
         {{#if libraryError}}
@@ -122,7 +141,7 @@
 
         <div class="affliction-forge-library-list">
           {{#each templates as |template|}}
-            <article class="affliction-forge-template-row {{#if template.active}}active{{/if}}" data-affliction-template-row data-affliction-template-uuid="{{template.uuid}}" data-library-id="{{template.libraryId}}" data-search="{{template.searchable}}" draggable="true" title="{{localize 'PF2E_AFFLICTION_FORGE.Reference.DragHint'}}">
+            <article class="affliction-forge-template-row {{#if template.active}}active{{/if}}" data-affliction-template-row data-affliction-template-uuid="{{template.uuid}}" data-library-id="{{template.libraryId}}" data-affliction-type="{{template.afflictionType}}" data-affliction-level="{{template.level}}" data-search="{{template.searchable}}" draggable="true" title="{{localize 'PF2E_AFFLICTION_FORGE.Reference.DragHint'}}">
               <button type="button" class="affliction-forge-template-open" data-action="openTemplate" data-template-uuid="{{template.uuid}}">
                 <img src="{{template.img}}" alt="">
                 <span class="affliction-forge-template-copy">

@@ -37,6 +37,33 @@ test("host exposes a searchable template library beside the embedded editor", ()
   assert.match(css, /\.affliction-forge-workspace[\s\S]*grid-template-columns/);
 });
 
+
+
+test("library can filter templates by affliction type and level range", () => {
+  assert.match(hostTemplate, /data-affliction-library-type/);
+  assert.match(hostTemplate, /data-affliction-library-min-level/);
+  assert.match(hostTemplate, /data-affliction-library-max-level/);
+  assert.match(hostTemplate, /data-affliction-type="\{\{template\.afflictionType\}\}"/);
+  assert.match(hostTemplate, /data-affliction-level="\{\{template\.level\}\}"/);
+  assert.match(hostSource, /selectedAfflictionType/);
+  assert.match(hostSource, /row\.dataset\.afflictionType/);
+  assert.match(hostSource, /row\.dataset\.afflictionLevel/);
+  assert.match(hostSource, /matchesMin/);
+  assert.match(hostSource, /matchesMax/);
+});
+
+test("opening a library template preserves the library scroll position and filter state", () => {
+  assert.match(hostSource, /libraryScrollTop = 0/);
+  assert.match(hostSource, /#captureLibraryScroll\(\)/);
+  assert.match(hostSource, /this\.libraryScrollTop = list\.scrollTop/);
+  assert.match(hostSource, /#restoreLibraryScroll\(\)/);
+  assert.match(hostSource, /list\.scrollTop = this\.libraryScrollTop/);
+  assert.match(hostSource, /if \(render\) this\.#captureLibraryScroll\(\)/);
+  assert.match(hostSource, /librarySearchQuery/);
+  assert.match(hostSource, /minLevelFilter/);
+  assert.match(hostSource, /maxLevelFilter/);
+});
+
 test("library rows expand for provider metadata instead of inheriting Foundry button height", () => {
   assert.match(css, /\.affliction-forge-template-row[\s\S]*min-height:\s*3\.75rem/);
   assert.match(css, /\.affliction-forge-template-open[\s\S]*min-height:\s*3\.75rem/);

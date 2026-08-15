@@ -86,6 +86,11 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
   libraryLoaded = false;
   libraryError = null;
   selectedLibraryId = "";
+  librarySearchQuery = "";
+  selectedAfflictionType = "";
+  minLevelFilter = "";
+  maxLevelFilter = "";
+  libraryScrollTop = 0;
   viewMode = "templates";
   activeAfflictions = [];
   activeLoaded = false;
@@ -277,6 +282,13 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
       selected: library.id === this.selectedLibraryId,
       statusIcon: library.writable ? "fa-solid fa-pen" : "fa-solid fa-lock"
     }));
+    const afflictionTypeFilters = [
+      { value: "", label: localize("PF2E_AFFLICTION_FORGE.Forge.FilterAllTypes") },
+      { value: "disease", label: localize("PF2E_AFFLICTION_FORGE.Types.Disease") },
+      { value: "curse", label: localize("PF2E_AFFLICTION_FORGE.Types.Curse") },
+      { value: "poison", label: localize("PF2E_AFFLICTION_FORGE.Types.Poison") },
+      { value: "other", label: localize("PF2E_AFFLICTION_FORGE.Types.Other") }
+    ].map((option) => ({ ...option, selected: option.value === this.selectedAfflictionType }));
     const current = this.currentTemplate;
     const isDraft = !current;
     const canSave = isDraft || current.writable;
@@ -322,6 +334,11 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
       templates: entries,
       libraries,
       selectedLibraryId: this.selectedLibraryId,
+      librarySearchQuery: this.librarySearchQuery,
+      afflictionTypeFilters,
+      selectedAfflictionType: this.selectedAfflictionType,
+      minLevelFilter: this.minLevelFilter,
+      maxLevelFilter: this.maxLevelFilter,
       libraryError: this.libraryError,
       templateCount: entries.length,
       libraryCount: libraries.filter((entry) => entry.enabled).length,
@@ -352,6 +369,7 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     if (!(host instanceof HTMLElement)) return;
     this.#bindLibraryFilter();
     this.#bindTemplateDrag();
+    this.#restoreLibraryScroll();
 
     const token = ++this.mountToken;
     void this.editor.mount(host).then(() => {
@@ -373,27 +391,61 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     });
   }
 
+  #captureLibraryScroll() {
+    const list = this.element?.querySelector?.(".affliction-forge-library-list");
+    if (list instanceof HTMLElement) this.libraryScrollTop = list.scrollTop;
+  }
+
+  #restoreLibraryScroll() {
+    const list = this.element?.querySelector?.(".affliction-forge-library-list");
+    if (list instanceof HTMLElement) list.scrollTop = this.libraryScrollTop;
+  }
+
   #bindLibraryFilter() {
     const search = this.element?.querySelector?.("[data-affliction-library-filter]");
     const source = this.element?.querySelector?.("[data-affliction-library-source]");
+    const type = this.element?.querySelector?.("[data-affliction-library-type]");
+    const minLevel = this.element?.querySelector?.("[data-affliction-library-min-level]");
+    const maxLevel = this.element?.querySelector?.("[data-affliction-library-max-level]");
 
     const apply = () => {
-      const query = search instanceof HTMLInputElement
-        ? String(search.value ?? "").trim().toLocaleLowerCase(game.i18n.lang)
-        : "";
+      const rawQuery = search instanceof HTMLInputElement
+        ? String(search.value ?? "").trim()
+        : this.librarySearchQuery;
+      const query = rawQuery.toLocaleLowerCase(game.i18n.lang);
       const libraryId = source instanceof HTMLSelectElement ? String(source.value ?? "") : this.selectedLibraryId;
+      const afflictionType = type instanceof HTMLSelectElement ? String(type.value ?? "") : this.selectedAfflictionType;
+      const minValue = minLevel instanceof HTMLInputElement ? String(minLevel.value ?? "").trim() : this.minLevelFilter;
+      const maxValue = maxLevel instanceof HTMLInputElement ? String(maxLevel.value ?? "").trim() : this.maxLevelFilter;
+      const min = minValue === "" ? null : Number(minValue);
+      const max = maxValue === "" ? null : Number(maxValue);
+
+      this.librarySearchQuery = rawQuery;
       this.selectedLibraryId = libraryId;
+      this.selectedAfflictionType = afflictionType;
+      this.minLevelFilter = minValue;
+      this.maxLevelFilter = maxValue;
+
       for (const row of this.element.querySelectorAll("[data-affliction-template-row]")) {
         const haystack = String(row.dataset.search ?? "");
         const rowLibrary = String(row.dataset.libraryId ?? "");
+        const rowType = String(row.dataset.afflictionType ?? "");
+        const rowLevelText = String(row.dataset.afflictionLevel ?? "").trim();
+        const rowLevel = rowLevelText === "" ? Number.NaN : Number(rowLevelText);
         const matchesQuery = !query || haystack.includes(query);
         const matchesLibrary = !libraryId || rowLibrary === libraryId;
-        row.hidden = !(matchesQuery && matchesLibrary);
+        const matchesType = !afflictionType || rowType === afflictionType;
+        const matchesMin = min == null || (Number.isFinite(rowLevel) && rowLevel >= min);
+        const matchesMax = max == null || (Number.isFinite(rowLevel) && rowLevel <= max);
+        row.hidden = !(matchesQuery && matchesLibrary && matchesType && matchesMin && matchesMax);
       }
     };
 
     if (search instanceof HTMLInputElement) search.addEventListener("input", apply);
     if (source instanceof HTMLSelectElement) source.addEventListener("change", apply);
+    if (type instanceof HTMLSelectElement) type.addEventListener("change", apply);
+    if (minLevel instanceof HTMLInputElement) minLevel.addEventListener("input", apply);
+    if (maxLevel instanceof HTMLInputElement) maxLevel.addEventListener("input", apply);
     apply();
   }
 
@@ -541,6 +593,7 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
   }
 
   async openTemplate(templateUuid, { confirmDiscard = true, render = true } = {}) {
+    if (render) this.#captureLibraryScroll();
     if (confirmDiscard && !await this.#confirmDiscard()) return false;
     const item = await this.#api().templates.get(templateUuid);
     const definition = this.#api().documents.readDefinition(item);

@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.58**
+Current release: **0.1.59**
 
-Version **0.1.58** adds explicit content-source labels to the library UI. Provider content can expose a source work and page independently from the shared library/provider name, allowing same-named source variants to remain visually distinguishable without mutating their affliction names. All 0.1.57 poison hardening remains unchanged.
+Version **0.1.59** adds library filters for affliction type and minimum/maximum level. Library filter state and scroll position are preserved when a template is opened, so selecting an entry no longer jumps the list back to the top. All 0.1.58 source-label behavior remains unchanged.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -179,6 +179,14 @@ Active Affliction controllers own their generated persistent stage Items. A live
 - 0.1.35: Affliction templates can be linked directly to attacks and abilities by dropping them onto eligible Item sheets or embedded Actor-sheet rows.
 - 0.1.33: Affliction templates can be dropped directly onto Actor Directory entries.
 
+
+## 0.1.59 Library filters & scroll persistence
+
+- Filter the template library by affliction type (`disease`, `curse`, `poison`, or `other`).
+- Restrict the visible list to a minimum and/or maximum affliction level.
+- Type, level, library, and text-search filters are combined.
+- Opening a template preserves the list scroll position instead of jumping back to the first row.
+- Filter selections and search text survive the render caused by opening a template.
 
 ## 0.1.58 Library source labels
 

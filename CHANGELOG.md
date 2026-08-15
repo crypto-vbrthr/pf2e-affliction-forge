@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.59 – Library Filters & Scroll Persistence
+
+- Added template-library filters for affliction type and minimum/maximum level.
+- Combined the new filters with the existing library-source and free-text search filters.
+- Persisted filter values across host re-renders.
+- Fixed the library list jumping back to the top when a template is opened by preserving and restoring its scroll position.
+- Added host architecture regression coverage for the new filters and scroll behavior.
+
 ## 0.1.58 – Library Source Labels
 
 - Exposes optional content-source metadata (`sourceWorkId`, `sourceWorkLabel`, `sourcePage`) on library descriptors.
