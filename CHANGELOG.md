@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.55
+
+### Pre-Action / Concentrate Gates
+
+- adds stage-scoped `preActionGates` as an additive schema-v2 mechanic for rules that must resolve before a matching action can proceed
+- adds `spell-cast` and `item-activation` action kinds with all-required PF2e trait matching; the initial check type is a modifier-free flat check with an authored DC
+- intercepts PF2e spellcasting before the system's normal cast method, so a failed gate prevents the original spell cast before spell resources are consumed
+- intercepts spell consumables (`scroll`, `spell-gem`, and `wand`) before their normal consume workflow and prevents a passing consumable gate from being rolled again by the nested spell cast
+- exposes generic item activation integration through `api.preActions.evaluate(actor, context)` instead of pretending Foundry/PF2e offers one universal pre-activation hook for every item type
+- adds embedded-editor authoring for action kinds, required traits, flat-check DC, label/ID, and failure blocking
+- exposes `api.catalogs.preActionKinds()`, `api.definitions.createPreActionGate()`, and `api.preActions.*` without changing public API compatibility `0.1.0`, Affliction schema v2, or Controller schema v2
+- adds focused schema, editor, API, and runtime regression coverage including resource-safe spell and spell-consumable interception; full suite: 282/282 passing
+
 ## 0.1.54
 
 ### Condition Event Reactions

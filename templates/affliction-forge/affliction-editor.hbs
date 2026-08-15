@@ -753,6 +753,82 @@
                   {{/if}}
                 </section>
 
+                <section class="affliction-editor-stage-reaction-section affliction-editor-stage-pre-action-section">
+                  <header>
+                    <div>
+                      <strong>{{localize "PF2E_AFFLICTION_FORGE.PreAction.Title"}}</strong>
+                      <small>{{localize "PF2E_AFFLICTION_FORGE.PreAction.Hint"}}</small>
+                    </div>
+                    <button type="button" class="affliction-editor-primary" data-affliction-action="addStagePreActionGate" data-index="{{stage.index}}">
+                      <i class="fa-solid fa-plus"></i> {{localize "PF2E_AFFLICTION_FORGE.PreAction.Add"}}
+                    </button>
+                  </header>
+
+                  {{#if stage.preActionGates.length}}
+                    <div class="affliction-editor-stage-reaction-list">
+                      {{#each stage.preActionGates as |gate|}}
+                        <article class="affliction-editor-stage-reaction-card" data-stage-pre-action-index="{{gate.index}}">
+                          <header>
+                            <strong>{{localize "PF2E_AFFLICTION_FORGE.PreAction.Gate"}} {{gate.number}}</strong>
+                            <button type="button" class="icon danger" data-affliction-action="removeStagePreActionGate" data-index="{{gate.stageIndex}}" data-pre-action-index="{{gate.index}}" title="{{localize 'PF2E_AFFLICTION_FORGE.PreAction.Remove'}}">
+                              <i class="fa-solid fa-trash"></i>
+                            </button>
+                          </header>
+
+                          <div class="affliction-editor-grid two-columns">
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.PreAction.Id"}}</span>
+                              <input data-pre-action-field="id" type="text" value="{{gate.id}}" required>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.PreAction.Label"}}</span>
+                              <input data-pre-action-field="label" type="text" value="{{gate.label}}">
+                            </label>
+                          </div>
+
+                          <div class="affliction-editor-grid two-columns">
+                            <div class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.PreAction.ActionKinds"}}</span>
+                              <div class="affliction-editor-check-pills">
+                                {{#each gate.actionKinds as |kind|}}
+                                  <label>
+                                    <input data-pre-action-kind type="checkbox" value="{{kind.kind}}" {{#if kind.checked}}checked{{/if}}>
+                                    <span>{{kind.label}}</span>
+                                  </label>
+                                {{/each}}
+                              </div>
+                              <small>{{localize "PF2E_AFFLICTION_FORGE.PreAction.ActionKindsHint"}}</small>
+                            </div>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.PreAction.RequiredTraits"}}</span>
+                              <input data-pre-action-field="requiredTraits" type="text" value="{{gate.requiredTraitsText}}" placeholder="concentrate">
+                              <small>{{localize "PF2E_AFFLICTION_FORGE.PreAction.RequiredTraitsHint"}}</small>
+                            </label>
+                          </div>
+
+                          <div class="affliction-editor-grid two-columns">
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.PreAction.Check"}}</span>
+                              <input type="text" value="{{localize 'PF2E_AFFLICTION_FORGE.PreAction.FlatCheck'}}" disabled>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.PreAction.DC"}}</span>
+                              <input data-pre-action-field="dc" type="number" min="1" max="20" step="1" value="{{gate.flatDc}}">
+                            </label>
+                          </div>
+
+                          <label class="affliction-editor-toggle-line">
+                            <input data-pre-action-field="blockOnFailure" type="checkbox" {{#if gate.blockOnFailure}}checked{{/if}}>
+                            <span>{{localize "PF2E_AFFLICTION_FORGE.PreAction.BlockOnFailure"}}</span>
+                          </label>
+                        </article>
+                      {{/each}}
+                    </div>
+                  {{else}}
+                    <p class="affliction-editor-empty">{{localize "PF2E_AFFLICTION_FORGE.PreAction.None"}}</p>
+                  {{/if}}
+                </section>
+
                 <section class="affliction-editor-stage-reaction-section">
                   <header>
                     <div>

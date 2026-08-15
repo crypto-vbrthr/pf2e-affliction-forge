@@ -93,6 +93,26 @@ export function createDefaultPeriodicEffect({
   };
 }
 
+export function createDefaultPreActionGate({
+  id = "gate-1",
+  label = "",
+  actionKinds = ["spell-cast", "item-activation"],
+  requiredTraits = ["concentrate"],
+  dc = 5,
+  blockOnFailure = true
+} = {}) {
+  return {
+    id,
+    label,
+    trigger: {
+      actionKinds: Array.isArray(actionKinds) ? [...actionKinds] : [actionKinds],
+      requiredTraits: Array.isArray(requiredTraits) ? [...requiredTraits] : [requiredTraits]
+    },
+    check: { kind: "flat", dc },
+    blockOnFailure
+  };
+}
+
 export function createDefaultEventReaction({
   id = "reaction-1",
   label = "",
@@ -129,6 +149,7 @@ export function createDefaultStage({ number = 1 } = {}) {
     effect: null,
     numericModifiers: [],
     periodicEffects: [],
+    preActionGates: [],
     reactions: []
   };
 }
@@ -229,6 +250,14 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
     interval: "fixed-duration-or-dice-formula",
     effect: "critical-forge-effect-definition",
     schedule: "persisted-per-controller-stage"
+  },
+  preActionGates: {
+    scope: "stage",
+    actionKinds: ["spell-cast", "item-activation"],
+    requiredTraits: "all-required-traits-must-match",
+    checks: ["flat"],
+    failure: "may-block-action-before-resource-consumption",
+    itemActivationIntegration: "public-api-for-external-activation-workflows"
   },
   eventReactions: {
     events: ["damage-taken", "condition-increased"],

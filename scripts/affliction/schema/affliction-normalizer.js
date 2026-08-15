@@ -1,6 +1,7 @@
 import {
   AFFLICTION_SCHEMA_VERSION,
   AFFLICTION_CAPABILITIES,
+  AFFLICTION_PRE_ACTION_KINDS,
   AFFLICTION_REACTION_EVENTS,
   CHECK_COMBINE_MODES,
   DURATION_UNITS,
@@ -19,6 +20,7 @@ import {
   createDefaultInitialCheck,
   createDefaultNumericModifier,
   createDefaultPeriodicEffect,
+  createDefaultPreActionGate,
   createDefaultRestrictions,
   createDefaultSaveCheck,
   createDefaultSavePolicy,
@@ -166,6 +168,34 @@ function normalizePeriodicEffect(value, index) {
   };
 }
 
+function normalizePreActionGate(value, index) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const fallback = createDefaultPreActionGate({ id: `gate-${index + 1}` });
+  const triggerSource = source.trigger && typeof source.trigger === "object" && !Array.isArray(source.trigger)
+    ? source.trigger
+    : {};
+  const actionKinds = uniqueStrings(triggerSource.actionKinds ?? fallback.trigger.actionKinds)
+    .map((entry) => entry.toLowerCase())
+    .filter((entry) => AFFLICTION_PRE_ACTION_KINDS.includes(entry));
+  const checkSource = source.check && typeof source.check === "object" && !Array.isArray(source.check)
+    ? source.check
+    : fallback.check;
+  return {
+    id: cleanString(source.id, fallback.id),
+    label: String(source.label ?? "").trim(),
+    trigger: {
+      actionKinds: actionKinds.length > 0 ? actionKinds : [...fallback.trigger.actionKinds],
+      requiredTraits: uniqueStrings(triggerSource.requiredTraits ?? fallback.trigger.requiredTraits)
+        .map((entry) => entry.toLowerCase())
+    },
+    check: {
+      kind: "flat",
+      dc: Math.trunc(finiteNumber(checkSource.dc, fallback.check.dc))
+    },
+    blockOnFailure: source.blockOnFailure !== false
+  };
+}
+
 function normalizeEventReaction(value, index) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const fallback = createDefaultEventReaction({ id: `reaction-${index + 1}` });
@@ -240,6 +270,7 @@ function normalizeStage(stage, index) {
     effect: stage?.effect == null ? null : deepClone(stage.effect),
     numericModifiers: Array.isArray(stage?.numericModifiers) ? stage.numericModifiers.map(normalizeNumericModifier) : [],
     periodicEffects: Array.isArray(stage?.periodicEffects) ? stage.periodicEffects.map(normalizePeriodicEffect) : [],
+    preActionGates: Array.isArray(stage?.preActionGates) ? stage.preActionGates.map(normalizePreActionGate) : [],
     reactions: Array.isArray(stage?.reactions) ? stage.reactions.map(normalizeEventReaction) : []
   };
 }

@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.54**
+Current release: **0.1.55**
 
-Version **0.1.54** extends stage event reactions with PF2e condition-change events. A reaction can now fire when a valued condition is gained or increased, optionally filter by condition slug, resolve with or without an auxiliary save, and adjust the triggering condition value directly. Reaction-chain metadata prevents self-recursion while keeping the feature generic for library content such as diseases that modify `wounded`.
+Version **0.1.55** adds stage-scoped pre-action gates for rules that must succeed before a matching action can proceed. The first runtime contract supports modifier-free flat checks for `concentrate` spell casts and item activations. Normal PF2e spell casts plus scroll/wand/spell-gem spell use are intercepted before their resource-consuming workflows; other item activation workflows can call the public `api.preActions.evaluate()` boundary.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -21,6 +21,7 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - optional Critical Forge `EffectDefinition` per stage
 - root- and stage-scoped condition/healing/capability restrictions, damage-type healing locks, plus `stage | affliction | permanent` persistence at stage or individual persistent-component level
 - stage-scoped event reactions with optional auxiliary saves and Critical Forge effects; supported events include `damage-taken` and valued `condition-increased`, with damage-type or condition-slug filters plus direct triggering-condition value adjustments
+- stage-scoped pre-action gates with action-kind and PF2e-trait matching, modifier-free flat checks, and failure blocking before supported resource-consuming spell workflows
 - stage-bound numeric PF2e modifiers with one or more Rule Element selectors, modifier type, and numeric value
 - periodic stage effects with fixed or rolled intervals; dice formulas are rerolled for each subsequent interval and effects execute through Critical Forge
 - persistent inert PF2e `effect` Items for Affliction Templates
@@ -110,6 +111,22 @@ await api.application.applyItemReference(abilityItem, "venom", targetActor, {
   context: { attackDegree: "success" }
 });
 ```
+
+For external item-activation workflows that need to honor active pre-action gates before spending charges or other resources, evaluate first and return early on failure:
+
+```js
+const gate = await api.preActions.evaluate(actor, {
+  kind: "item-activation",
+  traits: ["concentrate"],
+  item,
+  label: item.name
+});
+if (!gate.allowed) return;
+
+// Continue the host item's activation only after the gate succeeds.
+```
+
+PF2e spell casting and spell consumables are integrated automatically. The generic `item-activation` contract is public because PF2e does not expose one universal pre-activation workflow shared by every item type.
 
 Injury poisons are authored on the Affliction definition and become consumable only when attached to a weapon/attack Item:
 

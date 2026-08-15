@@ -446,3 +446,44 @@ test("numeric and periodic validators reject invalid authoring values", () => {
   assert.ok(report.errors.some((issue) => issue.code === "numeric-modifier.value"));
   assert.ok(report.errors.some((issue) => issue.code === "periodic.interval.value"));
 });
+
+
+test("pre-action gates normalize concentrate flat checks without changing schema version", () => {
+  const definition = normalizeAfflictionDefinition({
+    ...validDefinition(),
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      preActionGates: [{
+        id: "cough",
+        label: "Cough",
+        trigger: { actionKinds: ["SPELL-CAST", "item-activation"], requiredTraits: ["CONCENTRATE"] },
+        check: { kind: "flat", dc: 5 },
+        blockOnFailure: true
+      }]
+    }]
+  });
+  const gate = definition.stages[0].preActionGates[0];
+  assert.deepEqual(gate.trigger.actionKinds, ["spell-cast", "item-activation"]);
+  assert.deepEqual(gate.trigger.requiredTraits, ["concentrate"]);
+  assert.deepEqual(gate.check, { kind: "flat", dc: 5 });
+  assert.equal(gate.blockOnFailure, true);
+  assert.equal(validateAfflictionDefinition(definition).valid, true);
+});
+
+test("pre-action validator rejects unsupported action kinds and invalid flat-check DCs", () => {
+  const definition = validDefinition();
+  definition.stages[0].preActionGates = [{
+    id: "bad-gate",
+    label: "Bad",
+    trigger: { actionKinds: ["teleport-thought"], requiredTraits: [""] },
+    check: { kind: "save", dc: 0 },
+    blockOnFailure: "yes"
+  }];
+  const report = validateAfflictionDefinition(definition);
+  assert.equal(report.valid, false);
+  assert.ok(report.errors.some((issue) => issue.code === "pre-action.action-kind"));
+  assert.ok(report.errors.some((issue) => issue.code === "pre-action.required-trait"));
+  assert.ok(report.errors.some((issue) => issue.code === "pre-action.check.kind"));
+  assert.ok(report.errors.some((issue) => issue.code === "pre-action.check.dc"));
+  assert.ok(report.errors.some((issue) => issue.code === "pre-action.block-on-failure"));
+});

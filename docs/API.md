@@ -778,3 +778,48 @@ Normal consumers do not need to call the processing helpers themselves. Afflicti
 When `checkId` is present, the reaction save is auxiliary and never advances or reduces the Affliction stage. The configured Critical Forge reaction effect executes only when the degree of success appears in `reaction.applyOn`. When `checkId` is `null`, the reaction resolves immediately and any configured effect executes directly.
 
 Supported events are positive PF2e `damage-taken` and valued `condition-increased`. Optional `damageTypes` filters are strict for damage reactions. Optional `conditionSlugs` filters restrict condition reactions. `conditionValueDelta` changes the triggering valued condition and carries a reaction-chain marker so the same reaction cannot recursively trigger itself.
+
+## Pre-action gate API (0.1.55)
+
+Pre-action gates are additive schema-v2 stage data and keep API compatibility at `0.1.0`.
+
+```js
+const gate = api.definitions.createPreActionGate({
+  id: "cough",
+  label: "Cough",
+  actionKinds: ["spell-cast", "item-activation"],
+  requiredTraits: ["concentrate"],
+  dc: 5,
+  blockOnFailure: true
+});
+
+api.catalogs.preActionKinds(); // ["spell-cast", "item-activation"]
+```
+
+Runtime helpers:
+
+```js
+api.preActions.collect(actor, actionContext)
+api.preActions.matches(gate, actionContext)
+await api.preActions.evaluate(actor, actionContext)
+await api.preActions.flatCheck(actor, gate, actionContext)
+api.preActions.patchActor(actor)
+api.preActions.status()
+```
+
+An action context uses a stable semantic kind plus normalized PF2e traits:
+
+```js
+const result = await api.preActions.evaluate(actor, {
+  kind: "item-activation",
+  traits: ["concentrate", "manipulate"],
+  item,
+  label: item.name
+});
+if (!result.allowed) return;
+```
+
+`evaluate()` finds gates on the Actor's active Affliction controllers for the current stages, performs matching flat checks in definition order, and stops on the first failed blocking gate. It emits `pf2eAfflictionForgePreActionGateResolved`, `pf2eAfflictionForgePreActionEvaluated`, and, when blocked, `pf2eAfflictionForgePreActionBlocked`.
+
+The built-in runtime automatically wraps PF2e spellcasting and spell consumables (`scroll`, `spell-gem`, `wand`) so the gate resolves before their original resource-consuming workflow. A passing spell-consumable gate is carried into its nested spell cast to prevent a second roll. Other item activation systems should call `evaluate()` themselves before consuming resources.
+

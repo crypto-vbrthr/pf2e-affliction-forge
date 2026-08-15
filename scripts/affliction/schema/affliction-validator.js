@@ -1,5 +1,6 @@
 import {
   AFFLICTION_CAPABILITIES,
+  AFFLICTION_PRE_ACTION_KINDS,
   AFFLICTION_REACTION_EVENTS,
   AFFLICTION_SCHEMA_VERSION,
   AFFLICTION_TYPES,
@@ -361,6 +362,54 @@ function validatePeriodicEffects(report, periodicEffects, path, effectValidator)
   }
 }
 
+function validatePreActionGates(report, gates, path) {
+  if (!Array.isArray(gates)) {
+    report.add({ severity: "error", code: "pre-action.array", path, message: "Stage pre-action gates must be an array." });
+    return;
+  }
+  const ids = new Set();
+  for (const [index, gate] of gates.entries()) {
+    const gatePath = `${path}.${index}`;
+    if (!isObject(gate)) {
+      report.add({ severity: "error", code: "pre-action.object", path: gatePath, message: "Pre-action gate must be an object." });
+      continue;
+    }
+    if (requiredString(report, gate.id, `${gatePath}.id`, "pre-action.id")) {
+      if (ids.has(gate.id)) report.add({ severity: "error", code: "pre-action.id.duplicate", path: `${gatePath}.id`, message: `Duplicate pre-action gate id: ${gate.id}.` });
+      ids.add(gate.id);
+    }
+    if (!isObject(gate.trigger)) {
+      report.add({ severity: "error", code: "pre-action.trigger.object", path: `${gatePath}.trigger`, message: "Pre-action trigger is required." });
+    } else {
+      if (!Array.isArray(gate.trigger.actionKinds) || gate.trigger.actionKinds.length === 0) {
+        report.add({ severity: "error", code: "pre-action.action-kinds", path: `${gatePath}.trigger.actionKinds`, message: "At least one pre-action kind is required." });
+      } else {
+        for (const [kindIndex, kind] of gate.trigger.actionKinds.entries()) {
+          if (!AFFLICTION_PRE_ACTION_KINDS.includes(kind)) report.add({ severity: "error", code: "pre-action.action-kind", path: `${gatePath}.trigger.actionKinds.${kindIndex}`, message: `Unsupported pre-action kind: ${kind}.` });
+        }
+      }
+      if (!Array.isArray(gate.trigger.requiredTraits)) {
+        report.add({ severity: "error", code: "pre-action.required-traits", path: `${gatePath}.trigger.requiredTraits`, message: "requiredTraits must be an array." });
+      } else {
+        for (const [traitIndex, trait] of gate.trigger.requiredTraits.entries()) {
+          if (typeof trait !== "string" || !trait.trim()) report.add({ severity: "error", code: "pre-action.required-trait", path: `${gatePath}.trigger.requiredTraits.${traitIndex}`, message: "Required traits must be non-empty strings." });
+        }
+      }
+    }
+    if (!isObject(gate.check)) {
+      report.add({ severity: "error", code: "pre-action.check.object", path: `${gatePath}.check`, message: "Pre-action check is required." });
+    } else {
+      if (gate.check.kind !== "flat") report.add({ severity: "error", code: "pre-action.check.kind", path: `${gatePath}.check.kind`, message: `Unsupported pre-action check kind: ${gate.check.kind}.` });
+      if (!Number.isInteger(gate.check.dc) || gate.check.dc < 1 || gate.check.dc > 20) {
+        report.add({ severity: "error", code: "pre-action.check.dc", path: `${gatePath}.check.dc`, message: "Flat-check DC must be an integer from 1 to 20." });
+      }
+    }
+    if (typeof gate.blockOnFailure !== "boolean") {
+      report.add({ severity: "error", code: "pre-action.block-on-failure", path: `${gatePath}.blockOnFailure`, message: "blockOnFailure must be a boolean." });
+    }
+  }
+}
+
 function validateStageReactions(report, reactions, path, checkIds, effectValidator) {
   if (!Array.isArray(reactions)) {
     report.add({ severity: "error", code: "reaction.array", path, message: "Stage reactions must be an array." });
@@ -480,6 +529,7 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
       validateRestrictions(report, stage.restrictions, `${path}.restrictions`);
       validateNumericModifiers(report, stage.numericModifiers ?? [], `${path}.numericModifiers`);
       validatePeriodicEffects(report, stage.periodicEffects ?? [], `${path}.periodicEffects`, effectValidator);
+      validatePreActionGates(report, stage.preActionGates ?? [], `${path}.preActionGates`);
       validateStageReactions(report, stage.reactions ?? [], `${path}.reactions`, checkIds, effectValidator);
       if (!STAGE_EFFECT_PERSISTENCE_MODES.includes(stage.effectPersistence)) {
         report.add({ severity: "error", code: "stage.effect-persistence", path: `${path}.effectPersistence`, message: `Unsupported stage effect persistence: ${stage.effectPersistence}.` });

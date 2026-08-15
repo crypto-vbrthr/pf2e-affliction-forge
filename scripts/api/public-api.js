@@ -1,5 +1,6 @@
 import {
   AFFLICTION_CAPABILITIES,
+  AFFLICTION_PRE_ACTION_KINDS,
   AFFLICTION_REACTION_EVENTS,
   AFFLICTION_SCHEMA_VERSION,
   AFFLICTION_TYPES,
@@ -27,6 +28,7 @@ import {
   createDefaultInitialCheck,
   createDefaultNumericModifier,
   createDefaultPeriodicEffect,
+  createDefaultPreActionGate,
   createDefaultRestrictions,
   createDefaultSaveCheck,
   createDefaultSavePolicy,
@@ -117,6 +119,14 @@ import {
   processAfflictionEventReactionMessage,
   resolvePf2eDamageTypes
 } from "../affliction/runtime/affliction-event-reaction-runtime.js";
+import {
+  afflictionPreActionRuntimeStatus,
+  collectActorPreActionGates,
+  evaluateAfflictionPreAction,
+  patchActorPreActionSources,
+  preActionGateMatches,
+  rollAfflictionFlatCheck
+} from "../affliction/runtime/affliction-pre-action-runtime.js";
 import { createAfflictionEditorUiApi } from "../affliction/editor/affliction-editor.js";
 import {
   criticalForgeEffectValidator,
@@ -159,6 +169,7 @@ export function createPublicApi() {
       healingRestrictionModes: () => [...HEALING_RESTRICTION_MODES],
       afflictionCapabilities: () => [...AFFLICTION_CAPABILITIES],
       reactionEvents: () => [...AFFLICTION_REACTION_EVENTS],
+      preActionKinds: () => [...AFFLICTION_PRE_ACTION_KINDS],
       numericModifierTypes: () => [...NUMERIC_MODIFIER_TYPES],
       stageEffectPersistenceModes: () => [...STAGE_EFFECT_PERSISTENCE_MODES],
       durationUnits: () => [...DURATION_UNITS],
@@ -175,6 +186,7 @@ export function createPublicApi() {
       createReaction: (options = {}) => createDefaultEventReaction(options),
       createNumericModifier: (options = {}) => createDefaultNumericModifier(options),
       createPeriodicEffect: (options = {}) => createDefaultPeriodicEffect(options),
+      createPreActionGate: (options = {}) => createDefaultPreActionGate(options),
       createCheck: (options = {}) => createDefaultSaveCheck(options),
       createSavePolicy: (options = {}) => createDefaultSavePolicy(options),
       createRestrictions: () => createDefaultRestrictions(),
@@ -385,6 +397,16 @@ export function createPublicApi() {
       processMessage: (message, options = {}) => processAfflictionEventReactionMessage(message, options),
       acceptPlayerResult: (payload = {}) => acceptAfflictionReactionPlayerResult(payload),
       status: () => afflictionEventReactionRuntimeStatus()
+    }),
+
+
+    preActions: Object.freeze({
+      collect: (actor, actionContext = {}) => collectActorPreActionGates(actor, actionContext),
+      matches: (gate, actionContext = {}) => preActionGateMatches(gate, actionContext),
+      evaluate: (actor, actionContext = {}, options = {}) => evaluateAfflictionPreAction(actor, actionContext, options),
+      flatCheck: (actor, gate, actionContext = {}, options = {}) => rollAfflictionFlatCheck(actor, gate, actionContext, options),
+      patchActor: (actor) => patchActorPreActionSources(actor),
+      status: () => afflictionPreActionRuntimeStatus()
     }),
 
     ui: Object.freeze({

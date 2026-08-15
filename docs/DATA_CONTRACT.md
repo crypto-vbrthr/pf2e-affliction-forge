@@ -114,6 +114,7 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
       effect: null,
       numericModifiers: [], // native PF2e FlatModifier output; see below
       periodicEffects: [], // repeated Critical Forge effects; see below
+      preActionGates: [], // checks that can block matching actions before execution; see below
       reactions: [] // optional stage-scoped auxiliary checks; see below
     }
   ],
@@ -499,6 +500,36 @@ periodicSchedule: {
 ```
 
 `nextAt` and `lastAt` are Foundry world-time seconds. `sequence` gives every runtime execution a distinct derived Critical Forge definition identity. `lastIntervalSeconds` is audit/debug data for the most recently rolled or fixed interval.
+
+
+## Pre-action gates (0.1.55)
+
+A stage may declare zero or more `preActionGates`. A gate is evaluated immediately before a matching action can proceed. It is deliberately separate from stage progression and event reactions: success permits the host action, while a failed blocking gate prevents that host action without changing the Affliction stage.
+
+```js
+{
+  id: "stage-2",
+  number: 2,
+  preActionGates: [
+    {
+      id: "cough",
+      label: "Cough",
+      trigger: {
+        actionKinds: ["spell-cast", "item-activation"],
+        requiredTraits: ["concentrate"]
+      },
+      check: { kind: "flat", dc: 5 },
+      blockOnFailure: true
+    }
+  ]
+}
+```
+
+Current action kinds are `spell-cast` and `item-activation`. All `requiredTraits` must be present on the action context. The initial check contract is `kind: "flat"`, meaning a modifier-free `1d20` check against the authored integer DC. `blockOnFailure: true` prevents the matching host action on failure.
+
+The built-in PF2e runtime intercepts ordinary spell casts and spell consumables (`scroll`, `spell-gem`, and `wand`) before the original resource-consuming method is allowed to continue. Generic item activations use the public `api.preActions.evaluate(actor, context)` contract because PF2e item activation is not represented by one universal pre-action hook across every item type. Consumer integrations must call the gate before they consume charges, uses, or other resources.
+
+A pre-action gate does not use the Affliction save-check catalog and does not advance/reduce the disease stage. It is a local action permission check for the current stage.
 
 ## Stage event reactions (0.1.50)
 

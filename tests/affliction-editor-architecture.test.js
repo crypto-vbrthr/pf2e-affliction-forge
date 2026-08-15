@@ -199,3 +199,27 @@ test("numeric modifiers and periodic stage effects are authorable in the embedde
   assert.match(source, /#mountPeriodicEffectEditors\(\)/);
   assert.match(source, /synchronizeManagedPeriodicEffectMetadata/);
 });
+
+
+test("pre-action concentrate gates are authorable in the embedded editor", async () => {
+  const definition = createAfflictionDefinition({ name: "Pre-Action Probe" });
+  definition.stages[0].preActionGates = [{
+    id: "cough",
+    label: "Cough",
+    trigger: { actionKinds: ["spell-cast", "item-activation"], requiredTraits: ["concentrate"] },
+    check: { kind: "flat", dc: 5 },
+    blockOnFailure: true
+  }];
+  const session = createAfflictionEditorSession(definition);
+  const api = { definitions: { validate: () => ({ valid: true, issues: [], errors: [], warnings: [] }) } };
+  const context = await prepareAfflictionEditorContext(session, { api });
+  assert.equal(context.stages[0].preActionGates.length, 1);
+  assert.equal(context.stages[0].preActionGates[0].requiredTraitsText, "concentrate");
+  assert.equal(context.stages[0].preActionGates[0].flatDc, 5);
+  assert.match(template, /data-affliction-action="addStagePreActionGate"/);
+  assert.match(template, /data-stage-pre-action-index/);
+  assert.match(template, /data-pre-action-field="requiredTraits"/);
+  assert.match(template, /data-pre-action-field="dc"/);
+  assert.match(template, /data-pre-action-kind/);
+  assert.match(source, /addStagePreActionGate/);
+});

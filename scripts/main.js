@@ -13,6 +13,7 @@ import { initializeAfflictionSaveRuntime } from "./affliction/runtime/affliction
 import { initializeAfflictionVisibilityRuntime } from "./affliction/runtime/affliction-visibility-runtime.js";
 import { initializeAfflictionRestrictionRuntime } from "./affliction/runtime/affliction-restriction-runtime.js";
 import { initializeAfflictionEventReactionRuntime } from "./affliction/runtime/affliction-event-reaction-runtime.js";
+import { initializeAfflictionPreActionRuntime } from "./affliction/runtime/affliction-pre-action-runtime.js";
 import { registerAfflictionForgeSettings } from "./settings.js";
 
 Hooks.once("init", () => {
@@ -51,6 +52,7 @@ Hooks.once("ready", async () => {
   initializeAfflictionVisibilityRuntime();
   initializeAfflictionRestrictionRuntime();
   initializeAfflictionEventReactionRuntime();
+  initializeAfflictionPreActionRuntime();
 
   // Repair stale generated runtime output before the scheduler is allowed to
   // process overdue transitions. This prevents a time catch-up from operating

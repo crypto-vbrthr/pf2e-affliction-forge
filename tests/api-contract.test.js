@@ -28,7 +28,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
   assert.equal(api.version, "0.1.0");
-  assert.equal(api.moduleVersion, "0.1.54");
+  assert.equal(api.moduleVersion, "0.1.55");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -42,10 +42,12 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.deepEqual(api.catalogs.afflictionCapabilities(), ["speak"]);
   assert.deepEqual(api.catalogs.stageEffectPersistenceModes(), ["stage", "affliction", "permanent"]);
   assert.deepEqual(api.catalogs.reactionEvents(), ["damage-taken", "condition-increased"]);
+  assert.deepEqual(api.catalogs.preActionKinds(), ["spell-cast", "item-activation"]);
   assert.deepEqual(api.catalogs.numericModifierTypes(), ["untyped", "status", "circumstance", "item"]);
   assert.equal(typeof api.definitions.createNumericModifier, "function");
   assert.equal(typeof api.definitions.createPeriodicEffect, "function");
   assert.equal(typeof api.definitions.createReaction, "function");
+  assert.equal(typeof api.definitions.createPreActionGate, "function");
   assert.equal(typeof api.definitions.createRestrictions, "function");
   assert.equal(typeof api.definitions.normalizeRestrictions, "function");
   assert.equal(typeof api.definitions.resolveRestrictions, "function");
@@ -62,6 +64,12 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.reactions.processMessage, "function");
   assert.equal(typeof api.reactions.acceptPlayerResult, "function");
   assert.equal(typeof api.reactions.status, "function");
+  assert.equal(typeof api.preActions.collect, "function");
+  assert.equal(typeof api.preActions.matches, "function");
+  assert.equal(typeof api.preActions.evaluate, "function");
+  assert.equal(typeof api.preActions.flatCheck, "function");
+  assert.equal(typeof api.preActions.patchActor, "function");
+  assert.equal(typeof api.preActions.status, "function");
   assert.equal(typeof api.documents.buildTemplateSource, "function");
   assert.equal(typeof api.templates.create, "function");
   assert.equal(typeof api.templates.update, "function");

@@ -1,4 +1,4 @@
-# Architecture 0.1.54
+# Architecture 0.1.55
 
 ```text
 Affliction Template / Definition
@@ -413,6 +413,33 @@ Persistent stage output is no longer forced to share one lifetime. `affliction-i
 Damage-type healing locks are enforced by `affliction-restriction-runtime.js`. Active root + stage restrictions expose `unhealableDamageTypes`; controller state stores the protected HP damage pool in `unhealableDamageByType`. On authoritative-GM PF2e `damage-taken` messages, an unambiguous single damage type can be paired with the final applied HP delta and added to that pool. Mixed-type messages are deliberately not allocated heuristically. They emit `pf2eAfflictionForgeTypedHealingLockAmbiguous` for optional host/manual handling.
 
 The healing guard protects the sum of ordinary affliction-owned unhealable damage and active typed pools. Typed pools cease contributing when their corresponding restriction is no longer active; transition-state reconciliation drops inactive type keys.
+
+
+## Pre-action gate runtime (0.1.55)
+
+Pre-action gates are a third runtime lane, separate from stage progression and post-event reactions. Their purpose is to decide whether a matching host action may proceed before that host workflow spends resources. The current built-in integrations are intentionally narrow and resource-safe:
+
+```text
+PF2e spell cast / spell consumable
+        ↓
+identify affected Actor + action traits
+        ↓
+collect current-stage preActionGates
+        ↓
+all required traits match?
+        ├── no → original PF2e workflow continues
+        └── yes
+             ↓
+        modifier-free flat check(s)
+             ↓
+        failed blocking gate?
+        ├── yes → stop before original cast/consume method
+        └── no  → original PF2e workflow continues
+```
+
+Normal spell casts are intercepted at the spellcasting-entry `cast` boundary. Scrolls, spell gems, and wands are intercepted at their consumable `consume` boundary so a failed gate cannot spend the item/charge before the check. A successful spell-consumable gate temporarily pre-approves its nested spell cast, preventing the same gate from rolling twice.
+
+PF2e does not expose one universal pre-activation method shared by all items, so Affliction Forge does not fake generic automatic item interception. External item workflows use `api.preActions.evaluate(actor, context)` before spending their own resources. This keeps the integration boundary explicit and prevents post-hoc cancellation after an activation has already committed side effects.
 
 ## Stage event reaction runtime (0.1.50)
 

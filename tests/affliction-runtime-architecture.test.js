@@ -200,3 +200,15 @@ test("controller manager cannot bypass exposure/onset gates or navigate below st
   assert.match(engine, /state\.mortality\?\.dead === true[\s\S]*status:\s*"dead"/);
   assert.match(runtime, /Active Afflictions cannot transition to stage 0/);
 });
+
+test("pre-action runtime initializes on ready and gates spell resources before original PF2e cast/consume methods", () => {
+  const publicApi = readFileSync(join(root, "scripts/api/public-api.js"), "utf8");
+  const preAction = readFileSync(join(root, "scripts/affliction/runtime/affliction-pre-action-runtime.js"), "utf8");
+  assert.match(main, /initializeAfflictionPreActionRuntime\(\)/);
+  assert.match(preAction, /prototype\.cast = async function afflictionForgePreActionCast/);
+  assert.match(preAction, /if \(!evaluation\.allowed\) return undefined;[\s\S]*original\.call\(this, spell, options\)/);
+  assert.match(preAction, /prototype\.consume = async function afflictionForgePreActionConsume/);
+  assert.match(preAction, /approveSpell\(actor, spell\)/);
+  assert.match(publicApi, /preActions:\s*Object\.freeze/);
+  assert.match(publicApi, /evaluate:\s*\(actor, actionContext/);
+});

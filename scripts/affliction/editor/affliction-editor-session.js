@@ -3,6 +3,7 @@ import {
   createDefaultInitialCheck,
   createDefaultNumericModifier,
   createDefaultPeriodicEffect,
+  createDefaultPreActionGate,
   createDefaultSaveCheck,
   createDefaultStage,
   createDefaultStageCheck
@@ -167,6 +168,9 @@ export class AfflictionEditorSession {
     const nextNumber = index + 2;
     copy.id = randomId(`${source.id || "stage"}-copy`);
     if (copy.effect?.id) copy.effect.id = `${this.definition.id}.${copy.id}.effect`;
+    for (const [gateIndex, gate] of (copy.preActionGates ?? []).entries()) {
+      gate.id = randomId(`${gate.id || `gate-${gateIndex + 1}`}-copy`);
+    }
     for (const [reactionIndex, reaction] of (copy.reactions ?? []).entries()) {
       reaction.id = randomId(`${reaction.id || `reaction-${reactionIndex + 1}`}-copy`);
       if (reaction.effect?.id) reaction.effect.id = `${this.definition.id}.${copy.id}.${reaction.id}.effect`;
@@ -260,6 +264,27 @@ export class AfflictionEditorSession {
     const periodic = this.definition.stages[stageIndex]?.periodicEffects?.[periodicIndex];
     if (!periodic) return false;
     periodic.effect = effectDefinition == null ? null : deepClone(effectDefinition);
+    this.markDirty();
+    return true;
+  }
+
+  addStagePreActionGate(stageIndex, options = {}) {
+    const stage = this.definition.stages[stageIndex];
+    if (!stage) return -1;
+    stage.preActionGates ??= [];
+    const gateIndex = stage.preActionGates.length;
+    stage.preActionGates.push(createDefaultPreActionGate({
+      id: String(options.id ?? `gate-${gateIndex + 1}`).trim() || `gate-${gateIndex + 1}`,
+      ...deepClone(options)
+    }));
+    this.markDirty();
+    return gateIndex;
+  }
+
+  removeStagePreActionGate(stageIndex, gateIndex) {
+    const stage = this.definition.stages[stageIndex];
+    if (!stage || !Array.isArray(stage.preActionGates) || gateIndex < 0 || gateIndex >= stage.preActionGates.length) return false;
+    stage.preActionGates.splice(gateIndex, 1);
     this.markDirty();
     return true;
   }

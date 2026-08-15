@@ -1,5 +1,5 @@
 export const MODULE_ID = "pf2e-affliction-forge";
-export const MODULE_VERSION = "0.1.54";
+export const MODULE_VERSION = "0.1.55";
 // Public API compatibility is versioned independently from module releases.
 // Patch/minor module releases may harden runtime behavior without forcing
 // downstream consumers such as Creature Forge to chase a new API number.
@@ -73,6 +73,11 @@ export const AFFLICTION_REACTION_EVENTS = Object.freeze([
   "condition-increased"
 ]);
 
+
+export const AFFLICTION_PRE_ACTION_KINDS = Object.freeze([
+  "spell-cast",
+  "item-activation"
+]);
 
 export const NUMERIC_MODIFIER_TYPES = Object.freeze([
   "untyped",

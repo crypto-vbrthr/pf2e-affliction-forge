@@ -182,3 +182,19 @@ test("editor session manages numeric modifiers and periodic effects with indepen
   assert.notEqual(copy.periodicEffects[0].effect.id, original.periodicEffects[0].effect.id);
   assert.deepEqual(copy.numericModifiers[0].selectors, ["all-speeds"]);
 });
+
+
+test("editor session manages and duplicates pre-action gates with independent identities", () => {
+  const session = createAfflictionEditorSession(sourceDefinition());
+  session.addStagePreActionGate(0, {
+    id: "cough",
+    trigger: { actionKinds: ["spell-cast", "item-activation"], requiredTraits: ["concentrate"] },
+    check: { kind: "flat", dc: 5 }
+  });
+  assert.equal(session.definition.stages[0].preActionGates.length, 1);
+  assert.equal(session.definition.stages[0].preActionGates[0].check.dc, 5);
+  session.duplicateStage(0);
+  assert.notEqual(session.definition.stages[1].preActionGates[0].id, session.definition.stages[0].preActionGates[0].id);
+  assert.equal(session.removeStagePreActionGate(0, 0), true);
+  assert.equal(session.definition.stages[0].preActionGates.length, 0);
+});

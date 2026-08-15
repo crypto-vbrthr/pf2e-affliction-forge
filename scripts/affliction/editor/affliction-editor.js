@@ -1,4 +1,5 @@
 import {
+  AFFLICTION_PRE_ACTION_KINDS,
   AFFLICTION_REACTION_EVENTS,
   AFFLICTION_TYPES,
   CHECK_COMBINE_MODES,
@@ -23,6 +24,10 @@ import { deepClone } from "../schema/utils.js";
 export const AFFLICTION_EDITOR_TEMPLATE = `modules/${MODULE_ID}/templates/affliction-forge/affliction-editor.hbs`;
 
 const LABELS = Object.freeze({
+  preActionKind: {
+    "spell-cast": "PF2E_AFFLICTION_FORGE.PreAction.Kind.SpellCast",
+    "item-activation": "PF2E_AFFLICTION_FORGE.PreAction.Kind.ItemActivation"
+  },
   reactionEvent: {
     "damage-taken": "PF2E_AFFLICTION_FORGE.Reaction.Event.DamageTaken",
     "condition-increased": "PF2E_AFFLICTION_FORGE.Reaction.Event.ConditionIncreased"
@@ -460,6 +465,21 @@ function preparePeriodicEffect(periodic, periodicIndex) {
   };
 }
 
+function preparePreActionGate(gate, gateIndex) {
+  return {
+    ...gate,
+    index: gateIndex,
+    number: gateIndex + 1,
+    requiredTraitsText: (gate.trigger?.requiredTraits ?? []).join(", "),
+    actionKinds: AFFLICTION_PRE_ACTION_KINDS.map((kind) => ({
+      kind,
+      label: localize(LABELS.preActionKind[kind]),
+      checked: gate.trigger?.actionKinds?.includes?.(kind) ?? false
+    })),
+    flatDc: gate.check?.dc ?? 5
+  };
+}
+
 function prepareReaction(reaction, reactionIndex, checks) {
   return {
     ...reaction,
@@ -550,6 +570,10 @@ export async function prepareAfflictionEditorContext(session, {
       })),
       periodicEffects: (stage.periodicEffects ?? []).map((periodic, periodicIndex) => ({
         ...preparePeriodicEffect(periodic, periodicIndex),
+        stageIndex: index
+      })),
+      preActionGates: (stage.preActionGates ?? []).map((gate, gateIndex) => ({
+        ...preparePreActionGate(gate, gateIndex),
         stageIndex: index
       })),
       reactions: (stage.reactions ?? []).map((reaction, reactionIndex) => ({
@@ -848,6 +872,18 @@ export class EmbeddedAfflictionEditor {
           : { value: Number(periodicRegion.querySelector('[data-periodic-field="value"]')?.value ?? periodic.interval?.value ?? 1), unit };
         synchronizeManagedPeriodicEffectMetadata(definition, stage, periodic);
       }
+      for (const gateRegion of stageRegion.querySelectorAll("[data-stage-pre-action-index]")) {
+        const gateIndex = Number(gateRegion.dataset.stagePreActionIndex);
+        const gate = stage.preActionGates?.[gateIndex];
+        if (!gate) continue;
+        gate.id = String(gateRegion.querySelector('[data-pre-action-field="id"]')?.value ?? gate.id).trim();
+        gate.label = String(gateRegion.querySelector('[data-pre-action-field="label"]')?.value ?? gate.label);
+        gate.trigger ??= { actionKinds: [], requiredTraits: [] };
+        gate.trigger.actionKinds = [...gateRegion.querySelectorAll('[data-pre-action-kind]:checked')].map((input) => String(input.value));
+        gate.trigger.requiredTraits = parseStringList(gateRegion.querySelector('[data-pre-action-field="requiredTraits"]')?.value ?? "").map((entry) => entry.toLowerCase());
+        gate.check = { kind: "flat", dc: Math.trunc(Number(gateRegion.querySelector('[data-pre-action-field="dc"]')?.value ?? gate.check?.dc ?? 5) || 5) };
+        gate.blockOnFailure = gateRegion.querySelector('[data-pre-action-field="blockOnFailure"]')?.checked !== false;
+      }
       for (const reactionRegion of stageRegion.querySelectorAll("[data-stage-reaction-index]")) {
         const reactionIndex = Number(reactionRegion.dataset.stageReactionIndex);
         const reaction = stage.reactions?.[reactionIndex];
@@ -979,6 +1015,7 @@ export class EmbeddedAfflictionEditor {
     const reactionIndex = Number(target.dataset.reactionIndex);
     const modifierIndex = Number(target.dataset.modifierIndex);
     const periodicIndex = Number(target.dataset.periodicIndex);
+    const preActionIndex = Number(target.dataset.preActionIndex);
 
     if (action === "addCheck") this.session.addCheck();
     else if (action === "removeCheck") this.session.removeCheck(index);
@@ -1007,6 +1044,8 @@ export class EmbeddedAfflictionEditor {
       }
     }
     else if (action === "removePeriodicEffectDefinition") this.session.setStagePeriodicEffect(index, periodicIndex, null);
+    else if (action === "addStagePreActionGate") this.session.addStagePreActionGate(index);
+    else if (action === "removeStagePreActionGate") this.session.removeStagePreActionGate(index, preActionIndex);
     else if (action === "addStageReaction") this.session.addStageReaction(index);
     else if (action === "removeStageReaction") this.session.removeStageReaction(index, reactionIndex);
     else if (action === "addReactionEffect") {
