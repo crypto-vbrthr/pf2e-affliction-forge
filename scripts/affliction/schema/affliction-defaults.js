@@ -153,7 +153,9 @@ export function createDefaultStage({ number = 1 } = {}) {
     check: null,
     restrictions: createDefaultRestrictions(),
     effectPersistence: "stage",
+    effectPersistenceDuration: null,
     effectComponentPersistence: [],
+    effectComponentPersistenceDurations: [],
     effect: null,
     numericModifiers: [],
     periodicEffects: [],
@@ -247,8 +249,9 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
     blockedCapabilities: ["speak"],
     conditionLocks: "slug-plus-optional-minimum"
   },
-  stageEffectPersistence: ["stage", "affliction", "permanent"],
-  componentEffectPersistence: "per-component override; null inherits stage persistence",
+  stageEffectPersistence: ["stage", "affliction", "permanent", "timed"],
+  timedResidualPersistence: "timed persistence requires a fixed or formula duration and starts when the stage output becomes residual",
+  componentEffectPersistence: "per-component override; null inherits stage persistence; timed overrides may supply their own duration",
   numericModifiers: {
     scope: "stage",
     implementation: "pf2e-flat-modifier-rule-element",

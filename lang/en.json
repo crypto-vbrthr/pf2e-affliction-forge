@@ -534,5 +534,9 @@
   "PF2E_AFFLICTION_FORGE.Forge.FilterAllTypes": "All Affliction Types",
   "PF2E_AFFLICTION_FORGE.Forge.FilterLevel": "Level",
   "PF2E_AFFLICTION_FORGE.Forge.FilterMinLevel": "Min.",
-  "PF2E_AFFLICTION_FORGE.Forge.FilterMaxLevel": "Max."
+  "PF2E_AFFLICTION_FORGE.Forge.FilterMaxLevel": "Max.",
+  "PF2E_AFFLICTION_FORGE.Editor.DurationFormula": "Dice Formula",
+  "PF2E_AFFLICTION_FORGE.Editor.DurationFormulaHint": "Optional. When a formula is provided, it is rolled once when this timing starts and takes precedence over the fixed value.",
+  "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceTimed": "Timed",
+  "PF2E_AFFLICTION_FORGE.Restrictions.TimedPersistenceDuration": "Residual Duration"
 }

@@ -526,3 +526,54 @@ test("an exact periodic/stage-boundary tie resolves the stage boundary first", a
   assert.deepEqual(parts.calls, [100]);
   assert.equal(periodicCalls, 0);
 });
+
+test("scheduler expires timed residual effects even after their controller has been detached", async () => {
+  const previousActors = globalThis.game.actors;
+  const actor = {
+    documentName: "Actor",
+    id: "residual-actor",
+    uuid: "Actor.residual-actor",
+    items: [],
+    async deleteEmbeddedDocuments(type, ids) {
+      assert.equal(type, "Item");
+      this.items = this.items.filter((item) => !ids.includes(item.id));
+      return [];
+    }
+  };
+  const residual = {
+    documentName: "Item",
+    id: "timed-residual",
+    uuid: `${actor.uuid}.Item.timed-residual`,
+    parent: actor,
+    flags: {
+      [MODULE_ID]: {
+        managed: true,
+        documentKind: "affliction-residual-effect",
+        residualPersistence: "timed",
+        residualExpiresAt: 250,
+        controllerUuid: null
+      }
+    }
+  };
+  actor.items.push(residual);
+  globalThis.game.actors = [actor];
+  try {
+    const scheduler = createAfflictionScheduler({
+      engine: { async process() { throw new Error("no controller should be processed"); } },
+      instanceService: { async get() { throw new Error("no controller should be loaded"); } },
+      controllerProvider: () => [],
+      authorityResolver: () => true,
+      settingsProvider: () => ({ enabled: true, catchUpMode: "all", catchUpLimit: 25 })
+    });
+    const before = await scheduler.processDue({ worldTime: 249, reason: "test" });
+    assert.equal(actor.items.length, 1);
+    assert.deepEqual(before.expiredResiduals, []);
+
+    const due = await scheduler.processDue({ worldTime: 250, reason: "test" });
+    assert.equal(actor.items.length, 0);
+    assert.equal(due.expiredResiduals.length, 1);
+    assert.equal(due.expiredResiduals[0].itemUuid, residual.uuid);
+  } finally {
+    globalThis.game.actors = previousActors;
+  }
+});

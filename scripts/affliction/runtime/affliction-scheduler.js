@@ -1,6 +1,6 @@
 import { MODULE_ID } from "../../constants.js";
 import { readSchedulerSettings } from "../../settings.js";
-import { getAfflictionFlags, isAfflictionController } from "../documents/affliction-flags.js";
+import { getAfflictionFlags, isAfflictionController, isAfflictionResidualEffect } from "../documents/affliction-flags.js";
 import { normalizeAfflictionDefinition } from "../schema/affliction-normalizer.js";
 import { durationToWorldSeconds, scheduledDueAt, scheduledPeriodicEvent } from "./affliction-instance-service.js";
 
@@ -75,6 +75,27 @@ export function collectAfflictionControllers() {
   return controllers;
 }
 
+export function collectTimedResidualEffects() {
+  const residuals = [];
+  for (const actor of collectRuntimeActors()) {
+    for (const item of actorItems(actor)) {
+      if (!isAfflictionResidualEffect(item)) continue;
+      const flags = getAfflictionFlags(item);
+      if (flags?.residualPersistence !== "timed") continue;
+      if (!Number.isFinite(Number(flags?.residualExpiresAt))) continue;
+      residuals.push(item);
+    }
+  }
+  return residuals;
+}
+
+export function timedResidualExpiresAt(item) {
+  if (!isAfflictionResidualEffect(item)) return null;
+  const flags = getAfflictionFlags(item);
+  if (flags?.residualPersistence !== "timed") return null;
+  return finiteWorldTime(flags.residualExpiresAt);
+}
+
 function finiteWorldTime(value) {
   if (value == null || value === "") return null;
   const numeric = Number(value);
@@ -116,7 +137,13 @@ export function controllerActiveStartedAt(controller) {
 export function controllerMaximumDurationAt(controller) {
   const flags = getAfflictionFlags(controller);
   if (!flags?.definitionSnapshot || !flags?.state) return null;
+  const persisted = finiteWorldTime(flags.state.maximumDurationAt);
+  if (persisted != null) return persisted;
   const definition = normalizeAfflictionDefinition(flags.definitionSnapshot);
+  // Formula-based maximum durations are resolved once when the first active
+  // stage begins and persisted in state.maximumDurationAt. Legacy fixed-value
+  // controllers continue to derive their deadline from the active start.
+  if (String(definition.maximumDuration?.formula ?? "").trim()) return null;
   const seconds = durationToWorldSeconds(definition.maximumDuration);
   const activeStartedAt = controllerActiveStartedAt(controller);
   if (seconds == null || activeStartedAt == null) return null;
@@ -336,8 +363,29 @@ export class AfflictionScheduler {
 
     this.#running = true;
     const processed = [];
+    const expiredResiduals = [];
     const errors = [];
     try {
+      for (const residual of collectTimedResidualEffects()) {
+        const expiresAt = timedResidualExpiresAt(residual);
+        if (expiresAt == null || expiresAt > horizon) continue;
+        const actor = residual.parent?.documentName === "Actor" ? residual.parent : null;
+        if (!actor?.deleteEmbeddedDocuments || !residual.id) continue;
+        try {
+          await actor.deleteEmbeddedDocuments("Item", [residual.id], {
+            render: false,
+            [MODULE_ID]: { afflictionTimedResidualExpiry: true }
+          });
+          expiredResiduals.push({ itemUuid: residual.uuid ?? null, actorUuid: actor.uuid ?? null, at: expiresAt });
+        } catch (error) {
+          console.error(`${MODULE_ID} | Scheduler failed to expire timed Affliction residual.`, {
+            itemUuid: residual.uuid ?? null,
+            error
+          });
+          errors.push({ itemUuid: residual.uuid ?? null, error, kind: "timed-residual" });
+        }
+      }
+
       const controllers = await Promise.resolve(this.#controllerProvider());
       for (const controller of controllers ?? []) {
         if (!controller?.uuid || this.#inFlight.has(controller.uuid)) continue;
@@ -369,9 +417,10 @@ export class AfflictionScheduler {
         horizon,
         reason,
         processedControllers: processed.length,
+        expiredResiduals: expiredResiduals.length,
         errors: errors.length
       };
-      return { status: errors.length > 0 ? "partial" : "processed", processed, errors, horizon, reason };
+      return { status: errors.length > 0 ? "partial" : "processed", processed, expiredResiduals, errors, horizon, reason };
     } finally {
       this.#running = false;
     }

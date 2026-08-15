@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.59**
+Current release: **0.1.61**
 
-Version **0.1.59** adds library filters for affliction type and minimum/maximum level. Library filter state and scroll position are preserved when a template is opened, so selecting an entry no longer jumps the list back to the top. All 0.1.58 source-label behavior remains unchanged.
+Version **0.1.61** adds dice-formula timing for onset, stage intervals, and maximum active duration plus time-limited residual consequences. Formula clocks are rolled once when they begin and persisted as absolute Foundry world-time deadlines; timed residual effects can remain after a stage or the controller ends and are removed automatically when their own fixed or rolled duration expires.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -17,9 +17,9 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - multiple-save resolution through `single`, `best-degree`, `worst-degree`, `all-success`, and `any-success`
 - degree-of-success directives for reject, recover, stay, stage delta, and explicit stage selection
 - native Ausgeprägt/Virulent progression with consecutive-success tracking and one-stage critical-success reduction
-- onset, maximum active duration (excluding onset), stage duration, and narrative stage descriptions
+- onset, maximum active duration (excluding onset), and stage duration with fixed values or dice formulas; formula clocks resolve once when they start and persist their deadlines
 - optional Critical Forge `EffectDefinition` per stage
-- root- and stage-scoped condition/healing/capability restrictions, damage-type healing locks, plus `stage | affliction | permanent` persistence at stage or individual persistent-component level
+- root- and stage-scoped condition/healing/capability restrictions, damage-type healing locks, plus `stage | affliction | permanent | timed` persistence at stage or individual persistent-component level; timed residuals accept fixed or formula durations and expire independently
 - stage-scoped event reactions with optional auxiliary saves and Critical Forge effects; supported events include `damage-taken`, valued `condition-increased`, `initiative-rolled`, and `turn-start`, with damage-type or condition-slug filters plus direct triggering-condition value adjustments
 - per-degree reaction controller actions (`none | recover | end`) for reactive recovery/end semantics independent of reaction effects
 - stage-expiry actions (`check | recover | end | stay`) for finite stages that do not follow the ordinary stage-save lifecycle
@@ -62,7 +62,7 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - Save, Save As, clone/copy, and live deletion synchronization across the library catalog
 - Embedded Affliction Editor and public UI API for future hosts such as Creature Forge
 - GM-authoritative world-time scheduler using `game.time.worldTime` / `updateWorldTime`
-- automatic onset completion, due stage-save processing, and chronological periodic-stage-effect execution
+- automatic onset completion, due stage-save processing, chronological periodic-stage-effect execution, and timed-residual expiry
 - configurable catch-up (`all` or `next`) with a safety limit
 - maximum-active-duration enforcement anchored to the first effective stage
 - `Active Afflictions` registry grouped by Actor with explicit manager launch

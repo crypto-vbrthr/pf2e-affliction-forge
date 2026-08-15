@@ -111,7 +111,8 @@ const LABELS = Object.freeze({
     inherit: "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceInherit",
     stage: "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceStage",
     affliction: "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceAffliction",
-    permanent: "PF2E_AFFLICTION_FORGE.Restrictions.PersistencePermanent"
+    permanent: "PF2E_AFFLICTION_FORGE.Restrictions.PersistencePermanent",
+    timed: "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceTimed"
   },
   action: {
     none: "PF2E_AFFLICTION_FORGE.Transition.None",
@@ -194,12 +195,15 @@ function componentDisplayLabel(component, index) {
 function prepareComponentPersistence(stage) {
   const components = Array.isArray(stage?.effect?.components) ? stage.effect.components : [];
   const overrides = Array.isArray(stage?.effectComponentPersistence) ? stage.effectComponentPersistence : [];
+  const durations = Array.isArray(stage?.effectComponentPersistenceDurations) ? stage.effectComponentPersistenceDurations : [];
   return components.map((component, index) => {
     const override = overrides[index] ?? null;
     const values = ["inherit", ...STAGE_EFFECT_PERSISTENCE_MODES];
     return {
       index,
       label: componentDisplayLabel(component, index),
+      timed: override === "timed",
+      durationView: prepareDuration(durations[index], { nullable: false, allowUnlimited: false }),
       options: values.map((value) => ({
         value: value === "inherit" ? "" : value,
         label: localize(LABELS.effectPersistence[value] ?? value),
@@ -220,8 +224,10 @@ function durationFromRegion(region, { nullable = true, allowUnlimited = true } =
   if (nullable && enabled && !enabled.checked) return null;
   const unlimited = allowUnlimited && Boolean(region.querySelector('[data-duration-unlimited]')?.checked);
   if (unlimited) return { value: -1, unit: "unlimited" };
-  const value = integerValue(region.querySelector('[data-duration-value]')?.value, 1);
+  const formula = String(region.querySelector('[data-duration-formula]')?.value ?? "").trim();
   const unit = String(region.querySelector('[data-duration-unit]')?.value ?? "rounds");
+  if (formula) return { formula, unit };
+  const value = integerValue(region.querySelector('[data-duration-value]')?.value, 1);
   return { value, unit };
 }
 
@@ -285,9 +291,12 @@ function prepareGate(gate, checks) {
 function prepareDuration(duration, { nullable = true, allowUnlimited = true } = {}) {
   const enabled = duration != null;
   const unlimited = enabled && duration?.unit === "unlimited";
+  const formula = unlimited ? "" : String(duration?.formula ?? "").trim();
   return {
     enabled: nullable ? enabled : true,
     value: unlimited ? 1 : (duration?.value ?? 1),
+    formula,
+    formulaMode: Boolean(formula),
     unit: unlimited ? "rounds" : (duration?.unit ?? "rounds"),
     unlimited: allowUnlimited && unlimited,
     unitOptions: optionList(DURATION_UNITS.filter((unit) => unit !== "unlimited"), unlimited ? "rounds" : (duration?.unit ?? "rounds"), LABELS.duration)
@@ -583,6 +592,8 @@ export async function prepareAfflictionEditorContext(session, {
       customCheck: prepareGate(stage.check, definition.checks),
       restrictionView: prepareRestrictions(stage.restrictions),
       effectPersistenceOptions: optionList(STAGE_EFFECT_PERSISTENCE_MODES, stage.effectPersistence ?? "stage", LABELS.effectPersistence),
+      effectPersistenceTimed: stage.effectPersistence === "timed",
+      effectPersistenceDurationView: prepareDuration(stage.effectPersistenceDuration, { nullable: false, allowUnlimited: false }),
       effectComponentPersistenceRows: prepareComponentPersistence(stage),
       hasEffect: Boolean(stage.effect),
       effectComponentCount: Array.isArray(stage.effect?.components) ? stage.effect.components.length : 0,
@@ -868,12 +879,22 @@ export class EmbeddedAfflictionEditor {
       if (stage.check && customGate) stage.check = gateFromRegion(customGate);
       stage.restrictions = restrictionsFromRegion(stageRegion.querySelector('[data-stage-restrictions]'), stage.restrictions);
       stage.effectPersistence = String(stageRegion.querySelector('[data-stage-field="effectPersistence"]')?.value ?? stage.effectPersistence ?? "stage");
+      stage.effectPersistenceDuration = stage.effectPersistence === "timed"
+        ? durationFromRegion(stageRegion.querySelector('[data-stage-effect-persistence-duration]'), { nullable: false, allowUnlimited: false })
+        : null;
       const components = Array.isArray(stage.effect?.components) ? stage.effect.components : [];
       stage.effectComponentPersistence = components.map((_, componentIndex) => {
         const select = stageRegion.querySelector(`[data-stage-component-persistence-index="${componentIndex}"]`);
         if (!select) return stage.effectComponentPersistence?.[componentIndex] ?? null;
         const mode = String(select.value ?? "");
         return mode || null;
+      });
+      stage.effectComponentPersistenceDurations = components.map((_, componentIndex) => {
+        if (stage.effectComponentPersistence?.[componentIndex] !== "timed") return null;
+        return durationFromRegion(
+          stageRegion.querySelector(`[data-stage-component-persistence-duration-index="${componentIndex}"]`),
+          { nullable: false, allowUnlimited: false }
+        );
       });
       for (const modifierRegion of stageRegion.querySelectorAll("[data-stage-modifier-index]")) {
         const modifierIndex = Number(modifierRegion.dataset.stageModifierIndex);
@@ -1013,6 +1034,62 @@ export class EmbeddedAfflictionEditor {
       }
       if (this.session.readOnly) select.disabled = true;
       label.append(span, select);
+
+      const durationRegion = document.createElement("div");
+      durationRegion.className = "affliction-editor-timed-persistence";
+      durationRegion.dataset.stageComponentPersistenceDurationIndex = String(row.index);
+      const grid = document.createElement("div");
+      grid.className = "affliction-editor-grid three-columns";
+
+      const makeField = (caption, control) => {
+        const field = document.createElement("span");
+        field.className = "affliction-editor-field";
+        const small = document.createElement("small");
+        small.textContent = caption;
+        field.append(small, control);
+        return field;
+      };
+
+      const valueInput = document.createElement("input");
+      valueInput.type = "number";
+      valueInput.min = "1";
+      valueInput.step = "1";
+      valueInput.value = String(row.durationView.value ?? 1);
+      valueInput.dataset.durationControl = "";
+      valueInput.dataset.durationValue = "";
+
+      const formulaInput = document.createElement("input");
+      formulaInput.type = "text";
+      formulaInput.value = row.durationView.formula ?? "";
+      formulaInput.placeholder = "1d4";
+      formulaInput.dataset.durationControl = "";
+      formulaInput.dataset.durationFormula = "";
+
+      const unitSelect = document.createElement("select");
+      unitSelect.dataset.durationControl = "";
+      unitSelect.dataset.durationUnit = "";
+      for (const option of row.durationView.unitOptions) {
+        const el = document.createElement("option");
+        el.value = option.value;
+        el.textContent = option.label;
+        el.selected = option.selected;
+        unitSelect.append(el);
+      }
+
+      grid.append(
+        makeField(localize("PF2E_AFFLICTION_FORGE.Editor.DurationValue"), valueInput),
+        makeField(localize("PF2E_AFFLICTION_FORGE.Editor.DurationFormula"), formulaInput),
+        makeField(localize("PF2E_AFFLICTION_FORGE.Editor.DurationUnit"), unitSelect)
+      );
+      durationRegion.append(grid);
+      const update = () => {
+        const timed = select.value === "timed";
+        durationRegion.hidden = !timed;
+        for (const control of durationRegion.querySelectorAll("input, select")) control.disabled = !timed || this.session.readOnly;
+      };
+      select.addEventListener("change", update);
+      update();
+      label.append(durationRegion);
       container.append(label);
     }
   }
@@ -1128,10 +1205,14 @@ export class EmbeddedAfflictionEditor {
           // `built` is deeply frozen by Critical Forge. Route it through the
           // session clone boundary before applying Affliction-owned metadata.
           const previousPersistence = Array.isArray(stage.effectComponentPersistence) ? [...stage.effectComponentPersistence] : [];
+          const previousPersistenceDurations = Array.isArray(stage.effectComponentPersistenceDurations)
+            ? structuredClone(stage.effectComponentPersistenceDurations)
+            : [];
           this.session.setStageEffect(index, built);
           const currentStage = this.session.definition.stages[index];
           const componentCount = Array.isArray(currentStage?.effect?.components) ? currentStage.effect.components.length : 0;
           currentStage.effectComponentPersistence = Array.from({ length: componentCount }, (_, componentIndex) => previousPersistence[componentIndex] ?? null);
+          currentStage.effectComponentPersistenceDurations = Array.from({ length: componentCount }, (_, componentIndex) => previousPersistenceDurations[componentIndex] ?? null);
           const managed = synchronizeManagedStageEffectMetadata(this.session.definition, currentStage);
           this.session.markDirty();
           this.#updateStageEffectSummary(index, managed);
@@ -1296,6 +1377,34 @@ export class EmbeddedAfflictionEditor {
       };
       unlimited?.addEventListener("change", update);
       update();
+    }
+
+    for (const stageRegion of root.querySelectorAll("[data-affliction-stage-index]")) {
+      const persistence = stageRegion.querySelector('[data-stage-field="effectPersistence"]');
+      const timedRegion = stageRegion.querySelector("[data-stage-effect-persistence-duration]");
+      const updateStagePersistence = () => {
+        const timed = persistence?.value === "timed";
+        if (timedRegion) timedRegion.hidden = !timed;
+        for (const control of timedRegion?.querySelectorAll?.("input, select") ?? []) {
+          control.disabled = !timed || this.session.readOnly;
+        }
+      };
+      persistence?.addEventListener("change", updateStagePersistence);
+      updateStagePersistence();
+
+      for (const select of stageRegion.querySelectorAll("[data-stage-component-persistence-index]")) {
+        const index = Number(select.dataset.stageComponentPersistenceIndex);
+        const durationRegion = stageRegion.querySelector(`[data-stage-component-persistence-duration-index="${index}"]`);
+        const updateComponentPersistence = () => {
+          const timed = select.value === "timed";
+          if (durationRegion) durationRegion.hidden = !timed;
+          for (const control of durationRegion?.querySelectorAll?.("input, select") ?? []) {
+            control.disabled = !timed || this.session.readOnly;
+          }
+        };
+        select.addEventListener("change", updateComponentPersistence);
+        updateComponentPersistence();
+      }
     }
 
     for (const directive of root.querySelectorAll("[data-outcome]")) {

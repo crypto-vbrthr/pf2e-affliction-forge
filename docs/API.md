@@ -75,6 +75,28 @@ GM-facing direct application from the Affliction Forge and drag/drop onto an Act
 Set `definition.progression.virulent = true`. The stage engine then applies the Remastered virulent rule to stage saves: two consecutive successful saves are required to reduce the stage by 1, while a critical success reduces the stage by exactly 1 immediately. Failure or critical failure breaks the success streak. The streak is persisted in controller `state.recoverySuccesses`. Initial exposure saves are not altered.
 
 
+### Formula timings and timed residuals (0.1.61)
+
+Reusable definitions may use dice-formula timings for onset, stage duration, and maximum active duration:
+
+```js
+definition.onset = { formula: "1d4", unit: "days" };
+definition.stages[0].duration = { formula: "2d6", unit: "hours" };
+definition.maximumDuration = { formula: "1d4", unit: "days" };
+```
+
+The runtime rolls these formulas only when their clock starts and persists the resolved deadline. Consumers should therefore inspect controller state rather than rerolling the authored formula.
+
+Persistent stage output may use `effectPersistence: "timed"` and `effectPersistenceDuration`, or individual components may use `effectComponentPersistence[index] = "timed"` plus the index-aligned `effectComponentPersistenceDurations[index]`. Fixed and formula residual durations are both supported. Timed residual Items continue independently after controller end and expire through the authoritative scheduler.
+
+```js
+api.catalogs.stageEffectPersistenceModes();
+// ["stage", "affliction", "permanent", "timed"]
+
+api.definitions.resolveComponentPersistence(stage, 0);
+api.definitions.resolveComponentPersistenceDuration(stage, 0);
+```
+
 ### Numeric modifiers and periodic stage effects (0.1.52)
 
 Numeric modifiers are stage-bound native PF2e Rule Element output. The definition stores one or more PF2e selectors, modifier type, and numeric value:
@@ -116,7 +138,7 @@ api.restrictions.status()
 
 `healing: "all"` clamps Actor HP increases while active. `healing: "affliction-damage"` tracks HP lost to that affliction's own stage execution in controller `state.unhealableDamage`; unrelated damage can still be healed up to the remaining ceiling. The tracked pool clears once no active stage/root restriction protects it.
 
-A stage may set `effectPersistence` to `stage` (default), `affliction`, or `permanent`. Affliction-persistent stage output survives stage transitions but is removed when the controller ends. Permanent output is detached from the controller at the end and remains on the Actor as an Affliction-managed residual Effect.
+A stage may set `effectPersistence` to `stage` (default), `affliction`, `permanent`, or `timed`. Affliction-persistent stage output survives stage transitions but is removed when the controller ends. Permanent output is detached from the controller at the end and remains on the Actor as an Affliction-managed residual Effect. Timed output is residualized when the stage ends, gets its own fixed or rolled expiry, and is removed by world-time scheduling even after its controller has ended.
 
 The initial `speak` capability is a machine-readable restriction for host integrations and controller presentation. Affliction Forge does not suppress ordinary Foundry chat messages, because chat is not a PF2e speech-action contract.
 

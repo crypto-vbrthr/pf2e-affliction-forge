@@ -44,6 +44,7 @@ import {
   normalizeRestrictions,
   resolveAfflictionRestrictions,
   resolveStageComponentPersistence,
+  resolveStageComponentPersistenceDuration,
   resolveSavePolicy,
   resolveStageCheck
 } from "../affliction/schema/affliction-normalizer.js";
@@ -212,6 +213,7 @@ export function createPublicApi() {
       mergeRestrictions: (...restrictions) => mergeRestrictions(...restrictions),
       resolveRestrictions: (definition, stageOrNumber = null) => resolveAfflictionRestrictions(definition, stageOrNumber),
       resolveComponentPersistence: (stage, componentIndex) => resolveStageComponentPersistence(stage, componentIndex),
+      resolveComponentPersistenceDuration: (stage, componentIndex) => resolveStageComponentPersistenceDuration(stage, componentIndex),
       resolveStageCheck: (definition, stageOrNumber) => resolveStageCheck(definition, stageOrNumber),
       resolveSavePolicy: (definition, checkOrId) => resolveSavePolicy(definition, checkOrId)
     }),

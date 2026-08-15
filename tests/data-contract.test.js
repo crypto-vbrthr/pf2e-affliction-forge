@@ -538,3 +538,59 @@ test("repeated exposure overrides are rejected for non-poison Afflictions", () =
   assert.equal(report.valid, false);
   assert.ok(report.errors.some((issue) => issue.code === "multiple-exposure.type"));
 });
+
+test("formula timings normalize without losing their dice expression", () => {
+  const definition = normalizeAfflictionDefinition({
+    ...validDefinition(),
+    onset: { value: 99, formula: "1d4", unit: "day" },
+    maximumDuration: { formula: "2d6", unit: "hours" },
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      duration: { formula: "1d6", unit: "minutes" }
+    }]
+  });
+  assert.deepEqual(definition.onset, { formula: "1d4", unit: "days" });
+  assert.deepEqual(definition.maximumDuration, { formula: "2d6", unit: "hours" });
+  assert.deepEqual(definition.stages[0].duration, { formula: "1d6", unit: "minutes" });
+  assert.equal(validateAfflictionDefinition(definition).valid, true);
+});
+
+test("timed stage and component persistence require and preserve residual durations", () => {
+  const definition = normalizeAfflictionDefinition({
+    ...validDefinition(),
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effectPersistence: "timed",
+      effectPersistenceDuration: { value: 24, unit: "hours" },
+      effectComponentPersistence: ["timed", null],
+      effectComponentPersistenceDurations: [{ formula: "1d4", unit: "hours" }, null],
+      effect: {
+        schemaVersion: 2,
+        id: "timed.effect",
+        name: "Timed",
+        duration: { value: -1, unit: "unlimited", expiry: null },
+        components: [
+          { type: "condition", slug: "blinded" },
+          { type: "condition", slug: "enfeebled", value: 1 }
+        ],
+        application: {},
+        metadata: {}
+      }
+    }]
+  });
+  const stage = definition.stages[0];
+  assert.equal(stage.effectPersistence, "timed");
+  assert.deepEqual(stage.effectPersistenceDuration, { value: 24, unit: "hours" });
+  assert.deepEqual(stage.effectComponentPersistence, ["timed", null]);
+  assert.deepEqual(stage.effectComponentPersistenceDurations, [{ formula: "1d4", unit: "hours" }, null]);
+  assert.equal(validateAfflictionDefinition(definition, { effectValidator: () => ({ valid: true, issues: [] }) }).valid, true);
+});
+
+test("timed persistence is rejected when its residual duration is missing", () => {
+  const definition = validDefinition();
+  definition.stages[0].effectPersistence = "timed";
+  definition.stages[0].effectPersistenceDuration = null;
+  const report = validateAfflictionDefinition(definition);
+  assert.equal(report.valid, false);
+  assert.ok(report.errors.some((issue) => issue.path?.endsWith("effectPersistenceDuration")));
+});

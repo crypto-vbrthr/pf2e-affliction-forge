@@ -2387,3 +2387,22 @@
   color: #77717d;
   text-align: center;
 }
+
+/* 0.1.61: formula timing and timed residual authoring. */
+.affliction-editor-timed-persistence {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+  padding: 0.55rem;
+  border: 1px solid var(--affliction-border);
+  border-radius: 6px;
+  background: var(--affliction-panel);
+}
+
+.affliction-editor-component-persistence-row .affliction-editor-timed-persistence {
+  grid-column: 1 / -1;
+}
+
+.affliction-editor-timed-persistence .affliction-editor-duration-row {
+  margin: 0;
+}

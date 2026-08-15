@@ -102,3 +102,12 @@ test("controller state accepts additive periodic schedules and rejects invalid e
   state.periodicSchedule.pulse.sequence = -1;
   assert.equal(validateAfflictionControllerState(state, definition).valid, false);
 });
+
+test("controller state accepts a persisted formula maximum-duration deadline", () => {
+  const definition = createAfflictionDefinition({ name: "Formula Maximum", initialCheck: null });
+  const state = createAfflictionControllerState(definition, { appliedAt: 100, maximumDurationAt: 7300 });
+  assert.equal(state.maximumDurationAt, 7300);
+  assert.equal(validateAfflictionControllerState(state, definition).valid, true);
+  state.maximumDurationAt = "tomorrow";
+  assert.equal(validateAfflictionControllerState(state, definition).valid, false);
+});

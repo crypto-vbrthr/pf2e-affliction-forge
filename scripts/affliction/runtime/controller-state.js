@@ -16,6 +16,7 @@ export function createAfflictionControllerState(definition, {
   currentStage = definition?.initialCheck || definition?.onset ? 0 : 1,
   stageEnteredAt = currentStage > 0 ? appliedAt : null,
   activeStartedAt = currentStage > 0 ? appliedAt : null,
+  maximumDurationAt = null,
   onsetStartedAt = definition?.onset && !definition?.initialCheck && currentStage === 0 ? appliedAt : null,
   nextCheckAt = null,
   status = definition?.initialCheck ? "pending" : definition?.onset ? "incubating" : "active",
@@ -43,6 +44,7 @@ export function createAfflictionControllerState(definition, {
     appliedAt,
     stageEnteredAt,
     activeStartedAt,
+    maximumDurationAt,
     onsetStartedAt,
     nextCheckAt,
     identification: {
@@ -126,7 +128,7 @@ export function validateAfflictionControllerState(state, definition = null) {
     if (!Number.isInteger(state.revision) || state.revision < 1) errors.push("revision must be a positive integer.");
     if (state.onsetTargetStage !== null && state.onsetTargetStage !== undefined && (!Number.isInteger(state.onsetTargetStage) || state.onsetTargetStage < 1)) errors.push("onsetTargetStage must be a positive integer or null.");
     if (definition && Number.isInteger(state.onsetTargetStage) && state.onsetTargetStage > definition.stages.length) errors.push("onsetTargetStage exceeds the definition stage count.");
-    for (const field of ["appliedAt", "stageEnteredAt", "activeStartedAt", "onsetStartedAt", "nextCheckAt"]) {
+    for (const field of ["appliedAt", "stageEnteredAt", "activeStartedAt", "maximumDurationAt", "onsetStartedAt", "nextCheckAt"]) {
       if (state[field] != null && !Number.isFinite(state[field])) errors.push(`${field} must be a finite world-time value or null.`);
     }
 

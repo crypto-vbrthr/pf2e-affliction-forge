@@ -294,6 +294,11 @@
               </select>
             </label>
           </div>
+          <label class="affliction-editor-field full-width">
+            <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationFormula"}}</span>
+            <input data-duration-control data-duration-formula type="text" value="{{onset.formula}}" placeholder="1d4">
+            <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationFormulaHint"}}</small>
+          </label>
         </div>
 
         <div class="affliction-editor-duration-card" data-affliction-duration="maximumDuration">
@@ -321,6 +326,11 @@
               </select>
             </label>
           </div>
+          <label class="affliction-editor-field full-width">
+            <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationFormula"}}</span>
+            <input data-duration-control data-duration-formula type="text" value="{{maximumDuration.formula}}" placeholder="1d4">
+            <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationFormulaHint"}}</small>
+          </label>
           <p class="affliction-editor-duration-hint"><i class="fa-solid fa-clock"></i> {{localize "PF2E_AFFLICTION_FORGE.Editor.MaximumDurationHint"}}</p>
         </div>
       </div>
@@ -513,6 +523,11 @@
                     </label>
                   </div>
                   <label class="affliction-editor-field full-width">
+                    <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationFormula"}}</span>
+                    <input data-duration-control data-duration-formula type="text" value="{{stage.durationView.formula}}" placeholder="1d4">
+                    <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationFormulaHint"}}</small>
+                  </label>
+                  <label class="affliction-editor-field full-width">
                     <span>{{localize "PF2E_AFFLICTION_FORGE.StageExpiry.Title"}}</span>
                     <select data-stage-field="expiryAction">
                       {{#each stage.expiryActionOptions as |option|}}
@@ -621,6 +636,27 @@
                         {{/each}}
                       </select>
                     </label>
+                  </div>
+                  <div class="affliction-editor-timed-persistence" data-stage-effect-persistence-duration {{#unless stage.effectPersistenceTimed}}hidden{{/unless}}>
+                    <strong>{{localize "PF2E_AFFLICTION_FORGE.Restrictions.TimedPersistenceDuration"}}</strong>
+                    <div class="affliction-editor-grid three-columns">
+                      <label class="affliction-editor-field">
+                        <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationValue"}}</span>
+                        <input data-duration-control data-duration-value type="number" min="1" step="1" value="{{stage.effectPersistenceDurationView.value}}">
+                      </label>
+                      <label class="affliction-editor-field">
+                        <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationFormula"}}</span>
+                        <input data-duration-control data-duration-formula type="text" value="{{stage.effectPersistenceDurationView.formula}}" placeholder="1d4">
+                      </label>
+                      <label class="affliction-editor-field">
+                        <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationUnit"}}</span>
+                        <select data-duration-control data-duration-unit>
+                          {{#each stage.effectPersistenceDurationView.unitOptions as |option|}}
+                            <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                          {{/each}}
+                        </select>
+                      </label>
+                    </div>
                   </div>
                 </section>
 
@@ -1007,6 +1043,26 @@
                                 <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
                               {{/each}}
                             </select>
+                            <div class="affliction-editor-timed-persistence" data-stage-component-persistence-duration-index="{{row.index}}" {{#unless row.timed}}hidden{{/unless}}>
+                              <div class="affliction-editor-grid three-columns">
+                                <span class="affliction-editor-field">
+                                  <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationValue"}}</small>
+                                  <input data-duration-control data-duration-value type="number" min="1" step="1" value="{{row.durationView.value}}">
+                                </span>
+                                <span class="affliction-editor-field">
+                                  <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationFormula"}}</small>
+                                  <input data-duration-control data-duration-formula type="text" value="{{row.durationView.formula}}" placeholder="1d4">
+                                </span>
+                                <span class="affliction-editor-field">
+                                  <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.DurationUnit"}}</small>
+                                  <select data-duration-control data-duration-unit>
+                                    {{#each row.durationView.unitOptions as |option|}}
+                                      <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+                                    {{/each}}
+                                  </select>
+                                </span>
+                              </div>
+                            </div>
                           </label>
                         {{/each}}
                       {{/if}}

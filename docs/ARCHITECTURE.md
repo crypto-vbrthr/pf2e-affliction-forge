@@ -245,6 +245,8 @@ designated active GM only
         ↓
 discover due Affliction controllers
         ↓
+expire due timed residual output
+        ↓
 choose earliest stage/onset or periodic due event
         ↓
 periodic → api.instances.executePeriodic(...)
@@ -253,9 +255,11 @@ stage/onset → api.engine.process(..., { atTime })
 continue chronological catch-up
 ```
 
-`nextCheckAt` remains the stage/onset due timestamp, while `state.periodicSchedule` stores independent periodic due timestamps. The scheduler chooses the earliest event chronologically. An exact tie favors the stage boundary, preventing a periodic effect from firing after a phase has conceptually reached its save/end boundary. Catch-up processing uses each historical due timestamp as the logical execution time, so a large world-time jump preserves authored interval chronology.
+`nextCheckAt` remains the stage/onset due timestamp, while `state.periodicSchedule` stores independent periodic due timestamps. Formula onset/stage clocks store their already-rolled deadline directly in `nextCheckAt`; formula maximum-active-duration stores its one-time resolved deadline in `state.maximumDurationAt`. The scheduler chooses the earliest event chronologically. An exact tie favors the stage boundary, preventing a periodic effect from firing after a phase has conceptually reached its save/end boundary. Catch-up processing uses each historical due timestamp as the logical execution time, so a large world-time jump preserves authored interval chronology.
 
 The scheduler scans world Actors plus synthetic token Actors from loaded Scenes. Only Foundry's designated `game.users.activeGM` commits automatic transitions, preventing multiple connected GM clients from processing the same due event independently. Outstanding player/GM manual requests block re-issuance until they are resolved or manually retried.
+
+Timed residual effects are controller-independent scheduler work: their generated Item stores `residualExpiresAt`, so it can expire after the originating controller has ended. Residual lifetimes begin at the effective stage-transition/end timestamp, including historical catch-up transitions.
 
 World settings control automatic scheduling, catch-up mode (`all` or `next`), and a catch-up safety limit. `maximumDuration` is enforced as a runtime deadline anchored to `state.activeStartedAt`, the instant the first effective stage becomes active. Onset/incubation is excluded and later stage transitions never reset the deadline. Backwards world-time updates do not replay past events.
 

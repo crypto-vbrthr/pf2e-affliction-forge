@@ -15,7 +15,7 @@ import {
   isAfflictionStageEffect,
   isAfflictionTemplate
 } from "../documents/affliction-flags.js";
-import { normalizeAfflictionDefinition, resolveAfflictionRestrictions, resolveStageComponentPersistence } from "../schema/affliction-normalizer.js";
+import { normalizeAfflictionDefinition, resolveAfflictionRestrictions, resolveStageComponentPersistence, resolveStageComponentPersistenceDuration } from "../schema/affliction-normalizer.js";
 import { assertValidAfflictionDefinition } from "../schema/affliction-validator.js";
 import { deepClone, randomId } from "../schema/utils.js";
 import {
@@ -36,6 +36,7 @@ function roundTimeSeconds() {
 
 export function durationToWorldSeconds(duration) {
   if (!duration || duration.unit === "unlimited") return null;
+  if (String(duration.formula ?? "").trim()) return null;
   const value = Number(duration.value);
   if (!Number.isFinite(value) || value < 0) return null;
   const factors = {
@@ -57,24 +58,33 @@ function unitToWorldSeconds(value, unit) {
   return durationToWorldSeconds({ value, unit });
 }
 
-async function evaluateIntervalFormula(formula) {
+async function evaluateDurationFormula(formula, { label = "Affliction duration" } = {}) {
   const RollClass = globalThis.Roll;
-  if (!RollClass) throw new Error("Foundry Roll API is unavailable for a periodic Affliction interval formula.");
+  if (!RollClass) throw new Error(`Foundry Roll API is unavailable for ${label}.`);
   const roll = typeof RollClass.create === "function" ? RollClass.create(formula) : new RollClass(formula);
   const evaluated = await roll.evaluate?.({ async: true }) ?? roll;
   const total = Number(evaluated?.total ?? roll?.total);
-  if (!Number.isFinite(total) || total <= 0) throw new Error(`Periodic Affliction interval formula must resolve to a positive number: ${formula}`);
+  if (!Number.isFinite(total) || total <= 0) throw new Error(`${label} formula must resolve to a positive number: ${formula}`);
   return total;
 }
 
-export async function periodicIntervalToWorldSeconds(interval) {
-  if (!interval || interval.unit === "unlimited") return null;
-  const formula = String(interval.formula ?? "").trim();
+export async function resolvedDurationToWorldSeconds(duration, { label = "Affliction duration" } = {}) {
+  if (!duration || duration.unit === "unlimited") return null;
+  const formula = String(duration.formula ?? "").trim();
   if (formula) {
-    const value = await evaluateIntervalFormula(formula);
-    return unitToWorldSeconds(value, interval.unit);
+    const value = await evaluateDurationFormula(formula, { label });
+    return unitToWorldSeconds(value, duration.unit);
   }
-  return durationToWorldSeconds(interval);
+  return durationToWorldSeconds(duration);
+}
+
+async function resolvedDueAt(duration, enteredAt, options = {}) {
+  const seconds = await resolvedDurationToWorldSeconds(duration, options);
+  return seconds == null || !Number.isFinite(enteredAt) ? null : enteredAt + seconds;
+}
+
+export async function periodicIntervalToWorldSeconds(interval) {
+  return resolvedDurationToWorldSeconds(interval, { label: "Periodic Affliction interval" });
 }
 
 async function buildPeriodicSchedule(stage, enteredAt, previousSchedule = null, { preserve = false } = {}) {
@@ -339,6 +349,9 @@ export function scheduledDueAt(definitionInput, state = {}) {
   const stored = finiteTime(state.nextCheckAt);
 
   if (state.status === "incubating") {
+    // Formula durations are rolled once when onset begins and persisted as the
+    // next-check clock. They cannot be reconstructed synchronously later.
+    if (String(definition.onset?.formula ?? "").trim()) return stored;
     const seconds = durationToWorldSeconds(definition.onset);
     if (seconds == null) return null;
     // Onset owns an explicit clock. Older 0.1.x controllers did not persist
@@ -355,6 +368,7 @@ export function scheduledDueAt(definitionInput, state = {}) {
 
   if (state.status === "active" && Number(state.currentStage) > 0) {
     const stage = definition.stages?.[Number(state.currentStage) - 1] ?? null;
+    if (String(stage?.duration?.formula ?? "").trim()) return stored;
     const seconds = durationToWorldSeconds(stage?.duration);
     if (seconds == null) return null;
     const startedAt = finiteTime(state.stageEnteredAt);
@@ -455,7 +469,7 @@ function stageDescriptor(definition, stageNumber) {
   return definition.stages?.[stageNumber - 1] ?? null;
 }
 
-function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemplateUuid, identifiedPresentation = null, effectPersistence = null, componentIndices = [], nativeKind = null }) {
+function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemplateUuid, identifiedPresentation = null, effectPersistence = null, effectPersistenceDuration = null, componentIndices = [], nativeKind = null }) {
   return {
     managed: true,
     documentKind: DOCUMENT_KINDS.STAGE_EFFECT,
@@ -468,6 +482,7 @@ function stageEffectFlags({ definition, state, stage, controllerUuid, sourceTemp
     stageId: stage.id,
     stageNumber: stage.number,
     effectPersistence: effectPersistence ?? stage.effectPersistence ?? "stage",
+    effectPersistenceDuration: effectPersistenceDuration == null ? null : deepClone(effectPersistenceDuration),
     componentIndices: Array.isArray(componentIndices) ? [...componentIndices] : [],
     nativeKind,
     identifiedPresentation: identifiedPresentation ? deepClone(identifiedPresentation) : null
@@ -520,10 +535,12 @@ async function buildCriticalStageEffectSources({ actor, controller, definition, 
   const grouped = new Map();
   for (const [index, component] of components.entries()) {
     const persistence = resolveStageComponentPersistence(stage, index);
-    const entry = grouped.get(persistence) ?? { persistence, indices: [], components: [] };
+    const persistenceDuration = resolveStageComponentPersistenceDuration(stage, index);
+    const key = `${persistence}:${JSON.stringify(persistenceDuration ?? null)}`;
+    const entry = grouped.get(key) ?? { persistence, persistenceDuration, indices: [], components: [] };
     entry.indices.push(index);
     entry.components.push(component);
-    grouped.set(persistence, entry);
+    grouped.set(key, entry);
   }
 
   const sourceTemplateUuid = getAfflictionFlags(controller)?.sourceTemplateUuid ?? null;
@@ -534,7 +551,7 @@ async function buildCriticalStageEffectSources({ actor, controller, definition, 
   for (const group of grouped.values()) {
     const groupedEffect = deepClone(runtimeEffect);
     groupedEffect.components = deepClone(group.components);
-    if (grouped.size > 1) groupedEffect.id = `${runtimeEffect.id}.p-${group.persistence}`;
+    if (grouped.size > 1) groupedEffect.id = `${runtimeEffect.id}.p-${group.persistence}-${output.length + 1}`;
     const sources = await criticalApi.effects.toItemSources(groupedEffect, {
       actor,
       target: actor,
@@ -557,6 +574,7 @@ async function buildCriticalStageEffectSources({ actor, controller, definition, 
         sourceTemplateUuid,
         identifiedPresentation,
         effectPersistence: group.persistence,
+        effectPersistenceDuration: group.persistenceDuration,
         componentIndices: group.indices
       });
       result.system ??= {};
@@ -852,22 +870,31 @@ function residualEffectItems(actor, instanceId) {
   });
 }
 
-async function preserveStageEffects(actor, state) {
+async function preserveStageEffects(actor, state, { at = nowWorldTime() } = {}) {
   if (!actor || !state?.instanceId) return [];
   const items = stageEffectItems(actor, state.instanceId).filter((item) => {
     const persistence = getAfflictionFlags(item)?.effectPersistence ?? "stage";
-    return ["affliction", "permanent"].includes(persistence);
+    return ["affliction", "permanent", "timed"].includes(persistence);
   });
   if (items.length === 0) return [];
-  const updates = items.map((item) => {
+  const updates = [];
+  for (const item of items) {
     const flags = deepClone(getAfflictionFlags(item) ?? {});
     const persistence = flags.effectPersistence ?? "stage";
     flags.documentKind = DOCUMENT_KINDS.RESIDUAL_EFFECT;
     flags.residualPersistence = persistence;
-    flags.residualCreatedAt = nowWorldTime();
+    flags.residualCreatedAt = at;
     if (persistence === "permanent") flags.detachOnControllerEnd = true;
-    return { _id: item.id, [`flags.${MODULE_ID}`]: flags };
-  });
+    if (persistence === "timed") {
+      const duration = flags.effectPersistenceDuration ?? null;
+      const seconds = await resolvedDurationToWorldSeconds(duration, { label: "Timed Affliction residual duration" });
+      if (seconds == null || seconds <= 0) throw new Error("Timed Affliction residual requires a positive finite duration.");
+      flags.residualDurationSeconds = seconds;
+      flags.residualExpiresAt = at + seconds;
+      flags.detachOnControllerEnd = true;
+    }
+    updates.push({ _id: item.id, [`flags.${MODULE_ID}`]: flags });
+  }
   await actor.updateEmbeddedDocuments("Item", updates, {
     render: false,
     [MODULE_ID]: { restrictionBypass: true, afflictionResidualize: true }
@@ -887,6 +914,8 @@ async function restoreResidualEffectsAsStage(actor, state, stage) {
     flags.documentKind = DOCUMENT_KINDS.STAGE_EFFECT;
     delete flags.residualPersistence;
     delete flags.residualCreatedAt;
+    delete flags.residualDurationSeconds;
+    delete flags.residualExpiresAt;
     delete flags.detachOnControllerEnd;
     delete flags.detachedAt;
     return { _id: item.id, [`flags.${MODULE_ID}`]: flags };
@@ -898,10 +927,10 @@ async function restoreResidualEffectsAsStage(actor, state, stage) {
   return stageEffectItems(actor, state.instanceId);
 }
 
-async function removeResidualEffects(actor, state, { includePermanent = false } = {}) {
+async function removeResidualEffects(actor, state, { includePersistent = false } = {}) {
   const items = residualEffectItems(actor, state.instanceId).filter((item) => {
     const persistence = getAfflictionFlags(item)?.residualPersistence ?? "affliction";
-    return includePermanent || persistence !== "permanent";
+    return includePersistent || persistence === "affliction";
   });
   if (items.length === 0) return [];
   return actor.deleteEmbeddedDocuments("Item", items.map((item) => item.id), {
@@ -910,8 +939,8 @@ async function removeResidualEffects(actor, state, { includePermanent = false } 
   });
 }
 
-async function detachPermanentResidualEffects(actor, state) {
-  const items = residualEffectItems(actor, state.instanceId).filter((item) => getAfflictionFlags(item)?.residualPersistence === "permanent");
+async function detachPersistentResidualEffects(actor, state) {
+  const items = residualEffectItems(actor, state.instanceId).filter((item) => ["permanent", "timed"].includes(getAfflictionFlags(item)?.residualPersistence));
   if (items.length === 0) return [];
   const updates = items.map((item) => {
     const flags = deepClone(getAfflictionFlags(item) ?? {});
@@ -1014,7 +1043,7 @@ async function removeStageEffects(actor, state) {
   });
 }
 
-function buildTransitionState(previous, definition, stageNumber, enteredAt, effectUuids = [], periodicSchedule = {}) {
+function buildTransitionState(previous, definition, stageNumber, enteredAt, effectUuids = [], periodicSchedule = {}, { nextCheckAt = undefined, maximumDurationAt = undefined } = {}) {
   const next = deepClone(previous);
   next.status = stageNumber > 0 ? "active" : (definition.onset ? "incubating" : "pending");
   next.currentStage = stageNumber;
@@ -1023,11 +1052,12 @@ function buildTransitionState(previous, definition, stageNumber, enteredAt, effe
   // Later stage changes and same-stage renewals must never reset this clock.
   if (stageNumber > 0) next.activeStartedAt = finiteTime(previous.activeStartedAt) ?? enteredAt;
   else next.activeStartedAt = finiteTime(previous.activeStartedAt);
+  if (maximumDurationAt !== undefined) next.maximumDurationAt = maximumDurationAt;
   next.onsetStartedAt = stageNumber > 0 ? null : next.onsetStartedAt ?? null;
   const duration = stageNumber > 0
     ? stageDescriptor(definition, stageNumber)?.duration
     : definition.onset;
-  next.nextCheckAt = dueAt(duration, enteredAt);
+  next.nextCheckAt = nextCheckAt === undefined ? dueAt(duration, enteredAt) : nextCheckAt;
   next.activeStageEffectUuids = [...effectUuids];
   next.periodicSchedule = stageNumber > 0 ? deepClone(periodicSchedule ?? {}) : {};
   const nextStage = stageNumber > 0 ? stageDescriptor(definition, stageNumber) : null;
@@ -1278,12 +1308,21 @@ export class AfflictionInstanceService {
           const hasOnset = Boolean(definition.onset);
           const initialStage = hasInitialCheck || hasOnset ? 0 : 1;
           const initialStatus = hasInitialCheck ? "pending" : hasOnset ? "incubating" : "active";
+          const initialNextCheckAt = hasInitialCheck
+            ? null
+            : hasOnset
+              ? await resolvedDueAt(definition.onset, appliedAt, { label: "Affliction onset duration" })
+              : await resolvedDueAt(definition.stages?.[0]?.duration, appliedAt, { label: "Affliction stage duration" });
+          const initialMaximumDurationAt = initialStage > 0
+            ? await resolvedDueAt(definition.maximumDuration, appliedAt, { label: "Affliction maximum duration" })
+            : null;
           const state = createAfflictionControllerState(definition, {
             instanceId: randomId("affliction-instance"),
             appliedAt,
             currentStage: initialStage,
             stageEnteredAt: initialStage > 0 ? appliedAt : null,
             activeStartedAt: initialStage > 0 ? appliedAt : null,
+            maximumDurationAt: initialMaximumDurationAt,
             onsetStartedAt: hasOnset && !hasInitialCheck ? appliedAt : null,
             status: initialStatus,
             onsetTargetStage: hasOnset && !hasInitialCheck ? 1 : null,
@@ -1291,11 +1330,7 @@ export class AfflictionInstanceService {
             // AfflictionEngine.apply*() immediately after controller creation.
             // Keeping nextCheckAt null prevents the world-time scheduler from
             // racing that interactive save if time advances while its dialog is open.
-            nextCheckAt: hasInitialCheck
-              ? null
-              : hasOnset
-                ? dueAt(definition.onset, appliedAt)
-                : dueAt(definition.stages?.[0]?.duration, appliedAt)
+            nextCheckAt: initialNextCheckAt
           });
           if (initialStage > 0) {
             state.periodicSchedule = await buildPeriodicSchedule(stageDescriptor(definition, initialStage), appliedAt);
@@ -1399,8 +1434,9 @@ export class AfflictionInstanceService {
     state.currentStage = 0;
     state.stageEnteredAt = null;
     state.activeStartedAt = null;
+    state.maximumDurationAt = null;
     state.onsetStartedAt = startedAt;
-    state.nextCheckAt = dueAt(definition.onset, startedAt);
+    state.nextCheckAt = await resolvedDueAt(definition.onset, startedAt, { label: "Affliction onset duration" });
     state.activeStageEffectUuids = [];
     state.periodicSchedule = {};
     state.pendingCheck = null;
@@ -1455,6 +1491,13 @@ export class AfflictionInstanceService {
     const sameActiveStage = stageNumber > 0
       && previous.status === "active"
       && previous.currentStage === stageNumber;
+    const nextCheckAt = stage
+      ? await resolvedDueAt(stage.duration, enteredAt, { label: "Affliction stage duration" })
+      : null;
+    let maximumDurationAt = finiteTime(previous.maximumDurationAt);
+    if (stageNumber > 0 && finiteTime(previous.activeStartedAt) == null && maximumDurationAt == null) {
+      maximumDurationAt = await resolvedDueAt(definition.maximumDuration, enteredAt, { label: "Affliction maximum duration" });
+    }
     const nextPeriodicSchedule = stage
       ? await buildPeriodicSchedule(stage, enteredAt, previous.periodicSchedule, { preserve: sameActiveStage })
       : {};
@@ -1476,7 +1519,8 @@ export class AfflictionInstanceService {
         stageNumber,
         enteredAt,
         previous.activeStageEffectUuids ?? [],
-        nextPeriodicSchedule
+        nextPeriodicSchedule,
+        { nextCheckAt, maximumDurationAt }
       );
       if (lastCheck !== undefined) next.lastCheck = lastCheck == null ? null : deepClone(lastCheck);
       if (recoverySuccesses !== undefined) next.recoverySuccesses = Math.max(0, Math.trunc(Number(recoverySuccesses) || 0));
@@ -1515,7 +1559,7 @@ export class AfflictionInstanceService {
     let preservedOld = [];
     try {
       await withAfflictionRestrictionBypass(actor, async () => {
-        if (oldStage) preservedOld = await preserveStageEffects(actor, previous);
+        if (oldStage) preservedOld = await preserveStageEffects(actor, previous, { at: enteredAt });
         await removeStageEffects(actor, previous);
         if (preparedSources.length > 0) {
           created = await actor.createEmbeddedDocuments("Item", preparedSources, {
@@ -1524,7 +1568,15 @@ export class AfflictionInstanceService {
           });
         }
       });
-      const next = buildTransitionState(previous, definition, stageNumber, enteredAt, created.map((item) => item.uuid), nextPeriodicSchedule);
+      const next = buildTransitionState(
+        previous,
+        definition,
+        stageNumber,
+        enteredAt,
+        created.map((item) => item.uuid),
+        nextPeriodicSchedule,
+        { nextCheckAt, maximumDurationAt }
+      );
       if (lastCheck !== undefined) next.lastCheck = lastCheck == null ? null : deepClone(lastCheck);
       next.recoverySuccesses = recoverySuccesses !== undefined
         ? Math.max(0, Math.trunc(Number(recoverySuccesses) || 0))
@@ -1804,6 +1856,7 @@ export class AfflictionInstanceService {
     state.status = state.pause.previousStatus;
     state.stageEnteredAt = shift(state.stageEnteredAt);
     state.activeStartedAt = shift(state.activeStartedAt);
+    state.maximumDurationAt = shift(state.maximumDurationAt);
     state.onsetStartedAt = shift(state.onsetStartedAt);
     state.nextCheckAt = shift(state.pause.nextCheckAt);
     state.periodicSchedule = Object.fromEntries(Object.entries(state.periodicSchedule ?? {}).map(([id, entry]) => [id, {
@@ -1836,6 +1889,7 @@ export class AfflictionInstanceService {
     state.status = reason === "recovered" ? "recovered" : "ended";
     state.currentStage = 0;
     state.stageEnteredAt = null;
+    state.maximumDurationAt = null;
     state.onsetStartedAt = null;
     state.nextCheckAt = null;
     state.activeStageEffectUuids = [];
@@ -1852,12 +1906,13 @@ export class AfflictionInstanceService {
 
     const endingStage = stageDescriptor(definition, flags.state?.currentStage);
     await withAfflictionRestrictionBypass(actor, async () => {
-      if (endingStage?.effectPersistence === "permanent") {
-        await preserveStageEffects(actor, flags.state, "permanent");
-      }
+      // Preserve any current-stage output whose own persistence contract
+      // survives the stage. Affliction-bound residuals are removed below;
+      // permanent and timed residuals are detached from the ending controller.
+      if (endingStage) await preserveStageEffects(actor, flags.state, { at: endedAt });
       await removeStageEffects(actor, flags.state);
-      await removeResidualEffects(actor, flags.state, { includePermanent: false });
-      await detachPermanentResidualEffects(actor, flags.state);
+      await removeResidualEffects(actor, flags.state, { includePersistent: false });
+      await detachPersistentResidualEffects(actor, flags.state);
     });
     // Persist the terminal state before deletion so hooks and integrations can
     // observe a coherent final controller if they listen to updateItem.
@@ -2107,6 +2162,9 @@ export class AfflictionInstanceService {
     if (!actor || !flags?.instanceId) return false;
     const state = flags.state ?? { instanceId: flags.instanceId };
     await withAfflictionRestrictionBypass(actor, async () => {
+      // A controller deleted outside the service still has to honor permanent
+      // and timed component persistence on its current stage.
+      await preserveStageEffects(actor, state, { at: nowWorldTime() });
       const stale = stageEffectItems(actor, flags.instanceId);
       if (stale.length > 0) {
         await actor.deleteEmbeddedDocuments("Item", stale.map((item) => item.id), {
@@ -2114,8 +2172,8 @@ export class AfflictionInstanceService {
           [MODULE_ID]: { orphanCleanup: true, restrictionBypass: true }
         });
       }
-      await removeResidualEffects(actor, state, { includePermanent: false });
-      await detachPermanentResidualEffects(actor, state);
+      await removeResidualEffects(actor, state, { includePersistent: false });
+      await detachPersistentResidualEffects(actor, state);
     });
     return true;
   }

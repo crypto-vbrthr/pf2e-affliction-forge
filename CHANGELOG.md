@@ -1,8 +1,21 @@
+# Changelog
+
+## 0.1.61 – Formula Timings & Timed Residuals
+
+- Extends ordinary Affliction durations with optional dice formulas for onset, stage duration, and maximum active duration. A formula is rolled once when that clock starts and its resolved world-time deadline is persisted.
+- Formula stage durations reroll for each new stage interval, including same-stage renewal; formula maximum duration is resolved once at the first active stage and never resets on later stage changes.
+- Adds `timed` stage/component persistence with fixed or formula residual durations. Timed output becomes an `affliction-residual-effect` when its stage ends and receives an absolute expiry timestamp.
+- Timed and permanent residuals detach safely when the controller ends; affliction-bound residuals continue to be removed with the controller.
+- The authoritative world-time scheduler now expires timed residual Items even after their originating controller has ended or been deleted.
+- Pause/resume shifts persisted formula maximum-duration deadlines together with the other Affliction clocks.
+- Adds editor controls for formula timing and timed residual duration plus public `resolveComponentPersistenceDuration()` access.
+- Fixes historical/catch-up stage transitions so residual lifetime starts at the effective transition timestamp rather than the current wall-clock world time.
+- Keeps public API compatibility `0.1.0`, Affliction schema v2, and Controller schema v2; `state.maximumDurationAt` is an additive optional runtime field.
+- Full regression suite: 313/313 passing.
+
 ## 0.1.60
 - Added provider-content i18n token resolution (`@i18n:`) for library descriptors and loaded Affliction definitions, enabling per-client localization of external read-only libraries.
 - Source-work labels stored in provider definitions are localized at render/search time.
-
-# Changelog
 
 ## 0.1.59 – Library Filters & Scroll Persistence
 

@@ -28,7 +28,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
   assert.equal(api.version, "0.1.0");
-  assert.equal(api.moduleVersion, "0.1.60");
+  assert.equal(api.moduleVersion, "0.1.61");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -41,7 +41,7 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.deepEqual(api.catalogs.identificationStates(), ["hidden", "suspected", "identified"]);
   assert.deepEqual(api.catalogs.healingRestrictionModes(), ["none", "all", "affliction-damage"]);
   assert.deepEqual(api.catalogs.afflictionCapabilities(), ["speak"]);
-  assert.deepEqual(api.catalogs.stageEffectPersistenceModes(), ["stage", "affliction", "permanent"]);
+  assert.deepEqual(api.catalogs.stageEffectPersistenceModes(), ["stage", "affliction", "permanent", "timed"]);
   assert.deepEqual(api.catalogs.reactionEvents(), ["damage-taken", "condition-increased", "initiative-rolled", "turn-start"]);
   assert.deepEqual(api.catalogs.reactionControllerActions(), ["none", "recover", "end"]);
   assert.deepEqual(api.catalogs.stageExpiryActions(), ["check", "recover", "end", "stay"]);
@@ -55,6 +55,7 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.definitions.normalizeRestrictions, "function");
   assert.equal(typeof api.definitions.resolveRestrictions, "function");
   assert.equal(typeof api.definitions.resolveComponentPersistence, "function");
+  assert.equal(typeof api.definitions.resolveComponentPersistenceDuration, "function");
   assert.equal(typeof api.restrictions.forActor, "function");
   assert.equal(typeof api.restrictions.forController, "function");
   assert.equal(typeof api.restrictions.isCapabilityBlocked, "function");

@@ -48,9 +48,12 @@ function normalizeDuration(duration, { allowUnlimited = true } = {}) {
   if (duration == null) return null;
   const unit = UNIT_ALIASES[cleanString(duration.unit).toLowerCase()] ?? cleanString(duration.unit, "rounds");
   if (allowUnlimited && unit === "unlimited") return { value: -1, unit: "unlimited" };
+  const normalizedUnit = DURATION_UNITS.includes(unit) && unit !== "unlimited" ? unit : "rounds";
+  const formula = String(duration.formula ?? "").trim();
+  if (formula) return { formula, unit: normalizedUnit };
   return {
     value: finiteNumber(duration.value, 1),
-    unit: DURATION_UNITS.includes(unit) && unit !== "unlimited" ? unit : "rounds"
+    unit: normalizedUnit
   };
 }
 
@@ -258,14 +261,32 @@ function normalizeEffectComponentPersistence(value, componentCount = 0) {
   });
 }
 
+function normalizeEffectComponentPersistenceDurations(value, componentPersistence = []) {
+  const source = Array.isArray(value) ? value : [];
+  return componentPersistence.map((mode, index) => (
+    mode === "timed" ? normalizeDuration(source[index], { allowUnlimited: false }) : null
+  ));
+}
+
 export function resolveStageComponentPersistence(stage, componentIndex) {
   const override = stage?.effectComponentPersistence?.[componentIndex];
   return STAGE_EFFECT_PERSISTENCE_MODES.includes(override) ? override : (stage?.effectPersistence ?? "stage");
 }
 
+export function resolveStageComponentPersistenceDuration(stage, componentIndex) {
+  const override = stage?.effectComponentPersistence?.[componentIndex];
+  if (override === "timed") return stage?.effectComponentPersistenceDurations?.[componentIndex] ?? null;
+  if (override == null && stage?.effectPersistence === "timed") return stage?.effectPersistenceDuration ?? null;
+  return null;
+}
+
 function normalizeStage(stage, index) {
   const fallback = createDefaultStage({ number: index + 1 });
   const componentCount = Array.isArray(stage?.effect?.components) ? stage.effect.components.length : 0;
+  const effectPersistence = STAGE_EFFECT_PERSISTENCE_MODES.includes(stage?.effectPersistence)
+    ? stage.effectPersistence
+    : fallback.effectPersistence;
+  const effectComponentPersistence = normalizeEffectComponentPersistence(stage?.effectComponentPersistence, componentCount);
   return {
     id: cleanString(stage?.id, fallback.id),
     number: index + 1,
@@ -277,10 +298,15 @@ function normalizeStage(stage, index) {
       : fallback.expiryAction,
     check: stage?.check == null ? null : normalizeCheckGate(stage.check),
     restrictions: normalizeRestrictions(stage?.restrictions, fallback.restrictions),
-    effectPersistence: STAGE_EFFECT_PERSISTENCE_MODES.includes(stage?.effectPersistence)
-      ? stage.effectPersistence
-      : fallback.effectPersistence,
-    effectComponentPersistence: normalizeEffectComponentPersistence(stage?.effectComponentPersistence, componentCount),
+    effectPersistence,
+    effectPersistenceDuration: effectPersistence === "timed"
+      ? normalizeDuration(stage?.effectPersistenceDuration, { allowUnlimited: false })
+      : null,
+    effectComponentPersistence,
+    effectComponentPersistenceDurations: normalizeEffectComponentPersistenceDurations(
+      stage?.effectComponentPersistenceDurations,
+      effectComponentPersistence
+    ),
     effect: stage?.effect == null ? null : deepClone(stage.effect),
     numericModifiers: Array.isArray(stage?.numericModifiers) ? stage.numericModifiers.map(normalizeNumericModifier) : [],
     periodicEffects: Array.isArray(stage?.periodicEffects) ? stage.periodicEffects.map(normalizePeriodicEffect) : [],

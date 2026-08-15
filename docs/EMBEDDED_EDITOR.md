@@ -102,3 +102,8 @@ These remain definition editing only. The host does not schedule periodic work a
 ## Condition event reactions (0.1.54)
 
 The reaction editor now supports `condition-increased` in addition to `damage-taken`. Authors can filter by one or more PF2e condition slugs, choose **No auxiliary save** for direct reactions, and set an integer adjustment for the triggering valued condition. Damage-only and condition-only fields are disabled when the other event type is selected. The editor still edits only the definition; condition observation and loop-safe application belong to the runtime.
+
+
+## Formula timing and timed residuals (0.1.61)
+
+The embedded editor exposes an optional dice-formula field next to finite onset, maximum-duration, and stage-duration controls. A non-empty formula takes precedence over the fixed value. Stage and per-component persistence selectors include `timed`; selecting it reveals a residual-duration editor that also accepts either a fixed value or formula. These fields remain ordinary definition data and do not couple the embedded editor to scheduler persistence.

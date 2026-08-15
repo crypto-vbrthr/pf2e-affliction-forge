@@ -51,10 +51,16 @@ function validateDuration(report, duration, path, { nullable = false, allowUnlim
   if (duration.unit === "unlimited") {
     if (!allowUnlimited) report.add({ severity: "error", code: "duration.unlimited-not-allowed", path, message: `${path} cannot be unlimited.` });
     if (duration.value !== -1) report.add({ severity: "warning", code: "duration.unlimited-value", path: `${path}.value`, message: "Unlimited durations should use value -1." });
+    if (typeof duration.formula === "string" && duration.formula.trim()) report.add({ severity: "warning", code: "duration.unlimited-formula", path: `${path}.formula`, message: "Unlimited durations ignore formula values." });
     return;
   }
-  if (!Number.isFinite(duration.value) || duration.value <= 0) {
-    report.add({ severity: "error", code: "duration.value", path: `${path}.value`, message: "Duration value must be greater than 0." });
+  const hasFormula = typeof duration.formula === "string" && duration.formula.trim().length > 0;
+  const hasValue = Number.isFinite(duration.value) && duration.value > 0;
+  if (!hasFormula && !hasValue) {
+    report.add({ severity: "error", code: "duration.value", path, message: "Duration requires a positive value or a dice formula." });
+  }
+  if (hasFormula && duration.value != null) {
+    report.add({ severity: "warning", code: "duration.both", path, message: "Duration contains both formula and value; formula takes precedence." });
   }
 }
 
@@ -566,10 +572,15 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
       if (!STAGE_EFFECT_PERSISTENCE_MODES.includes(stage.effectPersistence)) {
         report.add({ severity: "error", code: "stage.effect-persistence", path: `${path}.effectPersistence`, message: `Unsupported stage effect persistence: ${stage.effectPersistence}.` });
       }
+      if (stage.effectPersistence === "timed") {
+        validateDuration(report, stage.effectPersistenceDuration, `${path}.effectPersistenceDuration`, { nullable: false, allowUnlimited: false });
+      } else if (stage.effectPersistenceDuration != null) {
+        report.add({ severity: "warning", code: "stage.effect-persistence-duration-unused", path: `${path}.effectPersistenceDuration`, message: "Timed persistence duration is ignored unless effectPersistence is timed." });
+      }
+      const componentCount = Array.isArray(stage.effect?.components) ? stage.effect.components.length : 0;
       if (!Array.isArray(stage.effectComponentPersistence)) {
         report.add({ severity: "error", code: "stage.component-persistence", path: `${path}.effectComponentPersistence`, message: "effectComponentPersistence must be an array." });
       } else {
-        const componentCount = Array.isArray(stage.effect?.components) ? stage.effect.components.length : 0;
         if (stage.effectComponentPersistence.length > componentCount) {
           report.add({ severity: "warning", code: "stage.component-persistence-extra", path: `${path}.effectComponentPersistence`, message: "Component persistence contains entries for components that do not exist." });
         }
@@ -577,7 +588,18 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
           if (mode != null && !STAGE_EFFECT_PERSISTENCE_MODES.includes(mode)) {
             report.add({ severity: "error", code: "stage.component-persistence-mode", path: `${path}.effectComponentPersistence.${componentIndex}`, message: `Unsupported component persistence: ${mode}.` });
           }
+          const duration = stage.effectComponentPersistenceDurations?.[componentIndex] ?? null;
+          if (mode === "timed") {
+            validateDuration(report, duration, `${path}.effectComponentPersistenceDurations.${componentIndex}`, { nullable: false, allowUnlimited: false });
+          } else if (duration != null) {
+            report.add({ severity: "warning", code: "stage.component-persistence-duration-unused", path: `${path}.effectComponentPersistenceDurations.${componentIndex}`, message: "Component timed duration is ignored unless the component persistence is timed." });
+          }
         }
+      }
+      if (!Array.isArray(stage.effectComponentPersistenceDurations)) {
+        report.add({ severity: "error", code: "stage.component-persistence-durations", path: `${path}.effectComponentPersistenceDurations`, message: "effectComponentPersistenceDurations must be an array." });
+      } else if (stage.effectComponentPersistenceDurations.length > componentCount) {
+        report.add({ severity: "warning", code: "stage.component-persistence-durations-extra", path: `${path}.effectComponentPersistenceDurations`, message: "Component persistence durations contain entries for components that do not exist." });
       }
       if (stage.effectPersistence !== "stage" && stage.effect == null) {
         report.add({ severity: "warning", code: "stage.effect-persistence-without-effect", path: `${path}.effectPersistence`, message: "Persistent stage output has no effect definition to preserve." });

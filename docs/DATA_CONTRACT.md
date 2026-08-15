@@ -81,7 +81,9 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
     }
   },
 
-  onset: { value: 1, unit: "days" },
+  // Any finite timing may use either { value, unit } or { formula, unit }.
+  // A formula is rolled once when that clock begins.
+  onset: { formula: "1d4", unit: "days" },
   maximumDuration: null,
 
   defaultStageCheck: {
@@ -107,14 +109,17 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
       number: 1,
       name: "",
       description: "...",
-      duration: { value: 8, unit: "hours" },
+      duration: { formula: "2d6", unit: "hours" },
       check: null,
       restrictions: {
         conditionLocks: [],
         healing: "none",
         blockedCapabilities: []
       },
-      effectPersistence: "stage", // stage | affliction | permanent
+      effectPersistence: "stage", // stage | affliction | permanent | timed
+      effectPersistenceDuration: null, // required for stage-level timed persistence
+      effectComponentPersistence: [],
+      effectComponentPersistenceDurations: [], // index-aligned timed residual durations
       effect: null,
       numericModifiers: [], // native PF2e FlatModifier output; see below
       periodicEffects: [], // repeated Critical Forge effects; see below
@@ -410,6 +415,25 @@ This is diagnostic/audit state. The current stage and active generated-effect UU
 `state.mortality` remains `null` unless Critical Forge reports that a `death` instant component was actually applied. A death-effect immunity result creates a `death-resisted` event but does not populate mortality, so the Affliction Forge never claims a blocked death effect as the cause of death.
 
 
+## Formula timings (0.1.61)
+
+Finite Affliction timings accept either a fixed value or a dice formula:
+
+```js
+{ value: 4, unit: "hours" }
+{ formula: "1d4", unit: "days" }
+```
+
+This applies to root `onset`, root `maximumDuration`, and each stage `duration`. If both `formula` and `value` are present, the formula wins and validation emits a warning. Formula results must resolve to a positive number. `unlimited` remains a sentinel duration and does not roll formulas.
+
+A formula is evaluated exactly when its logical clock starts, not every time the controller is inspected:
+
+- onset: once when incubation begins; the absolute deadline is stored in `state.nextCheckAt`
+- stage duration: once whenever a new stage interval begins; remaining in the same stage after a save begins a new interval and therefore rolls a new duration
+- maximum active duration: once when the first effective stage becomes active; the absolute deadline is stored in additive controller field `state.maximumDurationAt` and never resets on later stage changes or repeated poison exposure
+
+The scheduler uses the persisted deadlines for formula timings because a rolled duration cannot be synchronously reconstructed from the definition. Pause/resume shifts these deadlines by the paused interval.
+
 ## Restriction semantics (0.1.49, extended 0.1.51)
 
 Restrictions are additive schema-v2 fields. Legacy definitions normalize to empty restrictions and `effectPersistence: "stage"`. Root and current-stage restrictions merge at runtime.
@@ -422,11 +446,12 @@ Restrictions are additive schema-v2 fields. Legacy definitions normalize to empt
 - `effectPersistence: "stage"`: generated persistent stage output is removed when leaving the stage.
 - `effectPersistence: "affliction"`: generated persistent output survives later stages and is removed when the affliction ends.
 - `effectPersistence: "permanent"`: generated persistent output survives later stages and remains as a detached `affliction-residual-effect` after controller end.
+- `effectPersistence: "timed"`: generated persistent output becomes a residual when its stage ends and survives controller end only until its own fixed or formula residual duration expires.
 
 `affliction-damage` intentionally claims only damage produced by the affliction itself. Damage-type-wide rules use `unhealableDamageTypes` instead. Their tracked pools are additive runtime state and only protect damage observed while the matching restriction is active.
 
 
-### Component-specific persistent-effect lifetime (0.1.51)
+### Component-specific persistent-effect lifetime (0.1.51, extended 0.1.61)
 
 A stage may override persistence for individual persistent Critical Forge components without changing the Affliction schema version:
 
@@ -435,13 +460,34 @@ A stage may override persistence for individual persistent Critical Forge compon
   effectPersistence: "stage",
   effectComponentPersistence: [
     null,        // inherit stage default
-    "permanent" // this component survives controller end
+    "timed" // this component survives for its own residual duration
+  ],
+  effectComponentPersistenceDurations: [
+    null,
+    { value: 24, unit: "hours" }
   ],
   effect: { components: [/* ... */] }
 }
 ```
 
-The array is index-aligned with `stage.effect.components`. Supported explicit values are `stage`, `affliction`, and `permanent`; `null` means inherit `stage.effectPersistence`. Extra array entries produce validation warnings and normalization trims/pads the authored value to the component count. Instant components still execute through Critical Forge's instant path; the lifetime override applies to generated persistent stage output.
+The array is index-aligned with `stage.effect.components`. Supported explicit values are `stage`, `affliction`, `permanent`, and `timed`; `null` means inherit `stage.effectPersistence`. A timed component requires the corresponding `effectComponentPersistenceDurations[index]`; stage-level timed persistence requires `effectPersistenceDuration`. Those durations accept the same fixed/formula timing shape described above. Extra array entries produce validation warnings and normalization trims/pads the authored value to the component count. Instant components still execute through Critical Forge's instant path; the lifetime override applies to generated persistent stage output.
+
+
+### Timed residual runtime state (0.1.61)
+
+When timed output leaves its stage, the generated Item changes to `affliction-residual-effect` and records the already-resolved lifetime in flags:
+
+```js
+{
+  residualPersistence: "timed",
+  residualCreatedAt: 123456,
+  residualDurationSeconds: 86400,
+  residualExpiresAt: 209856,
+  controllerUuid: null // after the controller itself ends
+}
+```
+
+The authoritative world-time scheduler removes timed residual Items at `residualExpiresAt`, even if their originating controller no longer exists. Residual formula durations are rolled when the stage output becomes residual, so they describe the post-stage consequence rather than time spent in the active stage.
 
 ### Typed unhealable damage state (0.1.51)
 

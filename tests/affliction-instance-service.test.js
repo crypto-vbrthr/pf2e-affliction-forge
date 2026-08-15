@@ -1554,3 +1554,170 @@ test("pause and resume preserve remaining time for periodic effects", async () =
   assert.equal(state.periodicSchedule.pulse.nextAt, 1240);
   assert.equal(state.nextCheckAt, 1720);
 });
+
+test("formula onset is rolled once when incubation begins and the persisted deadline is reused", async () => {
+  const previousRoll = globalThis.Roll;
+  let rolls = 0;
+  globalThis.Roll = class MockRoll {
+    constructor(formula) { this.formula = formula; this.total = null; }
+    static create(formula) { return new MockRoll(formula); }
+    async evaluate() { rolls += 1; this.total = 3; return this; }
+  };
+  try {
+    const actor = new FakeActor("formulaOnset", "Formula Onset Hero");
+    const service = createAfflictionInstanceService();
+    const source = createAfflictionDefinition({
+      name: "Formula Onset",
+      initialCheck: null,
+      onset: { formula: "1d4", unit: "days" },
+      stages: [createDefaultStage({ number: 1 })]
+    });
+    const [controller] = await service.applyDefinition(source, actor, { appliedAt: 1000 });
+    const state = getAfflictionFlags(controller).state;
+    assert.equal(rolls, 1);
+    assert.equal(state.nextCheckAt, 1000 + (3 * 86400));
+    assert.equal(scheduledDueAt(source, state), state.nextCheckAt);
+    assert.equal(rolls, 1, "reading the schedule must not reroll a formula onset");
+  } finally {
+    globalThis.Roll = previousRoll;
+  }
+});
+
+test("formula stage duration is rolled for each new stage interval and its deadline is persisted", async () => {
+  const previousRoll = globalThis.Roll;
+  const totals = [4, 2];
+  globalThis.Roll = class MockRoll {
+    constructor(formula) { this.formula = formula; this.total = null; }
+    static create(formula) { return new MockRoll(formula); }
+    async evaluate() { this.total = totals.shift(); return this; }
+  };
+  try {
+    const actor = new FakeActor("formulaStage", "Formula Stage Hero");
+    const service = createAfflictionInstanceService();
+    const source = createAfflictionDefinition({
+      name: "Formula Stage",
+      initialCheck: null,
+      stages: [{ ...createDefaultStage({ number: 1 }), duration: { formula: "1d6", unit: "minutes" } }]
+    });
+    const [controller] = await service.applyDefinition(source, actor, { appliedAt: 1000 });
+    let state = getAfflictionFlags(controller).state;
+    assert.equal(state.nextCheckAt, 1240);
+    assert.equal(scheduledDueAt(source, state), 1240);
+
+    await service.setStage(controller, 1, { enteredAt: 1240 });
+    state = getAfflictionFlags(controller).state;
+    assert.equal(state.nextCheckAt, 1360, "a same-stage renewal starts a new formula-based stage interval");
+    assert.equal(scheduledDueAt(source, state), 1360);
+    assert.equal(totals.length, 0);
+  } finally {
+    globalThis.Roll = previousRoll;
+  }
+});
+
+test("formula maximum duration is rolled once when active timing begins and survives stage changes", async () => {
+  const previousRoll = globalThis.Roll;
+  let maxRolls = 0;
+  globalThis.Roll = class MockRoll {
+    constructor(formula) { this.formula = formula; this.total = null; }
+    static create(formula) { return new MockRoll(formula); }
+    async evaluate() { if (this.formula === "1d4") maxRolls += 1; this.total = this.formula === "1d4" ? 3 : 1; return this; }
+  };
+  try {
+    const actor = new FakeActor("formulaMax", "Formula Maximum Hero");
+    const service = createAfflictionInstanceService();
+    const source = createAfflictionDefinition({
+      name: "Formula Maximum",
+      initialCheck: null,
+      maximumDuration: { formula: "1d4", unit: "hours" },
+      stages: [
+        { ...createDefaultStage({ number: 1 }), duration: { value: 1, unit: "minutes" } },
+        { ...createDefaultStage({ number: 2 }), duration: { value: 1, unit: "minutes" } }
+      ]
+    });
+    const [controller] = await service.applyDefinition(source, actor, { appliedAt: 1000 });
+    let state = getAfflictionFlags(controller).state;
+    assert.equal(state.maximumDurationAt, 11800);
+    assert.equal(maxRolls, 1);
+
+    await service.setStage(controller, 2, { enteredAt: 1060 });
+    state = getAfflictionFlags(controller).state;
+    assert.equal(state.maximumDurationAt, 11800);
+    assert.equal(maxRolls, 1, "stage changes must not reroll the active maximum duration");
+
+    await service.pause(controller, { pausedAt: 1100 });
+    await service.resume(controller, { resumedAt: 1200 });
+    state = getAfflictionFlags(controller).state;
+    assert.equal(state.maximumDurationAt, 11900, "pause time shifts a persisted formula maximum deadline");
+  } finally {
+    globalThis.Roll = previousRoll;
+  }
+});
+
+test("timed component persistence becomes a detached residual with its own expiry after controller end", async () => {
+  const actor = new FakeActor("timedResidual", "Timed Residual Hero");
+  const service = createAfflictionInstanceService();
+  const mixed = effect("timed.stage", "Timed residual stage");
+  mixed.components = [
+    { type: "condition", slug: "enfeebled", value: 1 },
+    { type: "condition", slug: "blinded" }
+  ];
+  const source = createAfflictionDefinition({
+    name: "Timed Residual Disease",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      effectPersistence: "stage",
+      effectComponentPersistence: [null, "timed"],
+      effectComponentPersistenceDurations: [null, { value: 24, unit: "hours" }],
+      effect: mixed
+    }]
+  });
+  const [controller] = await service.applyDefinition(source, actor, { appliedAt: 1000 });
+  globalThis.game.time.worldTime = 1100;
+  await service.end(controller, { reason: "recovered", notifyLifecycle: false });
+  const residual = actor.items.find(isAfflictionResidualEffect);
+  assert.ok(residual);
+  const flags = getAfflictionFlags(residual);
+  assert.equal(flags.residualPersistence, "timed");
+  assert.equal(flags.residualCreatedAt, 1100);
+  assert.equal(flags.residualDurationSeconds, 86400);
+  assert.equal(flags.residualExpiresAt, 87500);
+  assert.equal(flags.controllerUuid, null);
+  assert.deepEqual(flags.componentIndices, [1]);
+});
+
+test("formula timed residual duration is rolled when the stage output becomes residual", async () => {
+  const previousRoll = globalThis.Roll;
+  let rolls = 0;
+  globalThis.Roll = class MockRoll {
+    constructor(formula) { this.formula = formula; this.total = null; }
+    static create(formula) { return new MockRoll(formula); }
+    async evaluate() { rolls += 1; this.total = 2; return this; }
+  };
+  try {
+    const actor = new FakeActor("formulaResidual", "Formula Residual Hero");
+    const service = createAfflictionInstanceService();
+    const source = createAfflictionDefinition({
+      name: "Formula Residual Disease",
+      initialCheck: null,
+      stages: [
+        {
+          ...createDefaultStage({ number: 1 }),
+          effectPersistence: "timed",
+          effectPersistenceDuration: { formula: "1d4", unit: "hours" },
+          effect: effect("formula.residual", "Formula residual")
+        },
+        { ...createDefaultStage({ number: 2 }), effect: null }
+      ]
+    });
+    const [controller] = await service.applyDefinition(source, actor, { appliedAt: 1000 });
+    assert.equal(rolls, 0, "residual timing does not start while the stage is still active");
+    await service.setStage(controller, 2, { enteredAt: 1060, notifyLifecycle: false });
+    const residual = actor.items.find(isAfflictionResidualEffect);
+    assert.ok(residual);
+    assert.equal(rolls, 1);
+    assert.equal(getAfflictionFlags(residual).residualExpiresAt, 8260);
+  } finally {
+    globalThis.Roll = previousRoll;
+  }
+});

@@ -534,5 +534,9 @@
   "PF2E_AFFLICTION_FORGE.Forge.FilterAllTypes": "Alle Leidensarten",
   "PF2E_AFFLICTION_FORGE.Forge.FilterLevel": "Stufe",
   "PF2E_AFFLICTION_FORGE.Forge.FilterMinLevel": "Min.",
-  "PF2E_AFFLICTION_FORGE.Forge.FilterMaxLevel": "Max."
+  "PF2E_AFFLICTION_FORGE.Forge.FilterMaxLevel": "Max.",
+  "PF2E_AFFLICTION_FORGE.Editor.DurationFormula": "Würfelformel",
+  "PF2E_AFFLICTION_FORGE.Editor.DurationFormulaHint": "Optional. Wenn eine Formel angegeben ist, wird sie beim Start dieses Zeitabschnitts einmal ausgewürfelt und überschreibt den festen Wert.",
+  "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceTimed": "Zeitlich begrenzt",
+  "PF2E_AFFLICTION_FORGE.Restrictions.TimedPersistenceDuration": "Dauer der Nachwirkung"
 }
