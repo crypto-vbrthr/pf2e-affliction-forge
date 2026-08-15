@@ -4,6 +4,8 @@ import { MODULE_ID, DOCUMENT_KINDS } from "../scripts/constants.js";
 import {
   eventReactionMatches,
   inspectPf2eAfflictionReactionEvent,
+  inspectPf2eConditionReactionEvent,
+  processAfflictionReactionEvent,
   processAfflictionEventReactionMessage,
   resolvePf2eDamageTypes
 } from "../scripts/affliction/runtime/affliction-event-reaction-runtime.js";
@@ -214,4 +216,95 @@ test("a successful triggered save records the reaction but does not execute the 
   assert.equal(result.results[0].status, "resolved");
   assert.equal(result.results[0].effectApplied, false);
   assert.equal(effectExecutions.length, 0);
+});
+
+function definitionWithConditionReaction() {
+  return normalizeAfflictionDefinition({
+    schemaVersion: 2,
+    id: "test.condition-disease",
+    name: "Condition Disease",
+    afflictionType: "disease",
+    level: 4,
+    rarity: "common",
+    traits: ["disease"],
+    themes: [],
+    saveDefaults: { execution: "automatic", visibility: "public" },
+    identification: { initialState: "identified" },
+    restrictions: { conditionLocks: [], healing: "none", unhealableDamageTypes: [], blockedCapabilities: [] },
+    checks: [{ id: "primary", label: "Fortitude", kind: "save", statistic: "fortitude", dcMode: "fixed", dc: 19, policy: null }],
+    initialCheck: null,
+    onset: null,
+    maximumDuration: null,
+    defaultStageCheck: null,
+    progression: { belowStageOne: "recover", aboveMaximumStage: "clamp", virulent: true },
+    stages: [{
+      id: "stage-1", number: 1, name: "Stage 1", description: "",
+      duration: { value: 1, unit: "days" }, check: null,
+      restrictions: { conditionLocks: [], healing: "none", unhealableDamageTypes: [], blockedCapabilities: [] },
+      effectPersistence: "stage", effect: null,
+      reactions: [{
+        id: "wounded-escalation", label: "Wounded escalation",
+        trigger: { event: "condition-increased", conditionSlugs: ["wounded"] },
+        checkId: null, applyOn: [], conditionValueDelta: 1, effect: null
+      }]
+    }],
+    metadata: {}
+  });
+}
+
+test("condition-increased event recognizes gaining a valued PF2e condition", () => {
+  const { actor } = installRuntime();
+  actor.documentName = "Actor";
+  const condition = {
+    id: "wounded", uuid: "Actor.hero.Item.wounded", type: "condition", slug: "wounded", name: "Wounded",
+    parent: actor, system: { value: { value: 1, max: 4 } }
+  };
+  const event = inspectPf2eConditionReactionEvent(condition, { previousValue: 0, eventId: "condition-test" });
+  assert.equal(event.matched, true);
+  assert.equal(event.event, "condition-increased");
+  assert.equal(event.conditionSlug, "wounded");
+  assert.equal(event.previousValue, 0);
+  assert.equal(event.conditionValue, 1);
+});
+
+test("direct condition-increased reaction raises the triggering condition once without rolling a save", async () => {
+  const { actor, effectExecutions } = installRuntime();
+  actor.documentName = "Actor";
+  const definition = definitionWithConditionReaction();
+  controllerFor(actor, definition);
+  const condition = {
+    id: "wounded", uuid: "Actor.hero.Item.wounded", type: "condition", slug: "wounded", name: "Wounded",
+    parent: actor, system: { value: { value: 1, max: 4 } },
+    update: async (changes) => {
+      condition.system.value.value = Number(changes["system.value.value"]);
+      return condition;
+    }
+  };
+  actor.items.push(condition);
+  const event = inspectPf2eConditionReactionEvent(condition, { previousValue: 0, eventId: "condition-direct" });
+  const result = await processAfflictionReactionEvent(event, { force: true });
+  assert.equal(result.status, "processed");
+  assert.equal(result.results[0].status, "resolved");
+  assert.equal(condition.system.value.value, 2);
+  assert.equal(result.results[0].conditionAdjustment.applied, true);
+  assert.equal(effectExecutions.length, 0);
+});
+
+test("condition reaction chain suppresses the same reaction from recursively escalating its own update", async () => {
+  const { actor } = installRuntime();
+  actor.documentName = "Actor";
+  const definition = definitionWithConditionReaction();
+  const controller = controllerFor(actor, definition);
+  const condition = {
+    id: "wounded", uuid: "Actor.hero.Item.wounded", type: "condition", slug: "wounded", name: "Wounded",
+    parent: actor, system: { value: { value: 2, max: 4 } }, update: async () => condition
+  };
+  actor.items.push(condition);
+  const event = inspectPf2eConditionReactionEvent(condition, {
+    previousValue: 1, eventId: "condition-chain",
+    options: { [MODULE_ID]: { conditionReactionChain: [`${controller.uuid}|wounded-escalation`] } }
+  });
+  const result = await processAfflictionReactionEvent(event, { force: true });
+  assert.equal(result.status, "processed");
+  assert.equal(result.results[0].status, "reaction-chain-suppressed");
 });

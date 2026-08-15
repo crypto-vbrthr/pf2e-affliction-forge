@@ -28,7 +28,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
   assert.equal(api.version, "0.1.0");
-  assert.equal(api.moduleVersion, "0.1.53");
+  assert.equal(api.moduleVersion, "0.1.54");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -41,7 +41,7 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.deepEqual(api.catalogs.healingRestrictionModes(), ["none", "all", "affliction-damage"]);
   assert.deepEqual(api.catalogs.afflictionCapabilities(), ["speak"]);
   assert.deepEqual(api.catalogs.stageEffectPersistenceModes(), ["stage", "affliction", "permanent"]);
-  assert.deepEqual(api.catalogs.reactionEvents(), ["damage-taken"]);
+  assert.deepEqual(api.catalogs.reactionEvents(), ["damage-taken", "condition-increased"]);
   assert.deepEqual(api.catalogs.numericModifierTypes(), ["untyped", "status", "circumstance", "item"]);
   assert.equal(typeof api.definitions.createNumericModifier, "function");
   assert.equal(typeof api.definitions.createPeriodicEffect, "function");
@@ -55,8 +55,10 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.restrictions.isCapabilityBlocked, "function");
   assert.equal(typeof api.restrictions.recordDamageMessage, "function");
   assert.equal(typeof api.reactions.inspectMessage, "function");
+  assert.equal(typeof api.reactions.inspectCondition, "function");
   assert.equal(typeof api.reactions.damageTypes, "function");
   assert.equal(typeof api.reactions.matches, "function");
+  assert.equal(typeof api.reactions.processEvent, "function");
   assert.equal(typeof api.reactions.processMessage, "function");
   assert.equal(typeof api.reactions.acceptPlayerResult, "function");
   assert.equal(typeof api.reactions.status, "function");

@@ -13,6 +13,8 @@ import { rollPf2eSave } from "./pf2e-save-roller.js";
 const MAX_REACTION_HISTORY = 1000;
 const processedReactionKeys = new Map();
 const pendingReactionKeys = new Set();
+const conditionValueCache = new Map();
+let conditionEventSerial = 0;
 let initialized = false;
 
 function localize(key, fallback = key) {
@@ -54,6 +56,60 @@ function itemCollection(actor) {
   if (!items) return [];
   if (Array.isArray(items)) return items;
   try { return [...items]; } catch { return []; }
+}
+
+function isConditionItem(item) {
+  if (!item) return false;
+  if (item.type === "condition") return true;
+  try { return item.isOfType?.("condition") === true; } catch { return false; }
+}
+
+function conditionSlug(item) {
+  const candidates = [item?.slug, item?.system?.slug, item?.system?.slug?.value, item?.system?.condition?.slug];
+  for (const candidate of candidates) {
+    const value = String(candidate ?? "").trim().toLowerCase();
+    if (value) return value;
+  }
+  return String(item?.name ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function conditionValue(item) {
+  const candidates = [
+    item?.value,
+    item?.badge?.value,
+    item?.system?.value?.value,
+    item?.system?.value,
+    item?.system?.badge?.value,
+    item?.system?.badge
+  ];
+  for (const candidate of candidates) {
+    const number = Number(candidate);
+    if (Number.isFinite(number)) return Math.trunc(number);
+  }
+  return null;
+}
+
+function conditionMaximum(item) {
+  const slug = conditionSlug(item);
+  const candidates = [item?.system?.value?.max, item?.system?.badge?.max, item?.parent?.system?.attributes?.[slug]?.max];
+  for (const candidate of candidates) {
+    const number = Number(candidate);
+    if (Number.isFinite(number)) return Math.trunc(number);
+  }
+  return null;
+}
+
+function conditionCacheKey(item) {
+  return item?.uuid ?? (item?.parent?.uuid && item?.id ? `${item.parent.uuid}.Item.${item.id}` : item?.id ?? null);
+}
+
+function reactionChainFromOptions(options = {}) {
+  const chain = options?.[MODULE_ID]?.conditionReactionChain;
+  return Array.isArray(chain) ? chain.map((entry) => String(entry)).filter(Boolean) : [];
+}
+
+function reactionIdentity(controller, reaction) {
+  return `${controller?.uuid ?? controller?.id ?? "controller"}|${reaction?.id ?? "reaction"}`;
 }
 
 function pf2eFlags(message) {
@@ -147,18 +203,58 @@ export function inspectPf2eAfflictionReactionEvent(message) {
   });
 }
 
+/** Convert a PF2e embedded Condition creation/value increase into a stable
+ * event. `condition-increased` includes the first gain of a valued condition
+ * (0 -> value) as well as later increases. */
+export function inspectPf2eConditionReactionEvent(item, { previousValue = null, options = {}, eventId = null } = {}) {
+  const actor = item?.parent?.documentName === "Actor" ? item.parent : null;
+  if (!actor || !isConditionItem(item)) {
+    return Object.freeze({ matched: false, event: null, actor: null, actorUuid: null });
+  }
+  const current = conditionValue(item);
+  const previous = Number.isFinite(Number(previousValue)) ? Math.trunc(Number(previousValue)) : 0;
+  const increased = Number.isInteger(current) && current > previous;
+  const slug = conditionSlug(item);
+  const id = eventId ?? `condition-${++conditionEventSerial}`;
+  return Object.freeze({
+    matched: Boolean(increased && slug),
+    event: "condition-increased",
+    eventId: id,
+    actor,
+    actorUuid: actor.uuid ?? null,
+    conditionItem: item,
+    conditionItemUuid: item.uuid ?? null,
+    conditionSlug: slug,
+    previousValue: previous,
+    conditionValue: current,
+    conditionDelta: increased ? current - previous : 0,
+    reactionChain: Object.freeze(reactionChainFromOptions(options)),
+    damageTypes: Object.freeze([]),
+    damageTypesKnown: false
+  });
+}
+
 export function eventReactionMatches(reaction, event) {
   if (!reaction || !event?.matched || reaction?.trigger?.event !== event.event) return false;
-  const required = Array.isArray(reaction?.trigger?.damageTypes)
-    ? reaction.trigger.damageTypes.map((entry) => String(entry).toLowerCase()).filter(Boolean)
-    : [];
-  if (required.length === 0) return true;
-  const actual = new Set((event.damageTypes ?? []).map((entry) => String(entry).toLowerCase()));
-  return required.some((type) => actual.has(type));
+  if (event.event === "damage-taken") {
+    const required = Array.isArray(reaction?.trigger?.damageTypes)
+      ? reaction.trigger.damageTypes.map((entry) => String(entry).toLowerCase()).filter(Boolean)
+      : [];
+    if (required.length === 0) return true;
+    const actual = new Set((event.damageTypes ?? []).map((entry) => String(entry).toLowerCase()));
+    return required.some((type) => actual.has(type));
+  }
+  if (event.event === "condition-increased") {
+    const required = Array.isArray(reaction?.trigger?.conditionSlugs)
+      ? reaction.trigger.conditionSlugs.map((entry) => String(entry).toLowerCase()).filter(Boolean)
+      : [];
+    return required.length === 0 || required.includes(String(event.conditionSlug ?? "").toLowerCase());
+  }
+  return true;
 }
 
 function reactionKey(event, controller, reaction) {
-  return [event?.messageUuid ?? event?.messageId ?? "event", controller?.uuid ?? controller?.id ?? "controller", reaction?.id ?? "reaction"].join("|");
+  return [event?.messageUuid ?? event?.messageId ?? event?.eventId ?? "event", controller?.uuid ?? controller?.id ?? "controller", reaction?.id ?? "reaction"].join("|");
 }
 
 function rememberProcessed(key) {
@@ -189,8 +285,8 @@ function outcomeApplies(reaction, degree) {
   return OUTCOME_KEYS.includes(degree) && reaction?.applyOn?.includes?.(degree);
 }
 
-async function executeReactionEffect({ controller, actor, definition, stage, reaction, event, degree }) {
-  if (!outcomeApplies(reaction, degree) || !reaction.effect) return { applied: false, results: [] };
+async function executeReactionEffect({ controller, actor, definition, stage, reaction, event, degree = null, direct = false }) {
+  if ((!direct && !outcomeApplies(reaction, degree)) || !reaction.effect) return { applied: false, results: [] };
   const criticalApi = getCriticalForgeApi();
   if (typeof criticalApi?.effects?.execute !== "function") {
     throw new Error("Critical Forge Effect execution API is unavailable for Affliction event reactions.");
@@ -211,20 +307,54 @@ async function executeReactionEffect({ controller, actor, definition, stage, rea
   return { applied: true, results: Array.isArray(results) ? results : [results].filter(Boolean) };
 }
 
+async function applyTriggeringConditionDelta({ controller, reaction, event }) {
+  const delta = Math.trunc(Number(reaction?.conditionValueDelta) || 0);
+  const item = event?.conditionItem;
+  if (delta === 0 || event?.event !== "condition-increased" || !item || !isConditionItem(item)) {
+    return Object.freeze({ applied: false, previous: null, value: null, delta: 0 });
+  }
+  const current = conditionValue(item);
+  if (!Number.isInteger(current)) return Object.freeze({ applied: false, previous: null, value: null, delta: 0 });
+  const maximum = conditionMaximum(item);
+  const next = Math.max(0, Number.isInteger(maximum) ? Math.min(maximum, current + delta) : current + delta);
+  if (next === current) return Object.freeze({ applied: false, previous: current, value: current, delta: 0 });
+  const identity = reactionIdentity(controller, reaction);
+  const chain = [...new Set([...(event.reactionChain ?? []), identity])];
+  await item.update({ "system.value.value": next }, {
+    render: false,
+    [MODULE_ID]: {
+      conditionReactionChain: chain,
+      conditionReactionSource: identity
+    }
+  });
+  return Object.freeze({ applied: true, previous: current, value: next, delta: next - current });
+}
+
 function gmWhisperIds() {
   const users = globalThis.game?.users;
   const list = users ? (Array.isArray(users) ? users : [...users]) : [];
   return list.filter((user) => user?.isGM).map((user) => user.id);
 }
 
-async function createReactionSummary({ controller, actor, definition, stage, reaction, event, check, result, effectApplied }) {
+async function createReactionSummary({ controller, actor, definition, stage, reaction, event, check = null, result = null, effectApplied, conditionAdjustment = null }) {
   if (!globalThis.ChatMessage?.create) return null;
-  const degree = localize(`PF2E_AFFLICTION_FORGE.Runtime.Degree.${result.degree}`, result.degree);
+  const checkLine = check && result
+    ? `<p>${escapeHtml(check.label || check.statistic)} SG ${escapeHtml(check.dc)}: <strong>${escapeHtml(localize(`PF2E_AFFLICTION_FORGE.Runtime.Degree.${result.degree}`, result.degree))}</strong></p>`
+    : `<p>${escapeHtml(localize("PF2E_AFFLICTION_FORGE.Reaction.DirectResolved", "Auslöser ohne Zusatzwurf verarbeitet."))}</p>`;
+  const conditionLine = conditionAdjustment?.applied
+    ? `<p>${escapeHtml(format("PF2E_AFFLICTION_FORGE.Reaction.ConditionAdjusted", {
+        condition: event?.conditionSlug ?? "",
+        previous: conditionAdjustment.previous,
+        value: conditionAdjustment.value
+      }, ({ condition, previous, value }) => `${condition}: ${previous} → ${value}`))}</p>`
+    : "";
+  const outputApplied = Boolean(effectApplied || conditionAdjustment?.applied);
   const content = `<div class="pf2e-affliction-reaction-summary">
     <h4><i class="fa-solid fa-bolt"></i> ${escapeHtml(definition.name)} · ${escapeHtml(actor?.name ?? "")}</h4>
     <p><strong>${escapeHtml(reaction.label || localize("PF2E_AFFLICTION_FORGE.Reaction.EventReaction", "Ereignisreaktion"))}</strong></p>
-    <p>${escapeHtml(check.label || check.statistic)} SG ${escapeHtml(check.dc)}: <strong>${escapeHtml(degree)}</strong></p>
-    <p>${escapeHtml(effectApplied
+    ${checkLine}
+    ${conditionLine}
+    <p>${escapeHtml(outputApplied
       ? localize("PF2E_AFFLICTION_FORGE.Reaction.EffectApplied", "Reaktionseffekt angewendet.")
       : localize("PF2E_AFFLICTION_FORGE.Reaction.NoEffect", "Kein Reaktionseffekt bei diesem Ergebnis."))}</p>
   </div>`;
@@ -237,9 +367,10 @@ async function createReactionSummary({ controller, actor, definition, stage, rea
         runtimeEvent: "affliction-event-reaction-resolved",
         controllerUuid: controllerUuidSafe(controller),
         reactionId: reaction.id,
-        sourceMessageUuid: event.messageUuid,
+        sourceMessageUuid: event.messageUuid ?? null,
+        sourceEventId: event.eventId ?? null,
         stageNumber: stage.number,
-        degree: result.degree
+        degree: result?.degree ?? null
       }
     }
   });
@@ -259,22 +390,71 @@ function requestMessageForReaction(requestId) {
   }) ?? null;
 }
 
-async function finalizeReaction({ controller, actor, definition, stage, reaction, event, check, result, key }) {
-  const effect = await executeReactionEffect({ controller, actor, definition, stage, reaction, event, degree: result.degree });
+function serializeReactionEvent(event) {
+  if (!event) return null;
+  return {
+    matched: Boolean(event.matched),
+    event: event.event ?? null,
+    eventId: event.eventId ?? null,
+    actorUuid: event.actorUuid ?? event.actor?.uuid ?? null,
+    messageId: event.messageId ?? null,
+    messageUuid: event.messageUuid ?? null,
+    conditionItemUuid: event.conditionItemUuid ?? event.conditionItem?.uuid ?? null,
+    conditionSlug: event.conditionSlug ?? null,
+    previousValue: Number.isInteger(event.previousValue) ? event.previousValue : null,
+    conditionValue: Number.isInteger(event.conditionValue) ? event.conditionValue : null,
+    conditionDelta: Number.isInteger(event.conditionDelta) ? event.conditionDelta : null,
+    reactionChain: [...(event.reactionChain ?? [])],
+    damageTypes: [...(event.damageTypes ?? [])],
+    damageTypesKnown: Boolean(event.damageTypesKnown)
+  };
+}
+
+async function restoreReactionEvent(snapshot, actor) {
+  if (!snapshot) return null;
+  const conditionItem = snapshot.conditionItemUuid ? await globalThis.fromUuid?.(snapshot.conditionItemUuid) : null;
+  return Object.freeze({
+    ...snapshot,
+    matched: true,
+    actor,
+    actorUuid: actor?.uuid ?? snapshot.actorUuid ?? null,
+    conditionItem,
+    reactionChain: Object.freeze([...(snapshot.reactionChain ?? [])]),
+    damageTypes: Object.freeze([...(snapshot.damageTypes ?? [])])
+  });
+}
+
+async function finalizeReaction({ controller, actor, definition, stage, reaction, event, check = null, result = null, key }) {
+  const direct = !check;
+  const outputEnabled = direct || outcomeApplies(reaction, result?.degree);
+  const conditionAdjustment = outputEnabled
+    ? await applyTriggeringConditionDelta({ controller, reaction, event })
+    : Object.freeze({ applied: false, previous: null, value: null, delta: 0 });
+  const effect = await executeReactionEffect({
+    controller, actor, definition, stage, reaction, event, degree: result?.degree ?? null, direct
+  });
   rememberProcessed(key);
   pendingReactionKeys.delete(key);
-  await createReactionSummary({ controller, actor, definition, stage, reaction, event, check, result, effectApplied: effect.applied });
-  globalThis.Hooks?.callAll?.("pf2eAfflictionForgeReactionResolved", Object.freeze({
+  await createReactionSummary({
+    controller, actor, definition, stage, reaction, event, check, result,
+    effectApplied: effect.applied, conditionAdjustment
+  });
+  const payload = Object.freeze({
     controllerUuid: controller.uuid,
     actorUuid: actor?.uuid ?? null,
     reactionId: reaction.id,
     stageNumber: stage.number,
     event,
-    checkId: check.id,
-    result: Object.freeze({ ...result }),
-    effectApplied: effect.applied
-  }));
-  return Object.freeze({ status: "resolved", controller, reaction, event, result, effectApplied: effect.applied });
+    checkId: check?.id ?? null,
+    result: result ? Object.freeze({ ...result }) : null,
+    effectApplied: effect.applied,
+    conditionAdjustment
+  });
+  globalThis.Hooks?.callAll?.("pf2eAfflictionForgeReactionResolved", payload);
+  return Object.freeze({
+    status: "resolved", controller, reaction, event, result,
+    effectApplied: effect.applied, conditionAdjustment
+  });
 }
 
 async function requestPlayerReactionSave({ controller, actor, definition, stage, reaction, event, check, policy, key }) {
@@ -297,8 +477,9 @@ async function requestPlayerReactionSave({ controller, actor, definition, stage,
     requestedByUserId: globalThis.game?.user?.id ?? null,
     reactionId: reaction.id,
     stageNumber: stage.number,
-    eventMessageId: event.messageId,
-    eventMessageUuid: event.messageUuid,
+    eventMessageId: event.messageId ?? null,
+    eventMessageUuid: event.messageUuid ?? null,
+    eventSnapshot: serializeReactionEvent(event),
     reactionKey: key
   };
   await createPlayerSaveRequestMessage(actor, request);
@@ -309,12 +490,24 @@ async function requestPlayerReactionSave({ controller, actor, definition, stage,
 
 async function processReaction(context, reaction, event) {
   const { controller, actor, definition, state, stage } = context;
+  const identity = reactionIdentity(controller, reaction);
+  if (event?.reactionChain?.includes?.(identity)) return Object.freeze({ status: "reaction-chain-suppressed", controller, reaction, event });
   const key = reactionKey(event, controller, reaction);
   if (processedReactionKeys.has(key) || pendingReactionKeys.has(key)) return Object.freeze({ status: "duplicate", controller, reaction, event });
-  const check = checkForReaction(definition, reaction);
-  if (!check) return Object.freeze({ status: "invalid-check", controller, reaction, event });
+  const hasCheck = reaction?.checkId != null && String(reaction.checkId).trim() !== "";
+  const check = hasCheck ? checkForReaction(definition, reaction) : null;
+  if (hasCheck && !check) return Object.freeze({ status: "invalid-check", controller, reaction, event });
   if (reaction?.trigger?.damageTypes?.length > 0 && !event.damageTypesKnown) {
     return Object.freeze({ status: "damage-type-unresolved", controller, reaction, event });
+  }
+  if (!hasCheck) {
+    pendingReactionKeys.add(key);
+    try {
+      return await finalizeReaction({ controller, actor, definition, stage, reaction, event, check: null, result: null, key });
+    } catch (error) {
+      pendingReactionKeys.delete(key);
+      throw error;
+    }
   }
   const policy = resolveSavePolicy(definition, check) ?? { execution: "player", visibility: "public" };
   if (policy.execution === "player") {
@@ -346,10 +539,9 @@ async function processReaction(context, reaction, event) {
   }
 }
 
-export async function processAfflictionEventReactionMessage(message, { force = false } = {}) {
-  if (!force && !authoritativeGm()) return Object.freeze({ status: "not-authoritative", event: null, results: Object.freeze([]) });
-  const event = inspectPf2eAfflictionReactionEvent(message);
-  if (!event.matched) return Object.freeze({ status: "ignored", event, results: Object.freeze([]) });
+export async function processAfflictionReactionEvent(event, { force = false } = {}) {
+  if (!force && !authoritativeGm()) return Object.freeze({ status: "not-authoritative", event, results: Object.freeze([]) });
+  if (!event?.matched || !event.actor) return Object.freeze({ status: "ignored", event, results: Object.freeze([]) });
   const contexts = itemCollection(event.actor).map(reactionContext).filter(Boolean);
   const results = [];
   for (const context of contexts) {
@@ -371,6 +563,10 @@ export async function processAfflictionEventReactionMessage(message, { force = f
   return Object.freeze({ status: results.length > 0 ? "processed" : "no-match", event, results: Object.freeze(results) });
 }
 
+export async function processAfflictionEventReactionMessage(message, { force = false } = {}) {
+  return processAfflictionReactionEvent(inspectPf2eAfflictionReactionEvent(message), { force });
+}
+
 export async function acceptAfflictionReactionPlayerResult(payload = {}) {
   if (!authoritativeGm()) return Object.freeze({ status: "not-authoritative" });
   if (payload?.purpose !== "reaction" || !payload?.requestId || !payload?.controllerUuid || !payload?.reactionId) {
@@ -389,16 +585,19 @@ export async function acceptAfflictionReactionPlayerResult(payload = {}) {
   const check = checkForReaction(context.definition, reaction);
   if (!reaction || !check || check.id !== request.checkId) return Object.freeze({ status: "stale" });
   const eventMessage = request.eventMessageId ? messageById(request.eventMessageId) : null;
-  const event = eventMessage ? inspectPf2eAfflictionReactionEvent(eventMessage) : Object.freeze({
-    matched: true,
-    event: reaction.trigger.event,
-    actor: context.actor,
-    actorUuid: context.actor?.uuid ?? null,
-    messageId: request.eventMessageId ?? null,
-    messageUuid: request.eventMessageUuid ?? null,
-    damageTypes: Object.freeze([]),
-    damageTypesKnown: false
-  });
+  const event = eventMessage
+    ? inspectPf2eAfflictionReactionEvent(eventMessage)
+    : (await restoreReactionEvent(request.eventSnapshot, context.actor)) ?? Object.freeze({
+        matched: true,
+        event: reaction.trigger.event,
+        actor: context.actor,
+        actorUuid: context.actor?.uuid ?? null,
+        messageId: request.eventMessageId ?? null,
+        messageUuid: request.eventMessageUuid ?? null,
+        damageTypes: Object.freeze([]),
+        damageTypesKnown: false,
+        reactionChain: Object.freeze([])
+      });
   const key = request.reactionKey || reactionKey(event, controller, reaction);
   if (processedReactionKeys.has(key)) return Object.freeze({ status: "duplicate" });
   const degree = OUTCOME_KEYS.includes(payload.degree) ? payload.degree : null;
@@ -424,17 +623,77 @@ function onCreateChatMessage(message) {
   });
 }
 
+function cacheCondition(item) {
+  if (!isConditionItem(item)) return;
+  const key = conditionCacheKey(item);
+  const value = conditionValue(item);
+  if (key && Number.isInteger(value)) conditionValueCache.set(key, value);
+}
+
+function seedConditionValueCache() {
+  conditionValueCache.clear();
+  const actors = globalThis.game?.actors;
+  const actorList = actors ? (Array.isArray(actors) ? actors : [...actors]) : [];
+  const tokenActors = globalThis.canvas?.tokens?.placeables?.map?.((token) => token?.actor).filter(Boolean) ?? [];
+  const seen = new Set();
+  for (const actor of [...actorList, ...tokenActors]) {
+    const key = actor?.uuid ?? actor?.id;
+    if (!actor || (key && seen.has(key))) continue;
+    if (key) seen.add(key);
+    for (const item of itemCollection(actor)) cacheCondition(item);
+  }
+}
+
+function onCreateItem(item, options = {}) {
+  if (!isConditionItem(item)) return;
+  const current = conditionValue(item);
+  const key = conditionCacheKey(item);
+  if (key && Number.isInteger(current)) conditionValueCache.set(key, current);
+  if (!authoritativeGm()) return;
+  const event = inspectPf2eConditionReactionEvent(item, { previousValue: 0, options });
+  if (!event.matched) return;
+  void processAfflictionReactionEvent(event).catch((error) => {
+    console.error(`${MODULE_ID} | Could not process Affliction condition-created reaction.`, error);
+  });
+}
+
+function onUpdateItem(item, _changes = {}, options = {}) {
+  if (!isConditionItem(item)) return;
+  const key = conditionCacheKey(item);
+  const current = conditionValue(item);
+  const previous = key && conditionValueCache.has(key) ? conditionValueCache.get(key) : current;
+  if (key && Number.isInteger(current)) conditionValueCache.set(key, current);
+  if (!authoritativeGm() || !Number.isInteger(current) || !Number.isInteger(previous) || current <= previous) return;
+  const event = inspectPf2eConditionReactionEvent(item, { previousValue: previous, options });
+  if (!event.matched) return;
+  void processAfflictionReactionEvent(event).catch((error) => {
+    console.error(`${MODULE_ID} | Could not process Affliction condition-increased reaction.`, error);
+  });
+}
+
+function onDeleteItem(item) {
+  if (!isConditionItem(item)) return;
+  const key = conditionCacheKey(item);
+  if (key) conditionValueCache.delete(key);
+}
+
 export function afflictionEventReactionRuntimeStatus() {
   return Object.freeze({
     initialized,
     authoritative: authoritativeGm(),
     processed: processedReactionKeys.size,
-    pending: pendingReactionKeys.size
+    pending: pendingReactionKeys.size,
+    conditionCache: conditionValueCache.size
   });
 }
 
 export function initializeAfflictionEventReactionRuntime() {
   if (initialized) return;
   initialized = true;
+  seedConditionValueCache();
   globalThis.Hooks?.on?.("createChatMessage", onCreateChatMessage);
+  globalThis.Hooks?.on?.("createItem", onCreateItem);
+  globalThis.Hooks?.on?.("updateItem", onUpdateItem);
+  globalThis.Hooks?.on?.("deleteItem", onDeleteItem);
+  globalThis.Hooks?.on?.("canvasReady", seedConditionValueCache);
 }

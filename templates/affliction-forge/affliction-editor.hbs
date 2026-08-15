@@ -786,7 +786,7 @@
                             </label>
                           </div>
 
-                          <div class="affliction-editor-grid three-columns">
+                          <div class="affliction-editor-grid two-columns">
                             <label class="affliction-editor-field">
                               <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.Trigger"}}</span>
                               <select data-reaction-field="event">
@@ -796,21 +796,35 @@
                               </select>
                             </label>
                             <label class="affliction-editor-field">
-                              <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.DamageTypes"}}</span>
-                              <input data-reaction-field="damageTypes" type="text" value="{{reaction.damageTypesText}}" placeholder="slashing, fire">
-                              <small>{{localize "PF2E_AFFLICTION_FORGE.Reaction.DamageTypesHint"}}</small>
-                            </label>
-                            <label class="affliction-editor-field">
                               <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.Check"}}</span>
                               <select data-reaction-field="checkId">
                                 {{#each reaction.checkOptions as |option|}}
                                   <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
                                 {{/each}}
                               </select>
+                              <small>{{localize "PF2E_AFFLICTION_FORGE.Reaction.CheckHint"}}</small>
                             </label>
                           </div>
 
-                          <div class="affliction-editor-reaction-outcomes">
+                          <div class="affliction-editor-grid three-columns">
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.DamageTypes"}}</span>
+                              <input data-reaction-field="damageTypes" type="text" value="{{reaction.damageTypesText}}" placeholder="slashing, fire">
+                              <small>{{localize "PF2E_AFFLICTION_FORGE.Reaction.DamageTypesHint"}}</small>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.ConditionSlugs"}}</span>
+                              <input data-reaction-field="conditionSlugs" type="text" value="{{reaction.conditionSlugsText}}" placeholder="wounded">
+                              <small>{{localize "PF2E_AFFLICTION_FORGE.Reaction.ConditionSlugsHint"}}</small>
+                            </label>
+                            <label class="affliction-editor-field">
+                              <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.ConditionValueDelta"}}</span>
+                              <input data-reaction-field="conditionValueDelta" type="number" step="1" value="{{reaction.conditionValueDelta}}">
+                              <small>{{localize "PF2E_AFFLICTION_FORGE.Reaction.ConditionValueDeltaHint"}}</small>
+                            </label>
+                          </div>
+
+                          <div class="affliction-editor-reaction-outcomes" data-reaction-outcomes>
                             <span>{{localize "PF2E_AFFLICTION_FORGE.Reaction.ApplyOn"}}</span>
                             <div class="affliction-editor-check-pills">
                               {{#each reaction.outcomes as |outcome|}}

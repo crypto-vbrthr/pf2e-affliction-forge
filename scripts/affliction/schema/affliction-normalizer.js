@@ -173,15 +173,23 @@ function normalizeEventReaction(value, index) {
     ? source.trigger
     : {};
   const event = cleanString(triggerSource.event, fallback.trigger.event).toLowerCase();
+  const checkIdSource = source.checkId;
+  const checkId = checkIdSource == null || String(checkIdSource).trim() === ""
+    ? null
+    : cleanString(checkIdSource, fallback.checkId);
   return {
     id: cleanString(source.id, fallback.id),
     label: String(source.label ?? "").trim(),
     trigger: {
       event: AFFLICTION_REACTION_EVENTS.includes(event) ? event : fallback.trigger.event,
-      damageTypes: uniqueStrings(triggerSource.damageTypes).map((entry) => entry.toLowerCase())
+      damageTypes: uniqueStrings(triggerSource.damageTypes).map((entry) => entry.toLowerCase()),
+      conditionSlugs: uniqueStrings(triggerSource.conditionSlugs).map((entry) => entry.toLowerCase())
     },
-    checkId: cleanString(source.checkId, fallback.checkId),
-    applyOn: uniqueStrings(source.applyOn ?? fallback.applyOn).filter((entry) => OUTCOME_KEYS.includes(entry)),
+    checkId,
+    applyOn: checkId
+      ? uniqueStrings(source.applyOn ?? fallback.applyOn).filter((entry) => OUTCOME_KEYS.includes(entry))
+      : [],
+    conditionValueDelta: Math.trunc(finiteNumber(source.conditionValueDelta, 0)),
     effect: source.effect == null ? null : deepClone(source.effect)
   };
 }

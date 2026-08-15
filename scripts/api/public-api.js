@@ -112,6 +112,8 @@ import {
   afflictionEventReactionRuntimeStatus,
   eventReactionMatches,
   inspectPf2eAfflictionReactionEvent,
+  inspectPf2eConditionReactionEvent,
+  processAfflictionReactionEvent,
   processAfflictionEventReactionMessage,
   resolvePf2eDamageTypes
 } from "../affliction/runtime/affliction-event-reaction-runtime.js";
@@ -376,8 +378,10 @@ export function createPublicApi() {
 
     reactions: Object.freeze({
       inspectMessage: (message) => inspectPf2eAfflictionReactionEvent(message),
+      inspectCondition: (item, options = {}) => inspectPf2eConditionReactionEvent(item, options),
       damageTypes: (message) => resolvePf2eDamageTypes(message),
       matches: (reaction, event) => eventReactionMatches(reaction, event),
+      processEvent: (event, options = {}) => processAfflictionReactionEvent(event, options),
       processMessage: (message, options = {}) => processAfflictionEventReactionMessage(message, options),
       acceptPlayerResult: (payload = {}) => acceptAfflictionReactionPlayerResult(payload),
       status: () => afflictionEventReactionRuntimeStatus()

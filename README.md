@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.53**
+Current release: **0.1.54**
 
-Version **0.1.53** adds two generic stage mechanics without changing Affliction schema v2 or public API compatibility `0.1.0`: stage-bound numeric PF2e modifiers and periodic stage effects. Numeric modifiers compile into managed PF2e `FlatModifier` Rule Elements, while periodic effects execute Critical Forge Effect Definitions after fixed or dice-formula intervals and are scheduled on the same authoritative world-time timeline as stage checks.
+Version **0.1.54** extends stage event reactions with PF2e condition-change events. A reaction can now fire when a valued condition is gained or increased, optionally filter by condition slug, resolve with or without an auxiliary save, and adjust the triggering condition value directly. Reaction-chain metadata prevents self-recursion while keeping the feature generic for library content such as diseases that modify `wounded`.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -20,7 +20,7 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - onset, maximum active duration (excluding onset), stage duration, and narrative stage descriptions
 - optional Critical Forge `EffectDefinition` per stage
 - root- and stage-scoped condition/healing/capability restrictions, damage-type healing locks, plus `stage | affliction | permanent` persistence at stage or individual persistent-component level
-- stage-scoped event reactions with auxiliary saves and Critical Forge effects; `damage-taken` is the first supported event and accepts optional PF2e damage-type filters
+- stage-scoped event reactions with optional auxiliary saves and Critical Forge effects; supported events include `damage-taken` and valued `condition-increased`, with damage-type or condition-slug filters plus direct triggering-condition value adjustments
 - stage-bound numeric PF2e modifiers with one or more Rule Element selectors, modifier type, and numeric value
 - periodic stage effects with fixed or rolled intervals; dice formulas are rerolled for each subsequent interval and effects execute through Critical Forge
 - persistent inert PF2e `effect` Items for Affliction Templates

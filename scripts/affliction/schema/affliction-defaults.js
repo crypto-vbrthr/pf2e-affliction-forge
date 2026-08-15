@@ -98,16 +98,19 @@ export function createDefaultEventReaction({
   label = "",
   event = "damage-taken",
   damageTypes = [],
+  conditionSlugs = [],
   checkId = "primary",
   applyOn = ["failure", "criticalFailure"],
+  conditionValueDelta = 0,
   effect = null
 } = {}) {
   return {
     id,
     label,
-    trigger: { event, damageTypes },
+    trigger: { event, damageTypes, conditionSlugs },
     checkId,
     applyOn,
+    conditionValueDelta,
     effect
   };
 }
@@ -228,8 +231,11 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
     schedule: "persisted-per-controller-stage"
   },
   eventReactions: {
-    events: ["damage-taken"],
+    events: ["damage-taken", "condition-increased"],
     optionalDamageTypeFilter: true,
+    optionalConditionSlugFilter: true,
+    optionalSaveCheck: true,
+    triggeringConditionValueDelta: true,
     outcomeEffect: "critical-forge-effect-definition",
     stageProgression: "unchanged"
   },

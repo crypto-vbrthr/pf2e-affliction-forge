@@ -1,8 +1,8 @@
 {
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
-  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.53 fixes Foundry localization loading after the 0.1.52 numeric-modifier additions.",
-  "version": "0.1.53",
+  "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.54 adds condition-change event reactions and direct triggering-condition value adjustments.",
+  "version": "0.1.54",
   "socket": true,
   "authors": [
     {
@@ -55,5 +55,5 @@
   ],
   "url": "https://github.com/crypto-vbrthr/pf2e-affliction-forge",
   "manifest": "https://raw.githubusercontent.com/crypto-vbrthr/pf2e-affliction-forge/main/module.json",
-  "download": "https://github.com/crypto-vbrthr/pf2e-affliction-forge/releases/download/0.1.53/pf2e-affliction-forge.zip"
+  "download": "https://github.com/crypto-vbrthr/pf2e-affliction-forge/releases/download/0.1.54/pf2e-affliction-forge.zip"
 }

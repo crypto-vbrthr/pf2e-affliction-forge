@@ -1,4 +1,4 @@
-# Architecture 0.1.53
+# Architecture 0.1.54
 
 ```text
 Affliction Template / Definition
@@ -361,7 +361,7 @@ The combat runtime serializes the complete apply/consume transaction per source 
 ## Contract/runtime hardening in 0.1.42
 
 - Runtime application now enforces one live controller per Actor + Affliction `definitionId`, including pending exposure/incubation reservations and concurrent apply calls.
-- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.53`).
+- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.54`).
 - Combat-trigger idempotency is committed only after a successful application or an intentional terminal decision; transient failures remain retryable.
 - Strict reconciliation can verify generated stage-effect content, not merely controller/stage ownership flags.
 - Identification updates use batch embedded-document updates when available and fall back to strict reconciliation after a partial failure.
@@ -416,12 +416,13 @@ The healing guard protects the sum of ordinary affliction-owned unhealable damag
 
 ## Stage event reaction runtime (0.1.50)
 
-Event reactions are a separate runtime lane from ordinary Affliction progression. The `createChatMessage` hook inspects supported PF2e synchronized runtime events only on the authoritative GM. For the initial `damage-taken` event, active controller Items on the affected Actor are inspected and only reactions on the current stage are eligible.
+Event reactions are a separate runtime lane from ordinary Affliction progression. The authoritative GM inspects PF2e synchronized damage ChatMessages plus embedded PF2e condition Item creation/value updates. Active controller Items on the affected Actor are inspected and only reactions on the current stage are eligible.
 
-The event runtime deliberately separates three responsibilities:
+The event runtime deliberately separates four responsibilities:
 
-1. PF2e event inspection identifies positive applied damage and, where possible, damage types from the damage message and its originating damage-roll message.
-2. The referenced Affliction save check is rolled through the existing save policy and player-request infrastructure without invoking stage directives.
-3. A configured Critical Forge Effect Definition is executed only for authored degrees of success.
+1. PF2e event inspection identifies positive applied damage or a valued condition gain/increase and normalizes the event into a stable reaction payload.
+2. Event filters restrict damage reactions by resolved damage type and condition reactions by condition slug.
+3. An optional Affliction save check reuses the existing save policy/player-request infrastructure without invoking stage directives; reactions with no check resolve immediately.
+4. Mechanical output may execute a Critical Forge Effect Definition and/or adjust the triggering valued condition directly.
 
-Processed and pending event/controller/reaction keys provide same-session duplicate protection for synchronized ChatMessages. Typed reactions fail closed when the damage type is unresolved instead of guessing. Runtime resolution emits `pf2eAfflictionForgeReactionResolved` for host integrations and a GM audit summary.
+Processed and pending event/controller/reaction keys provide same-session duplicate protection. Built-in condition adjustments carry a reaction-chain marker through the resulting PF2e Item update, preventing a reaction from recursively retriggering itself while allowing the event model to remain generic. Typed damage reactions still fail closed when damage type is unresolved. Runtime resolution emits `pf2eAfflictionForgeReactionResolved` for host integrations and a GM audit summary.

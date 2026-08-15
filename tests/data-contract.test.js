@@ -345,6 +345,31 @@ test("stage event reactions normalize and validate as additive schema-v2 mechani
   assert.equal(validateAfflictionDefinition(definition).valid, true);
 });
 
+test("condition-increased reactions can resolve directly without an auxiliary save", () => {
+  const definition = normalizeAfflictionDefinition({
+    ...validDefinition(),
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      reactions: [{
+        id: "wounded-escalation",
+        label: "Escalate wounded",
+        trigger: { event: "condition-increased", conditionSlugs: ["WOUNDED"] },
+        checkId: null,
+        applyOn: [],
+        conditionValueDelta: 1,
+        effect: null
+      }]
+    }]
+  });
+  const reaction = definition.stages[0].reactions[0];
+  assert.equal(reaction.trigger.event, "condition-increased");
+  assert.deepEqual(reaction.trigger.conditionSlugs, ["wounded"]);
+  assert.equal(reaction.checkId, null);
+  assert.deepEqual(reaction.applyOn, []);
+  assert.equal(reaction.conditionValueDelta, 1);
+  assert.equal(validateAfflictionDefinition(definition).valid, true);
+});
+
 test("event reaction validator rejects unsupported triggers, unknown checks, and empty outcomes", () => {
   const definition = validDefinition();
   definition.stages[0].reactions = [{

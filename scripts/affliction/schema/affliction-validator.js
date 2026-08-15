@@ -388,20 +388,35 @@ function validateStageReactions(report, reactions, path, checkIds, effectValidat
       } else if (reaction.trigger.event !== "damage-taken" && reaction.trigger.damageTypes.length > 0) {
         report.add({ severity: "warning", code: "reaction.trigger.damage-types-unused", path: `${reactionPath}.trigger.damageTypes`, message: "Damage type filters are only used by damage-taken reactions." });
       }
-    }
-    if (!checkIds.has(reaction.checkId)) {
-      report.add({ severity: "error", code: "reaction.check.unknown", path: `${reactionPath}.checkId`, message: `Unknown reaction check id: ${reaction.checkId}.` });
-    }
-    if (!Array.isArray(reaction.applyOn) || reaction.applyOn.length === 0) {
-      report.add({ severity: "error", code: "reaction.apply-on", path: `${reactionPath}.applyOn`, message: "A reaction must apply on at least one degree of success." });
-    } else {
-      for (const [outcomeIndex, outcome] of reaction.applyOn.entries()) {
-        if (!OUTCOME_KEYS.includes(outcome)) report.add({ severity: "error", code: "reaction.apply-on.outcome", path: `${reactionPath}.applyOn.${outcomeIndex}`, message: `Unsupported reaction outcome: ${outcome}.` });
+      if (!Array.isArray(reaction.trigger.conditionSlugs)) {
+        report.add({ severity: "error", code: "reaction.trigger.condition-slugs", path: `${reactionPath}.trigger.conditionSlugs`, message: "conditionSlugs must be an array." });
+      } else if (reaction.trigger.event !== "condition-increased" && reaction.trigger.conditionSlugs.length > 0) {
+        report.add({ severity: "warning", code: "reaction.trigger.condition-slugs-unused", path: `${reactionPath}.trigger.conditionSlugs`, message: "Condition filters are only used by condition-increased reactions." });
       }
     }
-    if (reaction.effect == null) {
-      report.add({ severity: "warning", code: "reaction.effect.missing", path: `${reactionPath}.effect`, message: "Reaction has no effect to execute after the triggered check." });
-    } else {
+    const hasCheck = reaction.checkId != null && String(reaction.checkId).trim() !== "";
+    if (hasCheck && !checkIds.has(reaction.checkId)) {
+      report.add({ severity: "error", code: "reaction.check.unknown", path: `${reactionPath}.checkId`, message: `Unknown reaction check id: ${reaction.checkId}.` });
+    }
+    if (hasCheck) {
+      if (!Array.isArray(reaction.applyOn) || reaction.applyOn.length === 0) {
+        report.add({ severity: "error", code: "reaction.apply-on", path: `${reactionPath}.applyOn`, message: "A checked reaction must apply on at least one degree of success." });
+      } else {
+        for (const [outcomeIndex, outcome] of reaction.applyOn.entries()) {
+          if (!OUTCOME_KEYS.includes(outcome)) report.add({ severity: "error", code: "reaction.apply-on.outcome", path: `${reactionPath}.applyOn.${outcomeIndex}`, message: `Unsupported reaction outcome: ${outcome}.` });
+        }
+      }
+    } else if (!Array.isArray(reaction.applyOn)) {
+      report.add({ severity: "error", code: "reaction.apply-on.array", path: `${reactionPath}.applyOn`, message: "applyOn must be an array." });
+    }
+    if (!Number.isInteger(reaction.conditionValueDelta)) {
+      report.add({ severity: "error", code: "reaction.condition-delta", path: `${reactionPath}.conditionValueDelta`, message: "conditionValueDelta must be an integer." });
+    } else if (reaction.conditionValueDelta !== 0 && reaction.trigger?.event !== "condition-increased") {
+      report.add({ severity: "warning", code: "reaction.condition-delta-unused", path: `${reactionPath}.conditionValueDelta`, message: "conditionValueDelta is only used by condition-increased reactions." });
+    }
+    if (reaction.effect == null && reaction.conditionValueDelta === 0) {
+      report.add({ severity: "warning", code: "reaction.effect.missing", path: `${reactionPath}.effect`, message: "Reaction has no mechanical output." });
+    } else if (reaction.effect != null) {
       validateReactionEffect(report, reaction.effect, `${reactionPath}.effect`, effectValidator);
     }
   }

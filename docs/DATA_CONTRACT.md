@@ -515,10 +515,12 @@ Each stage may define zero or more `reactions`. Reactions are auxiliary checks c
       label: "Nightmare wound",
       trigger: {
         event: "damage-taken",
-        damageTypes: ["slashing"] // optional; [] means any positive damage
+        damageTypes: ["slashing"], // optional; [] means any positive damage
+        conditionSlugs: []
       },
       checkId: "mind",
       applyOn: ["failure", "criticalFailure"],
+      conditionValueDelta: 0,
       effect: {/* Critical Forge Effect Definition */}
     }
   ]
@@ -528,11 +530,14 @@ Each stage may define zero or more `reactions`. Reactions are auxiliary checks c
 Current event catalog:
 
 - `damage-taken`: a PF2e synchronized positive damage-application ChatMessage for the affected Actor.
+- `condition-increased`: a valued PF2e condition is first gained or its value increases. The initial gain is normalized as an increase from 0.
 
 `damageTypes` is only used by `damage-taken`. The runtime first uses damage typing present on the current PF2e message and, when available, follows PF2e's originating damage-roll message to recover the damage-roll type map. When a reaction requires one or more damage types but the runtime cannot resolve any type, the reaction fails closed and does not trigger.
 
-`checkId` references one of the definition's normal stable save checks and therefore inherits the same fixed/source DC and execution/visibility policies. The active controller already contains materialized source DCs, so reaction checks remain deterministic after application.
+`conditionSlugs` is only used by `condition-increased`. An empty array accepts any valued condition increase. `conditionValueDelta` can adjust the triggering valued condition by an integer amount after the reaction resolves. The built-in adjustment path carries reaction-chain metadata to prevent self-recursion.
 
-`applyOn` lists the degrees of success that execute `effect`. The auxiliary save is reported independently and never invokes the stage progression gate. `effect` is optional at the schema level so editors can build reactions incrementally; a missing effect produces a validation warning and no mechanical reaction output.
+`checkId` may reference one of the definition's stable save checks or be `null`. A referenced check inherits the same fixed/source DC and execution/visibility policies. The active controller already contains materialized source DCs, so reaction checks remain deterministic after application. A `null` check resolves immediately and uses an empty `applyOn` array.
+
+When a check exists, `applyOn` lists the degrees of success that execute `effect` and `conditionValueDelta`. The auxiliary save is reported independently and never invokes the stage progression gate. For direct reactions, configured output executes immediately. `effect` remains optional; a reaction with neither an effect nor a nonzero condition delta produces a validation warning.
 
 The authoritative GM owns event processing. Player-executed reaction saves reuse the ordinary targeted player-save request transport but are tagged with `purpose: "reaction"`, then routed back to the reaction runtime rather than the progression engine.

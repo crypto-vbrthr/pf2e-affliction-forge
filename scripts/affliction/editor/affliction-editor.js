@@ -24,7 +24,8 @@ export const AFFLICTION_EDITOR_TEMPLATE = `modules/${MODULE_ID}/templates/afflic
 
 const LABELS = Object.freeze({
   reactionEvent: {
-    "damage-taken": "PF2E_AFFLICTION_FORGE.Reaction.Event.DamageTaken"
+    "damage-taken": "PF2E_AFFLICTION_FORGE.Reaction.Event.DamageTaken",
+    "condition-increased": "PF2E_AFFLICTION_FORGE.Reaction.Event.ConditionIncreased"
   },
   numericModifierType: {
     untyped: "PF2E_AFFLICTION_FORGE.NumericModifier.Type.Untyped",
@@ -466,11 +467,19 @@ function prepareReaction(reaction, reactionIndex, checks) {
     number: reactionIndex + 1,
     eventOptions: optionList(AFFLICTION_REACTION_EVENTS, reaction.trigger?.event ?? "damage-taken", LABELS.reactionEvent),
     damageTypesText: (reaction.trigger?.damageTypes ?? []).join(", "),
-    checkOptions: checks.map((check) => ({
-      value: check.id,
-      label: check.label || check.id,
-      selected: check.id === reaction.checkId
-    })),
+    conditionSlugsText: (reaction.trigger?.conditionSlugs ?? []).join(", "),
+    checkOptions: [
+      {
+        value: "",
+        label: localize("PF2E_AFFLICTION_FORGE.Reaction.NoCheck"),
+        selected: reaction.checkId == null || reaction.checkId === ""
+      },
+      ...checks.map((check) => ({
+        value: check.id,
+        label: check.label || check.id,
+        selected: check.id === reaction.checkId
+      }))
+    ],
     outcomes: OUTCOME_KEYS.map((outcome) => ({
       key: outcome,
       label: localize(LABELS.outcome[outcome]),
@@ -845,11 +854,16 @@ export class EmbeddedAfflictionEditor {
         if (!reaction) continue;
         reaction.id = String(reactionRegion.querySelector('[data-reaction-field="id"]')?.value ?? reaction.id).trim();
         reaction.label = String(reactionRegion.querySelector('[data-reaction-field="label"]')?.value ?? reaction.label);
-        reaction.trigger ??= { event: "damage-taken", damageTypes: [] };
+        reaction.trigger ??= { event: "damage-taken", damageTypes: [], conditionSlugs: [] };
         reaction.trigger.event = String(reactionRegion.querySelector('[data-reaction-field="event"]')?.value ?? reaction.trigger.event ?? "damage-taken");
         reaction.trigger.damageTypes = parseStringList(reactionRegion.querySelector('[data-reaction-field="damageTypes"]')?.value ?? "").map((entry) => entry.toLowerCase());
-        reaction.checkId = String(reactionRegion.querySelector('[data-reaction-field="checkId"]')?.value ?? reaction.checkId);
-        reaction.applyOn = [...reactionRegion.querySelectorAll('[data-reaction-outcome]:checked')].map((input) => String(input.value));
+        reaction.trigger.conditionSlugs = parseStringList(reactionRegion.querySelector('[data-reaction-field="conditionSlugs"]')?.value ?? "").map((entry) => entry.toLowerCase());
+        const checkId = String(reactionRegion.querySelector('[data-reaction-field="checkId"]')?.value ?? "").trim();
+        reaction.checkId = checkId || null;
+        reaction.applyOn = reaction.checkId
+          ? [...reactionRegion.querySelectorAll('[data-reaction-outcome]:checked')].map((input) => String(input.value))
+          : [];
+        reaction.conditionValueDelta = Math.trunc(Number(reactionRegion.querySelector('[data-reaction-field="conditionValueDelta"]')?.value ?? 0) || 0);
         synchronizeManagedReactionEffectMetadata(definition, stage, reaction);
       }
       synchronizeManagedStageEffectMetadata(definition, stage);
@@ -889,14 +903,14 @@ export class EmbeddedAfflictionEditor {
       const stageIndex = Number(select.closest("[data-affliction-stage-index]")?.dataset?.afflictionStageIndex);
       const reactionIndex = Number(select.closest("[data-stage-reaction-index]")?.dataset?.stageReactionIndex);
       const selectedId = this.session.definition.stages?.[stageIndex]?.reactions?.[reactionIndex]?.checkId;
-      const existing = [...select.options];
+      const existing = [...select.options].filter((option) => option.value !== "");
       for (const [index, option] of existing.entries()) {
         const check = checks[index];
         if (!check) continue;
         option.value = check.id;
         option.textContent = check.label || check.id;
       }
-      if (selectedId) select.value = selectedId;
+      select.value = selectedId ?? "";
     }
   }
 
@@ -1261,6 +1275,26 @@ export class EmbeddedAfflictionEditor {
           for (const other of checks) if (other !== check) other.checked = false;
         }
       });
+      update();
+    }
+
+    for (const card of root.querySelectorAll("[data-stage-reaction-index]")) {
+      const event = card.querySelector('[data-reaction-field="event"]');
+      const damageTypes = card.querySelector('[data-reaction-field="damageTypes"]');
+      const conditionSlugs = card.querySelector('[data-reaction-field="conditionSlugs"]');
+      const conditionDelta = card.querySelector('[data-reaction-field="conditionValueDelta"]');
+      const check = card.querySelector('[data-reaction-field="checkId"]');
+      const outcomes = [...card.querySelectorAll('[data-reaction-outcome]')];
+      const update = () => {
+        const eventValue = String(event?.value ?? "damage-taken");
+        if (damageTypes) damageTypes.disabled = eventValue !== "damage-taken" || this.session.readOnly;
+        if (conditionSlugs) conditionSlugs.disabled = eventValue !== "condition-increased" || this.session.readOnly;
+        if (conditionDelta) conditionDelta.disabled = eventValue !== "condition-increased" || this.session.readOnly;
+        const hasCheck = Boolean(String(check?.value ?? "").trim());
+        for (const outcome of outcomes) outcome.disabled = !hasCheck || this.session.readOnly;
+      };
+      event?.addEventListener("change", update);
+      check?.addEventListener("change", update);
       update();
     }
   }

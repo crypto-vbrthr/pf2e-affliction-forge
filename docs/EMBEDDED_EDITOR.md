@@ -97,3 +97,8 @@ The shared editor exposes two additional stage-owned mechanics:
 - **Periodic effects**: ID, label, fixed or dice-formula interval, plus an embedded Critical Forge Effect Editor for the effect executed at each interval.
 
 These remain definition editing only. The host does not schedule periodic work and does not create PF2e Rule Elements itself. Runtime compilation and world-time execution are owned by the Affliction instance service and scheduler.
+
+
+## Condition event reactions (0.1.54)
+
+The reaction editor now supports `condition-increased` in addition to `damage-taken`. Authors can filter by one or more PF2e condition slugs, choose **No auxiliary save** for direct reactions, and set an integer adjustment for the triggering valued condition. Damage-only and condition-only fields are disabled when the other event type is selected. The editor still edits only the definition; condition observation and loop-safe application belong to the runtime.

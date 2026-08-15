@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.54
+
+### Condition Event Reactions
+
+- adds `condition-increased` as a second generic stage event reaction source; gaining a valued PF2e condition is treated as an increase from 0
+- adds optional condition-slug filters, so reactions can target specific conditions such as `wounded`
+- allows event reactions to omit the auxiliary save and resolve immediately
+- adds built-in `conditionValueDelta` output for changing the triggering valued condition without depending on Critical Forge condition-merging semantics
+- carries a reaction-chain marker through built-in condition adjustments so a reaction cannot recursively retrigger itself; other reactions can still observe the original condition event
+- persists condition-event snapshots for player-owned auxiliary saves and exposes `api.reactions.inspectCondition()` / `api.reactions.processEvent()`
+- extends the embedded editor with condition filters, optional-save selection, and triggering-condition delta authoring
+- keeps Affliction schema v2, Controller schema v2, and public API compatibility `0.1.0`
+- full regression suite: 270/270 passing
+
 ## 0.1.53
 
 ### Localization Hotfix
