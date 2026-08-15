@@ -128,8 +128,11 @@
                 <span class="affliction-forge-template-copy">
                   <strong>{{template.name}}</strong>
                   <small><i class="{{template.sourceIcon}}"></i> {{template.libraryLabel}}</small>
-                  {{#if template.providerLabel}}
-                    <small class="affliction-forge-template-provider">{{template.providerLabel}}</small>
+                  {{#if template.sourceDetailLabel}}
+                    <small class="affliction-forge-template-source-detail"><i class="fa-solid fa-book-open"></i> {{template.sourceDetailLabel}}</small>
+                  {{/if}}
+                  {{#if template.providerDetailLabel}}
+                    <small class="affliction-forge-template-provider">{{template.providerDetailLabel}}</small>
                   {{/if}}
                 </span>
                 {{#unless template.writable}}

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.58 – Library Source Labels
+
+- Exposes optional content-source metadata (`sourceWorkId`, `sourceWorkLabel`, `sourcePage`) on library descriptors.
+- Library rows now show the actual source work and page independently from provider/library labels when supplied by a content module.
+- Source metadata participates in library search.
+- Avoids redundant provider text when provider and library labels are identical.
+
 ## 0.1.57
 
 ### Poison Exposure & Delivery Hardening

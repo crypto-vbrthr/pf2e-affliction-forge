@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.57**
+Current release: **0.1.58**
 
-Version **0.1.57** hardens the Remastered poison workflow. Repeated exposure now reuses the existing poison controller and performs the extra initial save without restarting onset or maximum duration, injury poison requires slashing or piercing delivery, only one injury-poison coating can occupy a weapon/attack host, and Affliction saves honor the `incapacitation` trait against higher-level targets.
+Version **0.1.58** adds explicit content-source labels to the library UI. Provider content can expose a source work and page independently from the shared library/provider name, allowing same-named source variants to remain visually distinguishable without mutating their affliction names. All 0.1.57 poison hardening remains unchanged.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -178,3 +178,8 @@ Active Affliction controllers own their generated persistent stage Items. A live
 - 0.1.39: linked host Items can evaluate supported PF2e attack, applied-damage, save, and use ChatMessages and apply matching references through the public Application Service.
 - 0.1.35: Affliction templates can be linked directly to attacks and abilities by dropping them onto eligible Item sheets or embedded Actor-sheet rows.
 - 0.1.33: Affliction templates can be dropped directly onto Actor Directory entries.
+
+
+## 0.1.58 Library source labels
+
+Provider content may expose `metadata.sourceWorkId`, `metadata.sourceWorkLabel`, and `metadata.sourcePage`. The Forge library shows these independently from the registered library/provider labels, which makes same-named source variants distinguishable without changing their affliction names.

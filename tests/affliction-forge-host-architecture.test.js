@@ -45,6 +45,16 @@ test("library rows expand for provider metadata instead of inheriting Foundry bu
 });
 
 
+
+test("library rows expose content source work and page separately from provider/library labels", () => {
+  assert.match(hostTemplate, /template\.sourceDetailLabel/);
+  assert.match(hostTemplate, /affliction-forge-template-source-detail/);
+  assert.match(hostSource, /entry\.contentSourceLabel/);
+  assert.match(hostSource, /entry\.contentSourcePage/);
+  assert.match(hostSource, /PF2E_AFFLICTION_FORGE\.Forge\.SourcePageShort/);
+  assert.match(hostSource, /providerDetailLabel/);
+});
+
 test("Items sidebar integration covers legacy and ApplicationV2 render hooks plus template sheet editing", () => {
   assert.match(integrationSource, /Hooks\.on\("renderItemDirectory"/);
   assert.match(integrationSource, /Hooks\.on\("renderSidebarTab"/);

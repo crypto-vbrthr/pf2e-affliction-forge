@@ -97,7 +97,8 @@ test("provider API turns compendium packs into named read-only libraries", async
     name: "Ghoul Rot",
     afflictionType: "disease",
     level: 7,
-    themes: ["undead", "decay"]
+    themes: ["undead", "decay"],
+    metadata: { sourceWorkId: "gm-core", sourceWorkLabel: "GM Core", sourcePage: 88 }
   });
 
   // Before a content provider claims the pack it behaves like a normal writable
@@ -132,6 +133,9 @@ test("provider API turns compendium packs into named read-only libraries", async
   assert.equal(entry.writable, false);
   assert.equal(entry.afflictionType, "disease");
   assert.equal(entry.level, 7);
+  assert.equal(entry.contentSourceWorkId, "gm-core");
+  assert.equal(entry.contentSourceLabel, "GM Core");
+  assert.equal(entry.contentSourcePage, 88);
 
   const edited = api.documents.readDefinition(packed);
   edited.name = "Changed Ghoul Rot";

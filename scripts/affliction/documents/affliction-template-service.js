@@ -48,12 +48,17 @@ function sourceLabel(document) {
 
 function definitionMetadata(flags) {
   const definition = flags?.definition ?? {};
+  const metadata = definition?.metadata && typeof definition.metadata === "object" ? definition.metadata : {};
+  const sourcePage = Number(metadata.sourcePage);
   return {
     afflictionType: definition.afflictionType ?? null,
     level: Number.isFinite(Number(definition.level)) ? Number(definition.level) : null,
     rarity: definition.rarity ?? null,
     traits: Array.isArray(definition.traits) ? [...definition.traits] : [],
-    themes: Array.isArray(definition.themes) ? [...definition.themes] : []
+    themes: Array.isArray(definition.themes) ? [...definition.themes] : [],
+    contentSourceWorkId: String(metadata.sourceWorkId ?? "").trim() || null,
+    contentSourceLabel: String(metadata.sourceWorkLabel ?? "").trim() || null,
+    contentSourcePage: Number.isFinite(sourcePage) ? sourcePage : null
   };
 }
 

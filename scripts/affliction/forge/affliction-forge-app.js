@@ -236,25 +236,42 @@ export class AfflictionForgeApp extends HandlebarsApplicationMixin(ApplicationV2
     await Promise.all([this.#ensureLibrary(), this.#ensureActive()]);
     const compatibility = this.#api().integration.criticalForge.compatibility();
     const currentUuid = this.currentTemplate?.uuid ?? null;
-    const entries = this.library.map((entry) => ({
-      ...entry,
-      active: entry.uuid === currentUuid,
-      searchable: [
-        entry.name,
-        entry.sourceLabel,
-        entry.libraryLabel,
-        entry.providerLabel,
-        entry.afflictionType,
-        entry.rarity,
-        ...(entry.traits ?? []),
-        ...(entry.themes ?? [])
-      ].filter(Boolean).join(" ").toLocaleLowerCase(game.i18n.lang),
-      sourceIcon: entry.world
-        ? "fa-solid fa-globe"
-        : entry.providerId
-          ? "fa-solid fa-books"
-          : "fa-solid fa-box-archive"
-    }));
+    const entries = this.library.map((entry) => {
+      const sourceName = entry.providerId ? (entry.contentSourceLabel ?? entry.sourceLabel ?? null) : null;
+      const sourcePage = Number.isFinite(Number(entry.contentSourcePage)) ? Number(entry.contentSourcePage) : null;
+      const sourceDetailLabel = sourceName
+        ? `${sourceName}${sourcePage != null ? ` · ${game.i18n.format("PF2E_AFFLICTION_FORGE.Forge.SourcePageShort", { page: sourcePage })}` : ""}`
+        : null;
+      const providerDetailLabel = entry.providerLabel
+        && entry.providerLabel !== entry.libraryLabel
+        && entry.providerLabel !== sourceName
+          ? entry.providerLabel
+          : null;
+      return {
+        ...entry,
+        active: entry.uuid === currentUuid,
+        sourceDetailLabel: sourceDetailLabel && sourceDetailLabel !== entry.libraryLabel ? sourceDetailLabel : null,
+        providerDetailLabel,
+        searchable: [
+          entry.name,
+          entry.sourceLabel,
+          entry.libraryLabel,
+          entry.providerLabel,
+          entry.contentSourceLabel,
+          entry.contentSourceWorkId,
+          entry.contentSourcePage,
+          entry.afflictionType,
+          entry.rarity,
+          ...(entry.traits ?? []),
+          ...(entry.themes ?? [])
+        ].filter(Boolean).join(" ").toLocaleLowerCase(game.i18n.lang),
+        sourceIcon: entry.world
+          ? "fa-solid fa-globe"
+          : entry.providerId
+            ? "fa-solid fa-books"
+            : "fa-solid fa-box-archive"
+      };
+    });
     const libraries = this.libraryCatalog.map((library) => ({
       ...library,
       selected: library.id === this.selectedLibraryId,
