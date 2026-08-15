@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.48
+
+- Fixed library rows for external provider templates whose additional provider line was clipped by Foundry's default button height.
+- Template rows now have a sensible minimum height and grow with their content.
+- The template-open button explicitly uses automatic/unbounded height so provider metadata, library label, and read-only state remain fully visible.
+- Added regression coverage for adaptive library-row sizing.
+
 ## 0.1.47
 
 - Fixed the virulent-save UX: a virulent affliction now uses a dedicated single-save window instead of presenting the current stage save as a misleading multi-save batch.

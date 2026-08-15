@@ -37,6 +37,14 @@ test("host exposes a searchable template library beside the embedded editor", ()
   assert.match(css, /\.affliction-forge-workspace[\s\S]*grid-template-columns/);
 });
 
+test("library rows expand for provider metadata instead of inheriting Foundry button height", () => {
+  assert.match(css, /\.affliction-forge-template-row[\s\S]*min-height:\s*3\.75rem/);
+  assert.match(css, /\.affliction-forge-template-open[\s\S]*min-height:\s*3\.75rem/);
+  assert.match(css, /\.affliction-forge-template-open[\s\S]*height:\s*auto/);
+  assert.match(css, /\.affliction-forge-template-open[\s\S]*max-height:\s*none/);
+});
+
+
 test("Items sidebar integration covers legacy and ApplicationV2 render hooks plus template sheet editing", () => {
   assert.match(integrationSource, /Hooks\.on\("renderItemDirectory"/);
   assert.match(integrationSource, /Hooks\.on\("renderSidebarTab"/);

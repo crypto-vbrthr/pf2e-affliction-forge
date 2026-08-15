@@ -1,4 +1,4 @@
-# Public API 0.1.0 (module 0.1.47)
+# Public API 0.1.0 (module 0.1.48)
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -222,7 +222,7 @@ Stage 0 is reserved for initial exposure/onset runtime state. An already active 
 
 ### API compatibility version
 
-`api.version` is now independent from the module release number. Module `0.1.47` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
+`api.version` is now independent from the module release number. Module `0.1.48` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
 
 ### Pause / resume semantics
 

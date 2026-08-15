@@ -950,6 +950,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
   gap: 0.25rem;
+  min-height: 3.75rem;
   border: 1px solid #30303d;
   border-radius: 6px;
   background: #191923;
@@ -972,6 +973,9 @@
   align-items: center;
   gap: 0.45rem;
   min-width: 0;
+  min-height: 3.75rem;
+  height: auto;
+  max-height: none;
   margin: 0;
   padding: 0.45rem;
   border: 0;
