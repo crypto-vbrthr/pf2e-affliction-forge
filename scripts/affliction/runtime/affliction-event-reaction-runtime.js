@@ -9,6 +9,7 @@ import {
   preferredPlayerOwnerId
 } from "./affliction-save-runtime.js";
 import { rollPf2eSave } from "./pf2e-save-roller.js";
+import { adjustAfflictionSaveDegree, incapacitationDegreeAdjustment, normalizeDegreeOfSuccess } from "./affliction-engine-core.js";
 
 const MAX_REACTION_HISTORY = 1000;
 const processedReactionKeys = new Map();
@@ -551,7 +552,8 @@ async function requestPlayerReactionSave({ controller, actor, definition, stage,
     eventMessageId: event.messageId ?? null,
     eventMessageUuid: event.messageUuid ?? null,
     eventSnapshot: serializeReactionEvent(event),
-    reactionKey: key
+    reactionKey: key,
+    degreeAdjustment: incapacitationDegreeAdjustment(definition, actor)
   };
   await createPlayerSaveRequestMessage(actor, request);
   emitPlayerSavePrompt(request);
@@ -603,7 +605,12 @@ async function processReaction(context, reaction, event) {
       pendingReactionKeys.delete(key);
       return Object.freeze({ status: "cancelled", controller, reaction, event });
     }
-    return finalizeReaction({ controller, actor, definition, stage, reaction, event, check, result, key });
+    const adjustedResult = {
+      ...result,
+      rawDegree: result.rawDegree ?? result.degree,
+      degree: adjustAfflictionSaveDegree(definition, actor, result.rawDegree ?? result.degree)
+    };
+    return finalizeReaction({ controller, actor, definition, stage, reaction, event, check, result: adjustedResult, key });
   } catch (error) {
     pendingReactionKeys.delete(key);
     throw error;
@@ -671,10 +678,12 @@ export async function acceptAfflictionReactionPlayerResult(payload = {}) {
       });
   const key = request.reactionKey || reactionKey(event, controller, reaction);
   if (processedReactionKeys.has(key)) return Object.freeze({ status: "duplicate" });
-  const degree = OUTCOME_KEYS.includes(payload.degree) ? payload.degree : null;
-  if (!degree) return Object.freeze({ status: "invalid-result" });
+  const rawDegree = normalizeDegreeOfSuccess(payload.rawDegree ?? payload.degree);
+  if (!rawDegree || !OUTCOME_KEYS.includes(rawDegree)) return Object.freeze({ status: "invalid-result" });
+  const degree = adjustAfflictionSaveDegree(context.definition, context.actor, rawDegree);
   const result = {
     degree,
+    rawDegree,
     total: Number.isFinite(Number(payload.total)) ? Number(payload.total) : null,
     d20: Number.isInteger(Number(payload.d20)) ? Number(payload.d20) : null,
     rollId: payload.rollId ?? null,

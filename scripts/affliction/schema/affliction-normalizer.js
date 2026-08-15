@@ -7,6 +7,7 @@ import {
   DURATION_UNITS,
   HEALING_RESTRICTION_MODES,
   IDENTIFICATION_STATES,
+  MULTIPLE_EXPOSURE_MODES,
   NUMERIC_MODIFIER_TYPES,
   OUTCOME_KEYS,
   SAVE_DC_MODES,
@@ -319,6 +320,9 @@ export function normalizeAfflictionDefinition(value = {}, { createDefaults = tru
     saveDefaults: normalizeSavePolicy(source.saveDefaults, base.saveDefaults ?? createDefaultSavePolicy()),
     identification: normalizeIdentification(source.identification, base.identification ?? { initialState: "identified" }),
     delivery: normalizeDelivery(source.delivery, afflictionType, base.delivery ?? { injuryPoison: false }),
+    multipleExposure: MULTIPLE_EXPOSURE_MODES.includes(cleanString(source.multipleExposure, base.multipleExposure ?? "default").toLowerCase())
+      ? cleanString(source.multipleExposure, base.multipleExposure ?? "default").toLowerCase()
+      : "default",
     restrictions: normalizeRestrictions(source.restrictions, base.restrictions ?? createDefaultRestrictions()),
     checks: checksSource.map(normalizeCheck),
     initialCheck: source.initialCheck === null

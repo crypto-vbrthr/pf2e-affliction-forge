@@ -9,6 +9,7 @@ import {
   HEALING_RESTRICTION_MODES,
   OUTCOME_KEYS,
   IDENTIFICATION_STATES,
+  MULTIPLE_EXPOSURE_MODES,
   NUMERIC_MODIFIER_TYPES,
   RARITIES,
   SAVE_DC_MODES,
@@ -183,6 +184,15 @@ function validateDelivery(report, definition) {
     report.add({ severity: "error", code: "delivery.injury-poison", path: "delivery.injuryPoison", message: "injuryPoison must be a boolean." });
   } else if (delivery.injuryPoison && definition.afflictionType !== "poison") {
     report.add({ severity: "error", code: "delivery.injury-poison-type", path: "delivery.injuryPoison", message: "Only poison Afflictions can be marked as injury poison." });
+  }
+}
+
+function validateMultipleExposure(report, definition) {
+  const mode = definition.multipleExposure ?? "default";
+  if (!MULTIPLE_EXPOSURE_MODES.includes(mode)) {
+    report.add({ severity: "error", code: "multiple-exposure.mode", path: "multipleExposure", message: `Unsupported multiple exposure mode: ${mode}.` });
+  } else if (mode !== "default" && definition.afflictionType !== "poison") {
+    report.add({ severity: "error", code: "multiple-exposure.type", path: "multipleExposure", message: "Only poison Afflictions can override repeated exposure behavior." });
   }
 }
 
@@ -508,6 +518,7 @@ export function validateAfflictionDefinition(definition, { effectValidator = nul
   validateSavePolicy(report, definition.saveDefaults, "saveDefaults");
   validateIdentification(report, definition.identification);
   validateDelivery(report, definition);
+  validateMultipleExposure(report, definition);
   validateRestrictions(report, definition.restrictions, "restrictions");
 
   const checkIds = validateChecks(report, definition.checks);

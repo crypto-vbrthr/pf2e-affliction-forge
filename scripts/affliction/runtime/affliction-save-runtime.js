@@ -124,6 +124,21 @@ function degreeLabel(degree) {
   return value && value !== key ? value : String(degree ?? "");
 }
 
+const DEGREE_ORDER = Object.freeze(["criticalFailure", "failure", "success", "criticalSuccess"]);
+
+function shiftDegree(degree, steps = 0) {
+  const index = DEGREE_ORDER.indexOf(degree);
+  if (index < 0) return degree;
+  return DEGREE_ORDER[Math.max(0, Math.min(DEGREE_ORDER.length - 1, index + Math.trunc(Number(steps) || 0)))];
+}
+
+function applyDegreeAdjustment(result, steps = 0) {
+  if (!result) return result;
+  const rawDegree = result.rawDegree ?? result.degree ?? null;
+  const degree = shiftDegree(rawDegree, steps);
+  return { ...result, rawDegree, degree };
+}
+
 /**
  * Preview the virulent recovery streak immediately after the save shown in the
  * Affliction window. The persisted controller state is still resolved by the
@@ -288,9 +303,10 @@ function makeSaveBatchAppClass() {
         extraRollOptions: check.extraRollOptions ?? []
       });
       if (!result) return;
-      this.results.set(checkId, result);
+      const adjustedResult = applyDegreeAdjustment(result, check.degreeAdjustment ?? 0);
+      this.results.set(checkId, adjustedResult);
       if (this.virulentProgress?.active === true && this.checks.length === 1) {
-        this.virulentProgress = previewVirulentProgress(this.virulentProgress, result.degree);
+        this.virulentProgress = previewVirulentProgress(this.virulentProgress, adjustedResult.degree);
       }
       await this.render({ force: true });
       this.#finishIfComplete();
@@ -348,7 +364,7 @@ export async function openAfflictionSaveBatchDialog(actor, checks, { id = null, 
         dcVisible: check.dcVisible !== false,
         extraRollOptions: check.extraRollOptions ?? []
       });
-      if (result) results[check.id] = result;
+      if (result) results[check.id] = applyDegreeAdjustment(result, check.degreeAdjustment ?? 0);
     }
     return { complete: list.every((check) => results[check.id]), results };
   }
@@ -465,6 +481,7 @@ export function emitPlayerSaveBatchPrompt(batchData) {
 
 function emitPlayerResult(request, result) {
   const userId = globalThis.game?.user?.id;
+  const adjusted = applyDegreeAdjustment(result, request?.degreeAdjustment ?? 0);
   globalThis.game?.socket?.emit?.(SOCKET_NAME, {
     type: "save-result",
     ...(request.purpose === "reaction" ? {
@@ -480,10 +497,11 @@ function emitPlayerResult(request, result) {
     checkId: request.checkId,
     userId,
     requestedByUserId: request.requestedByUserId ?? null,
-    degree: result.degree,
-    total: result.total ?? null,
-    d20: result.d20 ?? null,
-    rollId: result.rollId ?? null
+    degree: adjusted.degree,
+    ...(Number(request?.degreeAdjustment ?? 0) !== 0 ? { rawDegree: adjusted.rawDegree } : {}),
+    total: adjusted.total ?? null,
+    d20: adjusted.d20 ?? null,
+    rollId: adjusted.rollId ?? null
   });
   markRequestSubmitted(request);
 }
@@ -506,6 +524,7 @@ async function performPlayerRequest(request, button = null) {
       visibility: request.visibility,
       execution: "player",
       dcVisible: request.identificationState === "identified",
+      degreeAdjustment: request.degreeAdjustment ?? 0,
       extraRollOptions: [
         `affliction-forge:request:${encodeURIComponent(request.requestId)}`,
         `affliction-forge:controller:${encodeURIComponent(request.controllerUuid)}`
@@ -547,6 +566,7 @@ async function performPlayerBatchRequest(batch, button = null) {
       visibility: request.visibility,
       execution: "player",
       dcVisible: request.identificationState === "identified",
+      degreeAdjustment: request.degreeAdjustment ?? 0,
       extraRollOptions: [
         `affliction-forge:request:${encodeURIComponent(request.requestId)}`,
         `affliction-forge:controller:${encodeURIComponent(request.controllerUuid)}`

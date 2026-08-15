@@ -190,13 +190,24 @@ export function withAfflictionReferences(sourceInput, references = []) {
   return source;
 }
 
-export function addAfflictionReferenceToSource(sourceInput, referenceInput) {
-  const source = sourceOf(sourceInput);
-  const references = readAfflictionReferences(source);
+function upsertExclusiveReference(referencesInput, referenceInput) {
   const reference = createAfflictionReference(referenceInput);
+  let references = [...referencesInput];
+  if (isInjuryPoisonReference(reference)) {
+    // PF2e permits only one injury poison coating on a given weapon/attack
+    // host. Preserve unrelated Affliction references, but replace any older
+    // injury-poison reference atomically.
+    references = references.filter((entry) => !isInjuryPoisonReference(entry) || entry.id === reference.id);
+  }
   const duplicateIndex = references.findIndex((entry) => entry.id === reference.id);
   if (duplicateIndex >= 0) references[duplicateIndex] = reference;
   else references.push(reference);
+  return references;
+}
+
+export function addAfflictionReferenceToSource(sourceInput, referenceInput) {
+  const source = sourceOf(sourceInput);
+  const references = upsertExclusiveReference(readAfflictionReferences(source), referenceInput);
   return withAfflictionReferences(source, references);
 }
 
@@ -220,10 +231,7 @@ export async function setDocumentAfflictionReferences(document, references = [])
 
 export async function addDocumentAfflictionReference(document, referenceInput) {
   const reference = createAfflictionReference(referenceInput);
-  const references = readAfflictionReferences(document);
-  const index = references.findIndex((entry) => entry.id === reference.id);
-  if (index >= 0) references[index] = reference;
-  else references.push(reference);
+  const references = upsertExclusiveReference(readAfflictionReferences(document), reference);
   await setDocumentAfflictionReferences(document, references);
   return reference;
 }

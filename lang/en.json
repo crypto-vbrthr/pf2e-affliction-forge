@@ -290,7 +290,7 @@
   "PF2E_AFFLICTION_FORGE.Reference.HostEmpty": "No Affliction is linked to this attack or ability yet.",
   "PF2E_AFFLICTION_FORGE.Reference.HostPolicyHint": "The link stores only the Affliction, trigger, and application mode. The Affliction Engine owns progression after the host actually applies it.",
   "PF2E_AFFLICTION_FORGE.Reference.HostSection": "Afflictions",
-  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachHint": "The poison is applied when the attack actually deals damage, then 1 charge is consumed. A critical failure on the attack consumes 1 charge without applying the poison.",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachHint": "The poison is delivered only if the attack deals slashing or piercing damage. A critical failure, or an attack that deals no slashing/piercing damage, consumes 1 charge without delivery; on a normal failure the poison remains.",
   "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachTitle": "Apply injury poison to “{item}”",
   "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttached": "Applied “{affliction}” to “{item}” with {charges} charge(s).",
   "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonChargeConsumed": "“{affliction}” on “{item}”: 1 charge consumed, {charges} remaining.",
@@ -520,5 +520,13 @@
   "PF2E_AFFLICTION_FORGE.Types.Curse": "Curse",
   "PF2E_AFFLICTION_FORGE.Types.Disease": "Disease",
   "PF2E_AFFLICTION_FORGE.Types.Other": "Other",
-  "PF2E_AFFLICTION_FORGE.Types.Poison": "Poison"
+  "PF2E_AFFLICTION_FORGE.Types.Poison": "Poison",
+  "PF2E_AFFLICTION_FORGE.Editor.IgnoreRepeatedExposure": "Ignore repeated exposure",
+  "PF2E_AFFLICTION_FORGE.Editor.IgnoreRepeatedExposureHint": "Special rule for poisons whose repeated exposure explicitly does not trigger another initial saving throw.",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonReplaceTitle": "Replace existing injury poison?",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonReplaceText": "“{item}” already has “{old}” applied. Replace it with “{poison}”?",
+  "PF2E_AFFLICTION_FORGE.Reference.Replace": "Replace",
+  "PF2E_AFFLICTION_FORGE.Reference.Cancel": "Cancel",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonDamageTypeAmbiguous": "“{affliction}” on “{item}”: PF2e did not provide an unambiguous damage type. The charge remains; resolve this case manually.",
+  "PF2E_AFFLICTION_FORGE.Runtime.IncapacitationAdjusted": "Incapacitation: the degree of success was improved by one step because the target is higher level."
 }

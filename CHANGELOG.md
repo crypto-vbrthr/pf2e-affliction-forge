@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.57
+
+### Poison Exposure & Delivery Hardening
+
+- implements Remastered repeated-poison exposure on the existing controller: a new initial save is rolled, failure advances one stage, critical failure advances two stages, while onset and maximum-duration anchors are preserved
+- adds additive schema-v2 `multipleExposure: "default" | "ignore"`; poison definitions default to the normal repeated-exposure rule and explicit exceptions such as lethargy-style poisons can suppress the extra save
+- repeated exposure during onset raises the persisted target stage without restarting the onset timer; successful repeated exposure leaves all stage/onset clocks untouched
+- hardens injury-poison delivery to require direct slashing or piercing damage before exposure; critical attack failure and non-qualifying known damage consume a charge without application, while ambiguous serialized damage types preserve the charge for GM resolution
+- enforces one injury-poison coating per weapon/melee host at the reference-service layer and prompts before replacing an existing coating in the built-in UI
+- implements the Remastered `incapacitation` degree adjustment for Affliction initial, stage, repeated-exposure, and event-reaction saves when the affected creature is higher level than the Affliction
+- exposes `api.catalogs.multipleExposureModes()`, `api.engine.repeatExposure()`, and `api.instances.findActiveDefinition()` without changing public API compatibility `0.1.0`, Affliction schema v2, Controller schema v2, or reference schema v1
+- updates DE/EN authoring and coating guidance plus regression coverage for repeated exposure, onset escalation, source-level incapacitation, damage-type delivery, ambiguity handling, and coating replacement
+- full regression suite: 298/298 passing
+
 ## 0.1.56
 
 ### Lifecycle Reactions & Reactive Recovery

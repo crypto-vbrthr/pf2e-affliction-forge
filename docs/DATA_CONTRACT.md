@@ -31,6 +31,10 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
     injuryPoison: false
   },
 
+  // Poison-only repeated exposure policy. `default` follows the Remastered
+  // extra-initial-save rule; `ignore` is for explicit poison exceptions.
+  multipleExposure: "default", // default | ignore
+
   // Root restrictions are merged with the current stage restrictions.
   restrictions: {
     conditionLocks: [
@@ -188,7 +192,15 @@ When an injury poison is attached, the host reference stores:
 }
 ```
 
-The attachment dialog defaults to one charge but accepts any positive integer. At runtime, direct positive applied damage from the coated weapon/attack applies the poison first and consumes one charge second. An `attack-roll` critical failure consumes one charge without applying the poison. At zero charges the reference is removed from the host Item.
+The attachment dialog defaults to one charge but accepts any positive integer. A host can carry at most one injury-poison reference; adding a different coating replaces the prior injury poison while preserving unrelated Affliction references. At runtime, direct slashing or piercing damage from the coated weapon/attack applies the poison first and consumes one charge second. An `attack-roll` critical failure, or known non-qualifying damage, consumes one charge without applying the poison. If PF2e does not serialize a trustworthy damage type for positive direct damage, the Forge preserves the charge and surfaces the ambiguity instead of guessing. At zero charges the reference is removed from the host Item.
+
+## Multiple poison exposure
+
+`multipleExposure` is an additive schema-v2 field with `default | ignore`. It is only meaningful for poison Afflictions. `default` reuses the existing controller and performs another initial save. Success/critical success leave the current stage unchanged; failure advances one stage; critical failure advances two. The existing onset timer and maximum-active-duration anchor are never restarted. During onset, escalation changes only `state.onsetTargetStage`. `ignore` suppresses this extra save for explicitly authored exceptions.
+
+## Incapacitation
+
+If an Affliction carries the `incapacitation` trait, its level is the source effect level. When the affected creature is higher level than the Affliction, the Forge improves that creature's Affliction save degree by one step, capped at critical success. This applies to initial, stage, repeated-exposure, and event-reaction saves.
 
 ## Virulent / Ausgeprägt progression
 

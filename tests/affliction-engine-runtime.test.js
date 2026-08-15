@@ -783,3 +783,112 @@ test("finite stage can recover automatically at expiry without a stage save", as
   assert.equal(result.status, "recovered");
   assert.equal(service.ended, "recovered");
 });
+
+test("repeated poison exposure failure advances the existing active controller without restarting maximum-duration anchor", async () => {
+  const definition = automaticDefinition({
+    afflictionType: "poison",
+    stages: [createDefaultStage({ number: 1 }), createDefaultStage({ number: 2 }), createDefaultStage({ number: 3 })]
+  });
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.reexposure",
+    status: "active",
+    currentStage: 1,
+    appliedAt: 500,
+    stageEnteredAt: 900,
+    activeStartedAt: 700,
+    onsetStartedAt: null,
+    nextCheckAt: 1200,
+    identification: { state: "identified", identifiedAt: 500, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [], periodicSchedule: {}, pendingCheck: null,
+    onsetTargetStage: null, lastCheck: null, revision: 1
+  };
+  const { controller } = makeController(definition, { state, degrees: ["failure"] });
+  const service = serviceFor(controller);
+  const engine = createAfflictionEngine({ instanceService: service });
+  const result = await engine.repeatExposure(controller, { atTime: 1050 });
+  assert.equal(result.status, "reexposure-stage-changed");
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 2);
+  assert.equal(controller.flags[MODULE_ID].state.activeStartedAt, 700);
+  assert.equal(controller.flags[MODULE_ID].state.lastCheck.kind, "reexposure");
+});
+
+test("repeated poison exposure during onset escalates the target stage without restarting onset", async () => {
+  const definition = automaticDefinition({
+    afflictionType: "poison",
+    onset: { value: 10, unit: "minutes" },
+    stages: [createDefaultStage({ number: 1 }), createDefaultStage({ number: 2 }), createDefaultStage({ number: 3 })]
+  });
+  const state = {
+    schemaVersion: 2,
+    instanceId: "instance.reexposure-onset",
+    status: "incubating",
+    currentStage: 0,
+    appliedAt: 500,
+    stageEnteredAt: null,
+    activeStartedAt: null,
+    onsetStartedAt: 700,
+    nextCheckAt: 1300,
+    identification: { state: "identified", identifiedAt: 500, identifiedBy: null },
+    recoverySuccesses: 0,
+    activeStageEffectUuids: [], periodicSchedule: {}, pendingCheck: null,
+    onsetTargetStage: 1, lastCheck: null, revision: 1
+  };
+  const { controller } = makeController(definition, { state, degrees: ["criticalFailure"] });
+  const service = serviceFor(controller);
+  const engine = createAfflictionEngine({ instanceService: service });
+  const result = await engine.repeatExposure(controller, { atTime: 900 });
+  assert.equal(result.status, "reexposure-onset-escalated");
+  assert.equal(controller.flags[MODULE_ID].state.onsetTargetStage, 3);
+  assert.equal(controller.flags[MODULE_ID].state.onsetStartedAt, 700);
+  assert.equal(controller.flags[MODULE_ID].state.nextCheckAt, 1300);
+});
+
+test("poison repeated-exposure override can suppress the extra initial save", async () => {
+  const definition = automaticDefinition({ afflictionType: "poison", multipleExposure: "ignore" });
+  const state = {
+    schemaVersion: 2, instanceId: "instance.ignore-repeat", status: "active", currentStage: 1,
+    appliedAt: 500, stageEnteredAt: 900, activeStartedAt: 900, onsetStartedAt: null, nextCheckAt: 1000,
+    identification: { state: "identified", identifiedAt: 500, identifiedBy: null }, recoverySuccesses: 0,
+    activeStageEffectUuids: [], periodicSchedule: {}, pendingCheck: null, onsetTargetStage: null, lastCheck: null, revision: 1
+  };
+  const { controller, actor } = makeController(definition, { state, degrees: ["criticalFailure"] });
+  const engine = createAfflictionEngine({ instanceService: serviceFor(controller) });
+  const result = await engine.repeatExposure(controller);
+  assert.equal(result.status, "ignored");
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 1);
+  assert.equal(actor.lastRollOptions, undefined);
+});
+
+test("incapacitation adjusts the authoritative initial save before resolving the Affliction", async () => {
+  const definition = automaticDefinition({ afflictionType: "poison", level: 2, traits: ["poison", "incapacitation"] });
+  const { actor, controller } = makeController(definition, { degrees: ["failure"] });
+  actor.system = { details: { level: { value: 3 } } };
+  const service = serviceFor(controller);
+  const engine = createAfflictionEngine({ instanceService: service });
+  const result = await engine.processInitial(controller);
+  assert.equal(result.status, "rejected");
+  assert.equal(result.degree, "success");
+  assert.equal(service.ended, "rejected");
+});
+
+test("canonical applyDefinition routes a second exposure to the existing poison controller", async () => {
+  const definition = automaticDefinition({ afflictionType: "poison" });
+  const state = {
+    schemaVersion: 2, instanceId: "instance.canonical-repeat", status: "active", currentStage: 1,
+    appliedAt: 500, stageEnteredAt: 900, activeStartedAt: 900, onsetStartedAt: null, nextCheckAt: 1200,
+    identification: { state: "identified", identifiedAt: 500, identifiedBy: null }, recoverySuccesses: 0,
+    activeStageEffectUuids: [], periodicSchedule: {}, pendingCheck: null, onsetTargetStage: null, lastCheck: null, revision: 1
+  };
+  const { controller, actor } = makeController(definition, { state, degrees: ["failure"] });
+  const service = serviceFor(controller);
+  service.findActiveDefinition = async () => controller;
+  service.applyDefinition = async () => { throw new Error("must not create a second poison controller"); };
+  const engine = createAfflictionEngine({ instanceService: service });
+  const application = await engine.applyDefinition(definition, actor, { appliedAt: 1050 });
+  assert.equal(application.created.length, 0);
+  assert.equal(application.reexposures.length, 1);
+  assert.equal(application.reexposures[0].status, "reexposure-stage-changed");
+  assert.equal(controller.flags[MODULE_ID].state.currentStage, 2);
+});

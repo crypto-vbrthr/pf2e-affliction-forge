@@ -1,9 +1,12 @@
 import { MODULE_ID } from "../../constants.js";
 import { getAfflictionFlags } from "../documents/affliction-flags.js";
+import { extractAfflictionDefinitionFromItem } from "../documents/affliction-item-adapter.js";
 import { normalizeAfflictionDefinition } from "../schema/affliction-normalizer.js";
 import { deepClone, randomId } from "../schema/utils.js";
 import {
+  adjustAfflictionSaveDegree,
   buildCheckPlan,
+  incapacitationDegreeAdjustment,
   normalizeDegreeOfSuccess,
   resolveCheckResults
 } from "./affliction-engine-core.js";
@@ -183,6 +186,7 @@ function pendingResult(check, result, { execution, visibility, userId = null, re
     statistic: check.statistic,
     dc: check.dc,
     degree: normalizeDegreeOfSuccess(result.degree),
+    rawDegree: normalizeDegreeOfSuccess(result.rawDegree ?? result.degree),
     total: result.total ?? null,
     d20: result.d20 ?? null,
     rollId: result.rollId ?? null,
@@ -245,14 +249,90 @@ export class AfflictionEngine {
 
   async applyTemplate(templateOrUuid, targets, options = {}) {
     assertGm();
-    const controllers = await this.instanceService.applyTemplate(templateOrUuid, targets, options);
-    return this.#processAppliedControllers(controllers);
+    const template = typeof templateOrUuid === "string"
+      ? await globalThis.fromUuid?.(templateOrUuid)
+      : templateOrUuid;
+    if (!template) throw new TypeError("An Affliction template Item is required.");
+    const definition = extractAfflictionDefinitionFromItem(template);
+    const flags = getAfflictionFlags(template) ?? {};
+    return this.#applyDefinitionWithRepeatedExposure(definition, targets, {
+      ...options,
+      sourceTemplateUuid: template.uuid,
+      sourceDefinitionVersion: Number(flags.definitionVersion ?? 1)
+    });
   }
 
   async applyDefinition(definition, targets, options = {}) {
     assertGm();
-    const controllers = await this.instanceService.applyDefinition(definition, targets, options);
-    return this.#processAppliedControllers(controllers);
+    return this.#applyDefinitionWithRepeatedExposure(definition, targets, options);
+  }
+
+  async #applyDefinitionWithRepeatedExposure(definitionInput, targets, options = {}) {
+    const definition = normalizeAfflictionDefinition(definitionInput);
+    const list = Array.isArray(targets) ? targets : [targets];
+    const repeated = [];
+    const fresh = [];
+
+    if (definition.afflictionType === "poison" && definition.multipleExposure !== "ignore") {
+      for (const target of list) {
+        const controller = typeof this.instanceService.findActiveDefinition === "function"
+          ? await this.instanceService.findActiveDefinition(target, definition.id)
+          : null;
+        if (controller) repeated.push(controller);
+        else fresh.push(target);
+      }
+    } else {
+      fresh.push(...list);
+    }
+
+    const controllers = fresh.length > 0
+      ? await this.instanceService.applyDefinition(definitionInput, fresh, options)
+      : [];
+    const applied = await this.#processAppliedControllers(controllers);
+    const reexposures = [];
+    for (const controller of repeated) {
+      try {
+        const result = await this.repeatExposure(controller, { atTime: options.appliedAt ?? null });
+        reexposures.push({ controllerUuid: controller.uuid, ...result });
+      } catch (error) {
+        console.error(`${MODULE_ID} | Repeated poison exposure processing failed.`, error);
+        reexposures.push({ controllerUuid: controller.uuid, status: "error", error });
+      }
+    }
+    const repeatedControllers = [];
+    for (const entry of reexposures) {
+      if (["ignored", "busy", "error", "stale"].includes(entry.status)) continue;
+      try { repeatedControllers.push(await this.instanceService.get(entry.controllerUuid)); } catch { /* controller may have ended */ }
+    }
+    return {
+      ...applied,
+      controllers: [...applied.controllers, ...repeatedControllers],
+      reexposures
+    };
+  }
+
+  async repeatExposure(controllerOrUuid, { atTime = null } = {}) {
+    assertGm();
+    return this.#serialize(controllerOrUuid, async () => {
+      const current = await this.inspect(controllerOrUuid);
+      const { controller, definition, state } = current;
+      if (definition.afflictionType !== "poison" || definition.multipleExposure === "ignore") {
+        return { status: "ignored", controller };
+      }
+      if (!["active", "incubating"].includes(state.status)) {
+        return { status: state.pendingCheck ? "busy" : "inactive", controller };
+      }
+      if (state.pendingCheck) return { status: "busy", controller };
+      if (!definition.initialCheck) return { status: "no-check", controller };
+
+      const processAt = atTime != null && Number.isFinite(Number(atTime)) ? Number(atTime) : nowWorldTime();
+      const shadowState = { ...deepClone(state), pendingCheck: { kind: "reexposure" } };
+      const plan = buildCheckPlan(definition, shadowState);
+      if (!plan || plan.checks.length === 0) return { status: "no-check", controller };
+      const pending = createPending(plan, state, { effectiveAt: processAt });
+      await this.instanceService.setPendingCheck(controller, pending);
+      return this.#processUnlocked(controller, { force: true, atTime: processAt });
+    });
   }
 
   async #processAppliedControllers(controllers) {
@@ -336,7 +416,9 @@ export class AfflictionEngine {
       return { status: "dead", controller };
     }
 
-    if (state.status === "incubating") {
+    const repeatedExposurePending = state.pendingCheck?.kind === "reexposure";
+
+    if (state.status === "incubating" && !repeatedExposurePending) {
       const dueAt = scheduledDueAt(current.definition, state);
       if (!force && Number.isFinite(dueAt) && processAt < dueAt) {
         return { status: "not-due", controller, dueAt };
@@ -345,15 +427,15 @@ export class AfflictionEngine {
       return { status: "onset-complete", controller: await this.instanceService.get(controller.uuid) };
     }
 
-    if (!["pending", "active"].includes(state.status)) {
+    if (!["pending", "active"].includes(state.status) && !(state.status === "incubating" && repeatedExposurePending)) {
       return { status: "inactive", controller };
     }
-    const dueAt = scheduledDueAt(current.definition, state);
+    const dueAt = repeatedExposurePending ? null : scheduledDueAt(current.definition, state);
     if (!force && Number.isFinite(dueAt) && processAt < dueAt) {
       return { status: "not-due", controller, dueAt };
     }
 
-    if (state.status === "active" && state.currentStage > 0) {
+    if (!repeatedExposurePending && state.status === "active" && state.currentStage > 0) {
       const stage = current.definition.stages?.find?.((entry) => entry.number === state.currentStage) ?? null;
       const expiryAction = stage?.expiryAction ?? "check";
       if (expiryAction === "recover") {
@@ -461,7 +543,8 @@ export class AfflictionEngine {
             identificationState: state.identification?.state ?? "identified",
             targetUserId,
             userIds: [targetUserId],
-            requestedByUserId: currentUserId()
+            requestedByUserId: currentUserId(),
+            degreeAdjustment: incapacitationDegreeAdjustment(current.definition, current.actor)
           };
           pending.requests[check.id] = { ...request, status: "awaiting-player" };
           createdRequest = true;
@@ -496,7 +579,8 @@ export class AfflictionEngine {
           ...check,
           execution: "gm",
           visibility: policy.visibility,
-          dcVisible: true
+          dcVisible: true,
+          degreeAdjustment: incapacitationDegreeAdjustment(current.definition, current.actor)
         };
       });
       const batch = await openAfflictionSaveBatchDialog(current.actor, batchChecks, {
@@ -506,7 +590,12 @@ export class AfflictionEngine {
       for (const check of gmChecks) {
         const result = batch?.results?.[check.id];
         if (result) {
-          const resolved = pendingResult(check, result, {
+          const adjustedResult = {
+            ...result,
+            rawDegree: result.rawDegree ?? result.degree,
+            degree: adjustAfflictionSaveDegree(current.definition, current.actor, result.rawDegree ?? result.degree)
+          };
+          const resolved = pendingResult(check, adjustedResult, {
             execution: "gm",
             visibility: (check.policy ?? current.definition.saveDefaults)?.visibility ?? "public",
             userId: currentUserId()
@@ -568,7 +657,8 @@ export class AfflictionEngine {
             identificationState: state.identification?.state ?? "identified",
             targetUserId,
             userIds: [targetUserId],
-            requestedByUserId: currentUserId()
+            requestedByUserId: currentUserId(),
+            degreeAdjustment: incapacitationDegreeAdjustment(definition, actor)
           };
           pending.requests[check.id] = {
             ...requestData,
@@ -606,7 +696,12 @@ export class AfflictionEngine {
       await this.instanceService.setPendingCheck(controller, pending);
       return null;
     }
-    return pendingResult(check, result, {
+    const adjustedResult = {
+      ...result,
+      rawDegree: result.rawDegree ?? result.degree,
+      degree: adjustAfflictionSaveDegree(definition, actor, result.rawDegree ?? result.degree)
+    };
+    return pendingResult(check, adjustedResult, {
       execution,
       visibility,
       userId: currentUserId()
@@ -645,11 +740,13 @@ export class AfflictionEngine {
     if (user && typeof actor.testUserPermission === "function" && !actor.testUserPermission(user, "OWNER")) {
       return { status: "unauthorized", controller };
     }
-    const degree = normalizeDegreeOfSuccess(payload.degree);
-    if (!degree) return { status: "invalid", controller };
+    const rawDegree = normalizeDegreeOfSuccess(payload.rawDegree ?? payload.degree);
+    if (!rawDegree) return { status: "invalid", controller };
+    const degree = adjustAfflictionSaveDegree(definition, actor, rawDegree);
 
     pending.results[check.id] = pendingResult(check, {
       degree,
+      rawDegree,
       total: payload.total ?? null,
       d20: payload.d20 ?? null,
       rollId: payload.rollId ?? null
@@ -748,6 +845,45 @@ export class AfflictionEngine {
       resolvedAt: nowWorldTime()
     };
     const transition = resolution.transition;
+
+    if (transition.type === "reexposure") {
+      const delta = Math.max(0, Math.trunc(Number(transition.stageDelta ?? 0)));
+      const nextState = deepClone(current.state);
+      nextState.pendingCheck = null;
+      nextState.lastCheck = lastCheck;
+      nextState.revision = Number(nextState.revision ?? 0) + 1;
+      nextState.events = Array.isArray(nextState.events) ? nextState.events : [];
+      nextState.events.push({
+        type: "reexposure-resolved",
+        at: transitionAt,
+        data: { degree: resolution.degree, stageDelta: delta }
+      });
+
+      if (delta <= 0) {
+        await this.instanceService.updateRuntimeState(controller, nextState);
+        return { status: "reexposure-no-effect", degree: resolution.degree, transition, controller: await this.instanceService.get(controller.uuid) };
+      }
+
+      if (current.state.status === "incubating") {
+        nextState.onsetTargetStage = Math.max(1, Math.min(
+          current.definition.stages.length,
+          Math.trunc(Number(current.state.onsetTargetStage ?? 1)) + delta
+        ));
+        await this.instanceService.updateRuntimeState(controller, nextState);
+        return { status: "reexposure-onset-escalated", degree: resolution.degree, transition, controller: await this.instanceService.get(controller.uuid) };
+      }
+
+      const targetStage = Math.max(1, Math.min(
+        current.definition.stages.length,
+        Math.trunc(Number(current.state.currentStage ?? 1)) + delta
+      ));
+      await this.instanceService.setStage(controller, targetStage, {
+        enteredAt: transitionAt,
+        lastCheck,
+        recoverySuccesses: current.state.recoverySuccesses
+      });
+      return { status: "reexposure-stage-changed", degree: resolution.degree, transition, controller: await this.instanceService.get(controller.uuid) };
+    }
 
     if (transition.type === "reject") {
       await this.instanceService.end(controller, { reason: "rejected" });

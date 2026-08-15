@@ -252,7 +252,7 @@ Affliction drags now carry two coordinated representations:
 
 This makes drops into Foundry v14 rich-text editors robust even when the custom Affliction ProseMirror plugin cannot claim the drop. Forge-owned drop targets always prefer the dedicated Affliction MIME payload.
 
-## Injury poison coatings (0.1.42)
+## Injury poison coatings (0.1.57)
 
 A poison Affliction may declare `delivery.injuryPoison: true`. When that template is dropped onto a writable PF2e `weapon` or `melee` Item, the normal trigger/application dialog is replaced by a charge prompt. The prompt defaults to `1` and accepts any positive integer.
 
@@ -274,7 +274,7 @@ The concrete host reference stores the mutable coating state:
 }
 ```
 
-The template itself remains stateless. Two different weapons can therefore carry different remaining charge counts of the same poison.
+The template itself remains stateless. Two different weapons can therefore carry different remaining charge counts of the same poison. A single host carries at most one injury-poison reference; applying another coating replaces the prior injury poison after UI confirmation, while non-poison Affliction references remain untouched.
 
 Runtime semantics are fixed for injury-poison references:
 
@@ -282,14 +282,20 @@ Runtime semantics are fixed for injury-poison references:
 attack-roll success / criticalSuccess
 └── no poison action yet; wait for actually applied damage
 
-direct positive damage-taken from the coated host
+direct positive slashing/piercing damage-taken from the coated host
 ├── apply the Affliction through api.application.applyItemReference(...)
 └── only after successful runtime application: consume 1 charge
+
+known damage-taken without qualifying slashing/piercing delivery
+└── consume 1 charge without applying the Affliction
+
+positive direct damage with no trustworthy serialized damage type
+└── preserve the charge and emit an ambiguity hook/GM warning
 
 attack-roll criticalFailure from the coated host
 └── consume 1 charge without applying the Affliction
 ```
 
-Persistent-only damage application does not spend a coating charge. At zero charges the reference is removed from the Item. The apply/consume transaction is serialized per source Item/reference, so concurrent damage messages cannot spend one final charge twice. A runtime application error leaves the charge intact and retryable.
+A damage application that produces no qualifying direct slashing/piercing damage spends the coating without exposing the target, matching the injury-poison delivery rule. At zero charges the reference is removed from the Item. The apply/consume transaction is serialized per source Item/reference, so concurrent damage messages cannot spend one final charge twice. A runtime application error leaves the charge intact and retryable.
 
 The public helpers are `api.references.createInjuryPoison()`, `isInjuryPoison()`, `injuryPoisonCharges()`, `consumeInjuryPoisonCharge()`, and `isInjuryPoisonHost()`.

@@ -1,4 +1,4 @@
-# Architecture 0.1.56
+# Architecture 0.1.57
 
 ```text
 Affliction Template / Definition
@@ -361,7 +361,7 @@ The combat runtime serializes the complete apply/consume transaction per source 
 ## Contract/runtime hardening in 0.1.42
 
 - Runtime application now enforces one live controller per Actor + Affliction `definitionId`, including pending exposure/incubation reservations and concurrent apply calls.
-- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.54`).
+- Public API compatibility is versioned independently (`api.version = 0.1.0`, `api.moduleVersion = 0.1.57`).
 - Combat-trigger idempotency is committed only after a successful application or an intentional terminal decision; transient failures remain retryable.
 - Strict reconciliation can verify generated stage-effect content, not merely controller/stage ownership flags.
 - Identification updates use batch embedded-document updates when available and fall back to strict reconciliation after a partial failure.
@@ -370,7 +370,16 @@ The combat runtime serializes the complete apply/consume transaction per source 
 - Controller-manager stage navigation is enabled only for active, nonlethal controllers; stage 0 remains reserved for initial exposure/onset state.
 - Controller-state validation enforces status/stage and pause-metadata invariants so malformed runtime states cannot be persisted by ordinary mutations.
 - A committed lethal result is terminal for engine progression and ordinary manual stage/pause/instant retry mutations; reconciliation, identification, inspection, and explicit end remain available for audit/cleanup.
-- Poison definitions can opt into injury-poison delivery. Charge state is host-local, positive weapon damage applies before consuming a charge, critical attack failure consumes without application, and the last charge removes the reference.
+- Poison definitions can opt into injury-poison delivery. Charge state is host-local, only direct slashing/piercing damage applies the poison before consuming a charge, critical attack failure or known non-qualifying damage consumes without application, ambiguous serialized damage preserves the charge for GM review, and only one injury-poison coating can occupy a host at a time.
+
+
+## Poison exposure and delivery hardening (0.1.57)
+
+Repeated exposure is resolved against the existing active/incubating poison controller rather than creating a second controller. Normal poisons perform another initial save: failure raises the current/target stage by 1 and critical failure by 2, while success leaves the controller unchanged. Onset start/end anchors and the maximum-active-duration anchor are never restarted by re-exposure. Poison definitions may opt out with `multipleExposure: "ignore"` for explicit rules exceptions. Disease and curse duplicate application remains ignored by the ordinary one-controller invariant.
+
+The injury-poison path now distinguishes exposure from charge consumption. Direct positive slashing/piercing damage applies first and consumes only after successful application. Critical attack failure and known non-qualifying damage consume without exposure. If PF2e serialization does not provide trustworthy specific damage types, the runtime fails closed: it preserves the charge, reports ambiguity to the GM, and exposes a hook for host resolution. Reference storage enforces one injury-poison coating per weapon/melee host.
+
+Affliction save resolution also applies the non-spell `incapacitation` rule generically. If the affected Actor is higher level than the Affliction definition, the target's degree of success improves by one step. This adjustment is authoritative for initial, stage, repeated-exposure, and event-reaction saves while preserving the raw rolled degree for audit where needed.
 
 
 ## Remastered rules coverage in 0.1.45

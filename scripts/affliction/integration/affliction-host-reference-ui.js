@@ -197,10 +197,29 @@ async function promptReferenceConfiguration(item, parsed) {
   const defaults = afflictionReferenceHostDefaults(item);
   if (!defaults.eligible) return null;
 
-  const existing = readAfflictionReferences(item).find((reference) => reference.templateUuid === parsed.templateUuid) ?? null;
+  const references = readAfflictionReferences(item);
+  const existing = references.find((reference) => reference.templateUuid === parsed.templateUuid) ?? null;
   const label = await templateLabel(parsed.templateUuid, parsed.label ?? existing?.label ?? null);
   const definition = await templateDefinition(parsed.templateUuid);
   if (isInjuryPoisonDefinition(definition)) {
+    const existingInjury = references.find((reference) => isInjuryPoisonReference(reference)) ?? null;
+    if (existingInjury && existingInjury.templateUuid !== parsed.templateUuid) {
+      const DialogV2 = globalThis.foundry?.applications?.api?.DialogV2;
+      if (DialogV2?.confirm) {
+        const confirmed = await DialogV2.confirm({
+          window: { title: localize("PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonReplaceTitle") },
+          content: `<p>${format("PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonReplaceText", {
+            old: existingInjury.label ?? localize("PF2E_AFFLICTION_FORGE.Reference.Affliction"),
+            poison: label,
+            item: item.name ?? ""
+          })}</p>`,
+          yes: { label: localize("PF2E_AFFLICTION_FORGE.Reference.Replace") },
+          no: { label: localize("PF2E_AFFLICTION_FORGE.Reference.Cancel") },
+          modal: true
+        });
+        if (!confirmed) return null;
+      }
+    }
     return promptInjuryPoisonConfiguration(item, parsed, existing, label);
   }
   const DialogV2 = globalThis.foundry?.applications?.api?.DialogV2;

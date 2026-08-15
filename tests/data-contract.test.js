@@ -518,3 +518,23 @@ test("lifecycle reactions and stage expiry actions remain additive schema-v2 mec
   assert.deepEqual(stage.reactions[0].applyOn, []);
   assert.equal(validateAfflictionDefinition(definition).valid, true);
 });
+
+test("poison definitions can override repeated exposure without changing schema version", () => {
+  const definition = normalizeAfflictionDefinition({
+    ...validDefinition(),
+    afflictionType: "poison",
+    multipleExposure: "ignore"
+  });
+  assert.equal(definition.schemaVersion, 2);
+  assert.equal(definition.multipleExposure, "ignore");
+  assert.equal(validateAfflictionDefinition(definition).valid, true);
+  assert.equal(normalizeAfflictionDefinition({ ...validDefinition(), afflictionType: "poison" }).multipleExposure, "default");
+});
+
+test("repeated exposure overrides are rejected for non-poison Afflictions", () => {
+  const definition = validDefinition();
+  definition.multipleExposure = "ignore";
+  const report = validateAfflictionDefinition(definition);
+  assert.equal(report.valid, false);
+  assert.ok(report.errors.some((issue) => issue.code === "multiple-exposure.type"));
+});

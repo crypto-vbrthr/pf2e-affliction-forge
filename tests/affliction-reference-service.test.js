@@ -145,3 +145,30 @@ test("injury-poison charge consumption decrements and removes the exhausted atta
   assert.deepEqual({ before: second.before, after: second.after, depleted: second.depleted }, { before: 1, after: 0, depleted: true });
   assert.deepEqual(readAfflictionReferences(item), []);
 });
+
+test("adding a second injury poison replaces the previous coating but preserves unrelated references", async () => {
+  const {
+    addAfflictionReferenceToSource,
+    createAfflictionReference,
+    createInjuryPoisonReference,
+    readAfflictionReferences
+  } = await import("../scripts/affliction/integration/affliction-reference-service.js");
+
+  let source = {
+    type: "weapon",
+    flags: {
+      [MODULE_ID]: {
+        afflictionReferences: [
+          createAfflictionReference({ id: "curse", templateUuid: "Item.curse", trigger: "on-hit", application: "prompt" }),
+          createInjuryPoisonReference({ id: "old-poison", templateUuid: "Item.oldPoison", charges: 2 })
+        ]
+      }
+    }
+  };
+  source = addAfflictionReferenceToSource(source, createInjuryPoisonReference({ id: "new-poison", templateUuid: "Item.newPoison", charges: 1 }));
+  const references = readAfflictionReferences(source);
+  assert.equal(references.length, 2);
+  assert.equal(references.some((entry) => entry.id === "curse"), true);
+  assert.equal(references.some((entry) => entry.id === "old-poison"), false);
+  assert.equal(references.some((entry) => entry.id === "new-poison"), true);
+});

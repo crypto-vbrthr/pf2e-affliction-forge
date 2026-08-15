@@ -175,6 +175,7 @@ export function createAfflictionDefinition({
   saveDefaults = createDefaultSavePolicy(),
   identification = { initialState: "identified" },
   delivery = { injuryPoison: false },
+  multipleExposure = "default",
   restrictions = createDefaultRestrictions(),
   checks = [createDefaultSaveCheck()],
   initialCheck = createDefaultInitialCheck(),
@@ -199,6 +200,7 @@ export function createAfflictionDefinition({
     saveDefaults,
     identification,
     delivery,
+    multipleExposure,
     restrictions,
     checks,
     initialCheck,
@@ -282,7 +284,15 @@ export const AFFLICTION_DATA_CONTRACT_V2 = deepFreeze({
     default: "check"
   },
   deliveryCapabilities: {
-    injuryPoison: "weapon-or-melee-reference-with-consumable-charges"
+    injuryPoison: "weapon-or-melee-reference-with-consumable-charges",
+    repeatedPoisonExposure: "new-initial-save-without-restarting-onset-or-maximum-duration",
+    repeatedExposureOverride: ["default", "ignore"],
+    injuryPoisonDamageTypes: ["slashing", "piercing"],
+    oneInjuryPoisonPerHost: true
+  },
+  incapacitation: {
+    sourceLevel: "affliction-level",
+    targetHigherLevel: "improve-save-degree-by-one"
   }
 });
 

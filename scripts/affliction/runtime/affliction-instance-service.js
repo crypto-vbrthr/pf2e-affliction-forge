@@ -1210,6 +1210,17 @@ export class AfflictionInstanceService {
     return itemCollection(actor).filter(isAfflictionController).map(descriptor);
   }
 
+  async findActiveDefinition(actorOrUuid, definitionId) {
+    const actor = await resolveAfflictionActor(actorOrUuid);
+    if (!actor) return null;
+    const id = String(definitionId ?? "").trim();
+    if (!id) return null;
+    const controller = itemCollection(actor).find((item) => (
+      isAfflictionController(item) && getAfflictionFlags(item)?.definitionId === id
+    )) ?? null;
+    return controller;
+  }
+
   async listAll() {
     // World actors are not the whole runtime. Unlinked token actors can carry
     // embedded controllers too and must appear in the Active Afflictions view.

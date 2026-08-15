@@ -28,7 +28,7 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
   assert.equal(api.version, "0.1.0");
-  assert.equal(api.moduleVersion, "0.1.56");
+  assert.equal(api.moduleVersion, "0.1.57");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
   assert.equal(typeof api.definitions.create, "function");
@@ -37,6 +37,7 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.equal(typeof api.definitions.resolveSavePolicy, "function");
   assert.deepEqual(api.catalogs.saveExecutionModes(), ["automatic", "player", "gm"]);
   assert.deepEqual(api.catalogs.saveVisibilityModes(), ["public", "gmOnly"]);
+  assert.deepEqual(api.catalogs.multipleExposureModes(), ["default", "ignore"]);
   assert.deepEqual(api.catalogs.identificationStates(), ["hidden", "suspected", "identified"]);
   assert.deepEqual(api.catalogs.healingRestrictionModes(), ["none", "all", "affliction-damage"]);
   assert.deepEqual(api.catalogs.afflictionCapabilities(), ["speak"]);
@@ -98,6 +99,8 @@ test("public API exposes definition, editor, persistence, and active runtime con
   assert.deepEqual(api.catalogs.referenceHostItemTypes(), ["melee", "weapon", "action", "feat", "spell"]);
   assert.equal(api.references.isHostItem({ type: "melee" }), true);
   assert.equal(api.references.hostDefaults({ type: "melee" }).trigger, "on-hit");
+  assert.equal(typeof api.engine.repeatExposure, "function");
+  assert.equal(typeof api.instances.findActiveDefinition, "function");
   assert.equal(typeof api.application.apply, "function");
   assert.equal(typeof api.application.applyReference, "function");
   assert.equal(typeof api.application.applyItemReference, "function");

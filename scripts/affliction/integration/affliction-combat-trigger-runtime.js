@@ -5,6 +5,7 @@ import {
   isInjuryPoisonReference,
   readAfflictionReferences
 } from "./affliction-reference-service.js";
+import { resolvePf2eDamageTypes } from "../runtime/affliction-event-reaction-runtime.js";
 
 const MAX_PROCESSED_TRIGGER_KEYS = 500;
 let triggerRuntimeInitialized = false;
@@ -180,6 +181,8 @@ export async function inspectPf2eAfflictionTriggerMessage(message) {
       targetActor: null,
       targetActorUuid: null,
       directPositiveDamage: false,
+      damageTypes: Object.freeze([]),
+      damageTypesKnown: false,
       triggers: Object.freeze([])
     });
   }
@@ -209,9 +212,14 @@ export async function inspectPf2eAfflictionTriggerMessage(message) {
     triggers.push("on-use");
   }
 
+  const damageTypes = type === "damage-taken" ? resolvePf2eDamageTypes(message) : [];
+  const specificDamageTypes = damageTypes.filter((damageType) => !["physical", "energy"].includes(String(damageType).toLowerCase()));
   const uniqueTriggers = triggerLabels(triggers);
   return Object.freeze({
-    matched: uniqueTriggers.length > 0,
+    // A damage-taken message is semantically relevant to an injury poison even
+    // when it dealt no qualifying damage. The coating can be consumed without
+    // exposing the target, so keep the event inspectable with an empty trigger list.
+    matched: uniqueTriggers.length > 0 || type === "damage-taken",
     type,
     outcome,
     sourceItem,
@@ -227,6 +235,8 @@ export async function inspectPf2eAfflictionTriggerMessage(message) {
     messageId: message?.id ?? null,
     messageUuid: message?.uuid ?? (message?.id ? `ChatMessage.${message.id}` : null),
     directPositiveDamage: type === "damage-taken" && appliedDirectPositiveDamage(message),
+    damageTypes: Object.freeze(damageTypes),
+    damageTypesKnown: specificDamageTypes.length > 0,
     triggers: Object.freeze(uniqueTriggers)
   });
 }
@@ -234,8 +244,20 @@ export async function inspectPf2eAfflictionTriggerMessage(message) {
 export function injuryPoisonReferenceAction(reference, event) {
   if (!isInjuryPoisonReference(reference) || reference.enabled === false || !event) return null;
   if (event.type === "attack-roll" && event.outcome === "criticalFailure") return "consume";
-  if (event.type === "damage-taken" && event.directPositiveDamage === true) return "apply-consume";
-  return null;
+  if (event.type !== "damage-taken") return null;
+
+  const damageTypes = new Set((event.damageTypes ?? []).map((type) => String(type).toLowerCase()));
+  if (event.damageTypesKnown === true) {
+    const qualifying = damageTypes.has("slashing") || damageTypes.has("piercing");
+    return event.directPositiveDamage === true && qualifying ? "apply-consume" : "consume";
+  }
+
+  // Never apply an injury poison when PF2e did not serialize enough damage
+  // type information to prove slashing or piercing delivery. Preserve the
+  // charge for a GM decision rather than silently poisoning on bludgeoning or
+  // another non-qualifying damage type.
+  if (event.directPositiveDamage === true) return "ambiguous";
+  return "consume";
 }
 
 export function afflictionReferenceMatchesTrigger(reference, event) {
@@ -308,6 +330,14 @@ function notifyChargeResult(reference, sourceItem, charge) {
 async function processInjuryPoisonReference(message, reference, event) {
   const action = injuryPoisonReferenceAction(reference, event);
   if (!action) return Object.freeze({ status: "not-applicable", result: null, charge: null, event });
+  if (action === "ambiguous") {
+    globalThis.ui?.notifications?.warn?.(format("PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonDamageTypeAmbiguous", {
+      affliction: reference?.label ?? localize("PF2E_AFFLICTION_FORGE.Reference.Affliction"),
+      item: event?.sourceItem?.name ?? ""
+    }));
+    globalThis.Hooks?.callAll?.("pf2eAfflictionForgeInjuryPoisonAmbiguous", { message, event, reference });
+    return Object.freeze({ status: "ambiguous-damage-type", result: null, charge: null, event });
+  }
   const resourceKey = consumableReferenceKey(event, reference);
   return withConsumableReferenceLock(resourceKey, async () => {
     const sourceItem = await liveSourceItem(event);
@@ -322,7 +352,7 @@ async function processInjuryPoisonReference(message, reference, event) {
       const charge = await consumeInjuryPoisonCharge(sourceItem, current.id);
       notifyChargeResult(current, sourceItem, charge);
       globalThis.Hooks?.callAll?.("pf2eAfflictionForgeChargeConsumed", {
-        message, event: liveEvent, reference: current, charge, reason: "critical-failure"
+        message, event: liveEvent, reference: current, charge, reason: event.type === "attack-roll" ? "critical-failure" : "no-qualifying-damage"
       });
       sourceItem.actor?.sheet?.render?.(false);
       sourceItem.parent?.sheet?.render?.(false);

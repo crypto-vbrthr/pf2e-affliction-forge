@@ -40,6 +40,39 @@ export function degreeIndex(value) {
   return degree == null ? null : DEGREE_INDEX[degree];
 }
 
+export function shiftDegreeOfSuccess(value, steps = 0) {
+  const degree = normalizeDegreeOfSuccess(value);
+  if (!degree) return null;
+  const index = Math.max(0, Math.min(DEGREE_KEYS.length - 1, DEGREE_INDEX[degree] + Math.trunc(Number(steps) || 0)));
+  return DEGREE_KEYS[index];
+}
+
+export function actorLevel(actor) {
+  const candidates = [
+    actor?.level,
+    actor?.system?.details?.level?.value,
+    actor?.system?.details?.level
+  ];
+  for (const value of candidates) {
+    const level = Number(value);
+    if (Number.isFinite(level)) return level;
+  }
+  return null;
+}
+
+export function incapacitationDegreeAdjustment(definition, actor) {
+  const traits = new Set((definition?.traits ?? []).map((trait) => String(trait).trim().toLowerCase()));
+  if (!traits.has("incapacitation")) return 0;
+  const targetLevel = actorLevel(actor);
+  const sourceLevel = Number(definition?.level);
+  if (!Number.isFinite(targetLevel) || !Number.isFinite(sourceLevel)) return 0;
+  return targetLevel > sourceLevel ? 1 : 0;
+}
+
+export function adjustAfflictionSaveDegree(definition, actor, degree) {
+  return shiftDegreeOfSuccess(degree, incapacitationDegreeAdjustment(definition, actor));
+}
+
 export function combineDegrees(values, mode = "single") {
   const degrees = values.map(normalizeDegreeOfSuccess).filter(Boolean);
   if (degrees.length === 0) return null;
@@ -89,7 +122,10 @@ export function resolveCheckGate(definition, state) {
 }
 
 export function buildCheckPlan(definition, state) {
-  const resolved = resolveCheckGate(definition, state);
+  const repeatedExposure = state?.pendingCheck?.kind === "reexposure";
+  const resolved = repeatedExposure
+    ? (definition?.initialCheck ? { kind: "reexposure", stageNumber: Number(state?.currentStage ?? 0), gate: definition.initialCheck } : null)
+    : resolveCheckGate(definition, state);
   if (!resolved) return null;
   const checkById = new Map((definition.checks ?? []).map((check) => [check.id, check]));
   const checks = [];
@@ -185,6 +221,16 @@ export function resolveCheckResults(definition, state, plan, resultMap) {
     return { complete: false, degree: null, directive: null, transition: null };
   }
   const degree = combineDegrees(ordered, plan.combine);
+  if (plan.kind === "reexposure") {
+    const stageDelta = degree === "criticalFailure" ? 2 : degree === "failure" ? 1 : 0;
+    return {
+      complete: true,
+      degree,
+      directive: { action: stageDelta > 0 ? "stage-delta" : "none", delta: stageDelta },
+      transition: { type: "reexposure", stageDelta },
+      recoverySuccesses: Math.max(0, Math.trunc(Number(state?.recoverySuccesses ?? 0)))
+    };
+  }
   const directive = directiveForDegree(plan, degree);
   const baseTransition = resolveDirective(definition, state, directive);
   const progression = applyVirulentProgression(definition, state, plan, degree, baseTransition);

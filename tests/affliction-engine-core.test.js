@@ -5,6 +5,8 @@ import { installFoundryMock } from "./helpers/foundry-mock.js";
 installFoundryMock();
 
 const {
+  adjustAfflictionSaveDegree,
+  incapacitationDegreeAdjustment,
   combineDegrees,
   buildCheckPlan,
   resolveCheckResults,
@@ -103,4 +105,31 @@ test("virulent stage progression requires two consecutive successes and caps cri
   const failed = resolveCheckResults(virulent, secondState, plan, { primary: { degree: "failure" } });
   assert.equal(failed.recoverySuccesses, 0);
   assert.equal(failed.transition.targetStage, 3);
+});
+
+
+test("incapacitation improves an Affliction save by one degree against a higher-level target", () => {
+  const incapacitating = createAfflictionDefinition({ name: "Sleep Poison", afflictionType: "poison", level: 2, traits: ["poison", "incapacitation"] });
+  const high = { system: { details: { level: { value: 3 } } } };
+  const equal = { system: { details: { level: { value: 2 } } } };
+  assert.equal(incapacitationDegreeAdjustment(incapacitating, high), 1);
+  assert.equal(adjustAfflictionSaveDegree(incapacitating, high, "failure"), "success");
+  assert.equal(adjustAfflictionSaveDegree(incapacitating, high, "success"), "criticalSuccess");
+  assert.equal(adjustAfflictionSaveDegree(incapacitating, high, "criticalSuccess"), "criticalSuccess");
+  assert.equal(incapacitationDegreeAdjustment(incapacitating, equal), 0);
+  assert.equal(adjustAfflictionSaveDegree(incapacitating, equal, "failure"), "failure");
+});
+
+test("reexposure plans reuse the initial save but resolve failure as stage escalation", () => {
+  const poison = createAfflictionDefinition({ name: "Repeat Poison", afflictionType: "poison" });
+  const state = { status: "active", currentStage: 1, recoverySuccesses: 0, pendingCheck: { kind: "reexposure" } };
+  const plan = buildCheckPlan(poison, state);
+  assert.equal(plan.kind, "reexposure");
+  const failed = resolveCheckResults(poison, state, plan, { primary: { degree: "failure" } });
+  assert.equal(failed.transition.type, "reexposure");
+  assert.equal(failed.transition.stageDelta, 1);
+  const critical = resolveCheckResults(poison, state, plan, { primary: { degree: "criticalFailure" } });
+  assert.equal(critical.transition.stageDelta, 2);
+  const success = resolveCheckResults(poison, state, plan, { primary: { degree: "success" } });
+  assert.equal(success.transition.stageDelta, 0);
 });

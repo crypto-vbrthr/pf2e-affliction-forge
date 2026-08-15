@@ -1,4 +1,4 @@
-# Public API 0.1.0 (module 0.1.54)
+# Public API 0.1.0 (module 0.1.57)
 
 ```js
 const api = game.modules.get("pf2e-affliction-forge").api;
@@ -279,7 +279,7 @@ Stage 0 is reserved for initial exposure/onset runtime state. An already active 
 
 ### API compatibility version
 
-`api.version` is now independent from the module release number. Module `0.1.54` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
+`api.version` is now independent from the module release number. Module `0.1.57` publishes public API `0.1.0`; compatible patch releases can therefore ship without forcing downstream modules to update a version check. Use `api.moduleVersion` when the exact installed module build matters.
 
 ### Pause / resume semantics
 
@@ -656,9 +656,11 @@ api.references.hostDefaults(item);
 
 These helpers expose the same eligibility/default contract used by the built-in Attack & Ability Affliction Drop Zones so external hosts such as Creature Forge can match the Forge UI without duplicating policy.
 
-### Injury-poison attachments (0.1.42)
+### Poison exposure and injury-poison attachments (0.1.57)
 
-A poison definition can opt into injury-poison delivery with `delivery.injuryPoison = true`. Dropping such a template onto a `weapon` or `melee` host opens a dedicated charge prompt with a default of `1`; trigger and application policy are then fixed to `on-damage + automatic`.
+A poison definition can opt into injury-poison delivery with `delivery.injuryPoison = true`. Repeated exposure is controlled by `multipleExposure: "default" | "ignore"`; the default reuses an existing poison controller and runs the poison's initial save again without restarting onset or maximum duration. `api.engine.repeatExposure(controller, options)` exposes that operation explicitly.
+
+Dropping an injury-poison template onto a `weapon` or `melee` host opens a dedicated charge prompt with a default of `1`; trigger and application policy are fixed to `on-damage + automatic`. Only one injury-poison reference can occupy a host at once.
 
 ```js
 api.catalogs.referenceDeliveryTypes();
@@ -674,7 +676,7 @@ const reference = api.references.createInjuryPoison({
 await api.references.add(weaponItem, reference);
 ```
 
-Remaining charges live on the host reference, not on the Affliction template. Direct positive PF2e `damage-taken` from that host applies the poison through `api.application.applyItemReference()` and only then decrements the charge. An `attack-roll` `criticalFailure` decrements the charge without application. The last charge removes the reference. Resource mutation is serialized per source Item/reference so one final charge cannot be spent twice by concurrent messages.
+Remaining charges live on the host reference, not on the Affliction template. Direct PF2e `damage-taken` applies the poison only when trustworthy serialized damage types include slashing or piercing and direct positive damage was applied; the charge is decremented only after successful runtime application. An `attack-roll` `criticalFailure`, or known damage without qualifying slashing/piercing delivery, decrements the charge without application. Ambiguous positive damage preserves the charge for GM resolution. The last charge removes the reference. Resource mutation is serialized per source Item/reference so one final charge cannot be spent twice by concurrent messages.
 
 ## Rich-text reference insertion
 

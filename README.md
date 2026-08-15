@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.56**
+Current release: **0.1.57**
 
-Version **0.1.56** adds combat-lifecycle event reactions and reactive controller outcomes. Active stages can react to initiative rolls and turn starts, auxiliary-save results can recover or end the affliction directly, and finite stages can define what happens when their duration expires (`check | recover | end | stay`). This supports curse-style lifecycles without forcing them into ordinary disease/poison progression.
+Version **0.1.57** hardens the Remastered poison workflow. Repeated exposure now reuses the existing poison controller and performs the extra initial save without restarting onset or maximum duration, injury poison requires slashing or piercing delivery, only one injury-poison coating can occupy a weapon/attack host, and Affliction saves honor the `incapacitation` trait against higher-level targets.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -51,8 +51,10 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - machine-readable ability/spell/attack references under `flags.pf2e-affliction-forge.afflictionReferences`
 - direct drag-and-drop reference zones on melee, weapon, action, feat, and spell Item sheets, plus embedded Actor-sheet item rows
 - reference trigger/application metadata for host modules without coupling progression logic into those hosts
-- poison-only `delivery.injuryPoison` definition capability with charge-aware weapon/attack attachment; applying defaults to 1 charge
-- injury-poison runtime ordering: positive applied weapon damage applies the Affliction before consuming 1 charge, while an attack critical failure consumes 1 charge without application
+- poison repeated-exposure policy with `multipleExposure: default | ignore`; normal poisons make a new initial save on repeated exposure while preserving onset and maximum-duration clocks
+- generic Affliction `incapacitation` save adjustment against higher-level targets
+- poison-only `delivery.injuryPoison` definition capability with charge-aware weapon/attack attachment; applying defaults to 1 charge and replaces any previous injury-poison coating on the same host
+- injury-poison runtime ordering: direct slashing/piercing damage applies the Affliction before consuming 1 charge; critical attack failure or known non-qualifying damage consumes without application; ambiguous damage types preserve the charge for GM review
 - native PF2e combat-trigger runtime for `on-use`, `on-hit`, `on-damage`, `failed-save`, and `critical-failure`, with GM prompt/automatic/manual application policies and per-message deduplication
 - custom draggable `@Affliction[UUID]{Label}` rich-text links plus native Foundry `Item` drag fallback for reliable ProseMirror insertion
 - direct drag-and-drop from the Forge library, Item/compendium entries, and description links onto Actor sheets or canvas tokens
@@ -145,6 +147,10 @@ const coating = api.references.createInjuryPoison({
 });
 await api.references.add(weaponItem, coating);
 ```
+
+Normal poison definitions use `multipleExposure: "default"`. If the same poison already has an active controller, a new application performs another initial save against that controller instead of creating a duplicate. Use `multipleExposure: "ignore"` only for an authored exception that explicitly suppresses repeated-exposure saves.
+
+Only one injury poison is stored on one weapon/attack host at a time. Adding another coating replaces the earlier injury-poison reference while preserving unrelated Affliction references.
 
 A description can expose the same template as a draggable link:
 

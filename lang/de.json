@@ -290,7 +290,7 @@
   "PF2E_AFFLICTION_FORGE.Reference.HostEmpty": "Noch kein Leiden mit diesem Angriff oder dieser Fähigkeit verknüpft.",
   "PF2E_AFFLICTION_FORGE.Reference.HostPolicyHint": "Die Verknüpfung speichert nur Leiden, Auslöser und Anwendungsmodus. Die Affliction Engine übernimmt den Verlauf erst, wenn die Quelle das Leiden tatsächlich anwendet.",
   "PF2E_AFFLICTION_FORGE.Reference.HostSection": "Leiden",
-  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachHint": "Das Gift wird bei tatsächlich verursachtem Schaden angewendet und anschließend um 1 Ladung reduziert. Ein kritischer Fehlschlag des Angriffs verbraucht 1 Ladung, ohne das Gift anzuwenden.",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachHint": "Das Gift wird nur übertragen, wenn der Angriff Hieb- oder Stichschaden verursacht. Ein kritischer Fehlschlag oder ein Angriff ohne Hieb-/Stichschaden verbraucht 1 Ladung ohne Übertragung; bei einem normalen Fehlschlag bleibt das Gift erhalten.",
   "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttachTitle": "Verwundungsgift auf „{item}“ auftragen",
   "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonAttached": "„{affliction}“ wurde mit {charges} Ladung(en) auf „{item}“ aufgetragen.",
   "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonChargeConsumed": "„{affliction}“ auf „{item}“: 1 Ladung verbraucht, {charges} verbleibend.",
@@ -520,5 +520,13 @@
   "PF2E_AFFLICTION_FORGE.Types.Curse": "Fluch",
   "PF2E_AFFLICTION_FORGE.Types.Disease": "Krankheit",
   "PF2E_AFFLICTION_FORGE.Types.Other": "Sonstiges",
-  "PF2E_AFFLICTION_FORGE.Types.Poison": "Gift"
+  "PF2E_AFFLICTION_FORGE.Types.Poison": "Gift",
+  "PF2E_AFFLICTION_FORGE.Editor.IgnoreRepeatedExposure": "Erneuten Kontakt ignorieren",
+  "PF2E_AFFLICTION_FORGE.Editor.IgnoreRepeatedExposureHint": "Sonderregel für Gifte, bei denen erneuter Kontakt ausdrücklich keinen zusätzlichen initialen Rettungswurf auslöst.",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonReplaceTitle": "Vorhandenes Verwundungsgift ersetzen?",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonReplaceText": "Auf „{item}“ befindet sich bereits „{old}“. Soll es durch „{poison}“ ersetzt werden?",
+  "PF2E_AFFLICTION_FORGE.Reference.Replace": "Ersetzen",
+  "PF2E_AFFLICTION_FORGE.Reference.Cancel": "Abbrechen",
+  "PF2E_AFFLICTION_FORGE.Reference.InjuryPoisonDamageTypeAmbiguous": "„{affliction}“ auf „{item}“: PF2e lieferte keine eindeutige Schadensart. Die Ladung bleibt erhalten; bitte den Fall manuell prüfen.",
+  "PF2E_AFFLICTION_FORGE.Runtime.IncapacitationAdjusted": "Kampfunfähig: Der Erfolgsgrad wurde wegen der höheren Stufe des Ziels um eine Stufe verbessert."
 }

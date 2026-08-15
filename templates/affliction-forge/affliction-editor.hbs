@@ -74,6 +74,11 @@
           <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.InjuryPoison"}}</span>
         </label>
         <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.InjuryPoisonHint"}}</small>
+        <label class="affliction-editor-checkbox">
+          <input data-affliction-field="ignoreRepeatedExposure" type="checkbox" {{#if ignoreRepeatedExposure}}checked{{/if}}>
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.IgnoreRepeatedExposure"}}</span>
+        </label>
+        <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.IgnoreRepeatedExposureHint"}}</small>
       </div>
 
       <label class="affliction-editor-field full-width">

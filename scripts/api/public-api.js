@@ -13,6 +13,7 @@ import {
   IDENTIFICATION_STATES,
   MODULE_ID,
   MODULE_VERSION,
+  MULTIPLE_EXPOSURE_MODES,
   NUMERIC_MODIFIER_TYPES,
   RARITIES,
   REACTION_CONTROLLER_ACTIONS,
@@ -167,6 +168,7 @@ export function createPublicApi() {
       rarities: () => [...RARITIES],
       saveStatistics: () => [...SAVE_STATISTICS],
       saveDcModes: () => [...SAVE_DC_MODES],
+      multipleExposureModes: () => [...MULTIPLE_EXPOSURE_MODES],
       saveExecutionModes: () => [...SAVE_EXECUTION_MODES],
       saveVisibilityModes: () => [...SAVE_VISIBILITY_MODES],
       identificationStates: () => [...IDENTIFICATION_STATES],
@@ -332,6 +334,7 @@ export function createPublicApi() {
       inspect: (controllerOrUuid) => afflictionEngine.inspect(controllerOrUuid),
       process: (controllerOrUuid, options = {}) => afflictionEngine.process(controllerOrUuid, options),
       processInitial: (controllerOrUuid) => afflictionEngine.processInitial(controllerOrUuid),
+      repeatExposure: (controllerOrUuid, options = {}) => afflictionEngine.repeatExposure(controllerOrUuid, options),
       resumePending: (controllerOrUuid, options = {}) => afflictionEngine.resumePending(controllerOrUuid, options),
       acceptPlayerResult: async (payload = {}) => {
         const result = await afflictionEngine.acceptPlayerResult(payload);
@@ -366,6 +369,7 @@ export function createPublicApi() {
       applyDefinition: (definition, targets, options = {}) => instanceService.applyDefinition(definition, targets, options),
       get: (controllerOrUuid) => instanceService.get(controllerOrUuid),
       inspect: (controller) => instanceService.inspect(controller),
+      findActiveDefinition: (actorOrUuid, definitionId) => instanceService.findActiveDefinition(actorOrUuid, definitionId),
       presentation: (controllerOrUuid) => instanceService.presentation(controllerOrUuid),
       events: (controllerOrUuid) => instanceService.events(controllerOrUuid),
       listForActor: (actorOrUuid) => instanceService.listForActor(actorOrUuid),

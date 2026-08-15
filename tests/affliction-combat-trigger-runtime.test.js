@@ -343,6 +343,7 @@ test("injury poison applies before its charge is consumed when weapon damage is 
     flags: {
       pf2e: {
         context: { type: "damage-taken" },
+        damageRoll: { types: { slashing: {} } },
         appliedDamage: {
           isHealing: false,
           isReverted: false,
@@ -378,7 +379,7 @@ test("critical attack failure consumes injury poison without applying it, even w
   assert.deepEqual(item.toObject().flags[MODULE_ID].afflictionReferences, []);
 });
 
-test("injury poison is not consumed by zero, reverted, or persistent-only damage application", async () => {
+test("injury poison is consumed without application when the attack produces no qualifying direct slashing or piercing damage", async () => {
   const target = targetActor();
   const item = injuryPoisonWeapon({ charges: 2, referenceId: "no-direct-damage" });
   let applications = 0;
@@ -391,6 +392,7 @@ test("injury poison is not consumed by zero, reverted, or persistent-only damage
     flags: {
       pf2e: {
         context: { type: "damage-taken" },
+        damageRoll: { types: { slashing: {} } },
         appliedDamage: {
           isHealing: false,
           isReverted: false,
@@ -402,9 +404,9 @@ test("injury poison is not consumed by zero, reverted, or persistent-only damage
     }
   }, { force: true });
 
-  assert.equal(persistentOnly.reason, "no-matching-references");
+  assert.equal(persistentOnly.results[0].status, "consumed");
   assert.equal(applications, 0);
-  assert.equal(item.toObject().flags[MODULE_ID].afflictionReferences[0].delivery.charges, 2);
+  assert.equal(item.toObject().flags[MODULE_ID].afflictionReferences[0].delivery.charges, 1);
 });
 
 test("one remaining injury-poison charge cannot be spent by two concurrent damage messages", async () => {
@@ -430,6 +432,7 @@ test("one remaining injury-poison charge cannot be spent by two concurrent damag
     flags: {
       pf2e: {
         context: { type: "damage-taken" },
+        damageRoll: { types: { piercing: {} } },
         appliedDamage: {
           isHealing: false,
           isReverted: false,
@@ -474,6 +477,7 @@ test("failed injury-poison application leaves the charge intact and the damage m
     flags: {
       pf2e: {
         context: { type: "damage-taken" },
+        damageRoll: { types: { slashing: {} } },
         appliedDamage: {
           isHealing: false,
           isReverted: false,
@@ -494,4 +498,30 @@ test("failed injury-poison application leaves the charge intact and the damage m
   assert.equal(second.results[0].charge.depleted, true);
   assert.equal(calls, 2);
   assert.deepEqual(item.toObject().flags[MODULE_ID].afflictionReferences, []);
+});
+
+
+test("injury poison consumes without applying on positive bludgeoning damage", async () => {
+  const target = targetActor();
+  const item = injuryPoisonWeapon({ charges: 1, referenceId: "bludgeoning-poison" });
+  let applications = 0;
+  modules.set(MODULE_ID, { api: { application: { applyItemReference: async () => { applications += 1; } } } });
+  const result = await processPf2eAfflictionTriggerMessage({
+    id: "injury-bludgeoning", item, actor: target,
+    flags: { pf2e: { context: { type: "damage-taken" }, damageRoll: { types: { bludgeoning: {} } }, appliedDamage: { isHealing: false, isReverted: false, persistent: [], shield: null, updates: [{ path: "system.attributes.hp.value", value: 4 }] } } }
+  }, { force: true });
+  assert.equal(result.results[0].status, "consumed");
+  assert.equal(applications, 0);
+  assert.deepEqual(item.toObject().flags[MODULE_ID].afflictionReferences, []);
+});
+
+test("injury poison keeps its charge when positive damage has no trustworthy serialized damage type", async () => {
+  const target = targetActor();
+  const item = injuryPoisonWeapon({ charges: 1, referenceId: "ambiguous-poison" });
+  const result = await processPf2eAfflictionTriggerMessage({
+    id: "injury-ambiguous", item, actor: target,
+    flags: { pf2e: { context: { type: "damage-taken" }, appliedDamage: { isHealing: false, isReverted: false, persistent: [], shield: null, updates: [{ path: "system.attributes.hp.value", value: 4 }] } } }
+  }, { force: true });
+  assert.equal(result.results[0].status, "ambiguous-damage-type");
+  assert.equal(item.toObject().flags[MODULE_ID].afflictionReferences[0].delivery.charges, 1);
 });

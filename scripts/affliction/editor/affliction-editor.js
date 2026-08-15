@@ -552,6 +552,7 @@ export async function prepareAfflictionEditorContext(session, {
     identificationOptions: optionList(IDENTIFICATION_STATES, definition.identification.initialState, LABELS.identification),
     isPoison: definition.afflictionType === "poison",
     injuryPoison: definition.delivery?.injuryPoison === true,
+    ignoreRepeatedExposure: definition.afflictionType === "poison" && definition.multipleExposure === "ignore",
     restrictionView: prepareRestrictions(definition.restrictions),
     checks: definition.checks.map((check, index) => ({
       ...check,
@@ -806,9 +807,12 @@ export class EmbeddedAfflictionEditor {
     definition.delivery ??= { injuryPoison: false };
     const injuryPoisonControl = root.querySelector('[data-affliction-field="injuryPoison"]');
     definition.delivery.injuryPoison = definition.afflictionType === "poison" && Boolean(injuryPoisonControl?.checked);
+    const repeatedExposureControl = root.querySelector('[data-affliction-field="ignoreRepeatedExposure"]');
+    definition.multipleExposure = definition.afflictionType === "poison" && Boolean(repeatedExposureControl?.checked) ? "ignore" : "default";
     const poisonOptions = root.querySelector("[data-poison-delivery-options]");
     if (poisonOptions) poisonOptions.hidden = definition.afflictionType !== "poison";
     if (definition.afflictionType !== "poison" && injuryPoisonControl) injuryPoisonControl.checked = false;
+    if (definition.afflictionType !== "poison" && repeatedExposureControl) repeatedExposureControl.checked = false;
 
     definition.restrictions = restrictionsFromRegion(root.querySelector('[data-affliction-restrictions="root"]'), definition.restrictions);
 
