@@ -40,3 +40,23 @@ test("template definition round-trips from stored flags", () => {
     sourceDefinitionVersion: null
   });
 });
+
+test("template adapter localizes provider i18n tokens when reading definitions", () => {
+  const previous = globalThis.game?.i18n;
+  globalThis.game ??= {};
+  globalThis.game.i18n = {
+    localize: (key) => ({
+      "TEST.Content.Name": "Localized Name",
+      "TEST.Content.Description": "Localized Description",
+      "TEST.Content.Stage": "Localized Stage"
+    })[key] ?? key
+  };
+  const definition = createAfflictionDefinition({ name: "@i18n:TEST.Content.Name", description: "@i18n:TEST.Content.Description" });
+  definition.stages[0].name = "@i18n:TEST.Content.Stage";
+  const source = buildAfflictionTemplateItemSource(definition);
+  const extracted = extractAfflictionDefinitionFromItem(source);
+  assert.equal(extracted.name, "Localized Name");
+  assert.equal(extracted.description, "Localized Description");
+  assert.equal(extracted.stages[0].name, "Localized Stage");
+  globalThis.game.i18n = previous;
+});

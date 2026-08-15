@@ -3,6 +3,7 @@ import { buildAfflictionTemplateItemSource, extractAfflictionDefinitionFromItem 
 import { getAfflictionFlags, isAfflictionTemplate } from "./affliction-flags.js";
 import { normalizeAfflictionDefinition } from "../schema/affliction-normalizer.js";
 import { deepClone, randomId } from "../schema/utils.js";
+import { localizeContentToken, localizeContentTree } from "../i18n-content.js";
 
 function requireFoundryRuntime() {
   if (!globalThis.game) throw new Error("Foundry runtime is unavailable.");
@@ -46,18 +47,23 @@ function sourceLabel(document) {
   return pack?.title ?? game.i18n?.localize?.("PF2E_AFFLICTION_FORGE.Forge.WorldItems") ?? "World Items";
 }
 
-function definitionMetadata(flags) {
-  const definition = flags?.definition ?? {};
-  const metadata = definition?.metadata && typeof definition.metadata === "object" ? definition.metadata : {};
+function localizedDefinitionFromFlags(flags) {
+  const raw = flags?.definition ?? flags?.definitionSnapshot ?? null;
+  return raw && typeof raw === "object" ? localizeContentTree(raw) : null;
+}
+
+function definitionMetadata(flags, definition = null) {
+  const resolved = definition ?? localizedDefinitionFromFlags(flags) ?? {};
+  const metadata = resolved?.metadata && typeof resolved.metadata === "object" ? resolved.metadata : {};
   const sourcePage = Number(metadata.sourcePage);
   return {
-    afflictionType: definition.afflictionType ?? null,
-    level: Number.isFinite(Number(definition.level)) ? Number(definition.level) : null,
-    rarity: definition.rarity ?? null,
-    traits: Array.isArray(definition.traits) ? [...definition.traits] : [],
-    themes: Array.isArray(definition.themes) ? [...definition.themes] : [],
+    afflictionType: resolved.afflictionType ?? null,
+    level: Number.isFinite(Number(resolved.level)) ? Number(resolved.level) : null,
+    rarity: resolved.rarity ?? null,
+    traits: Array.isArray(resolved.traits) ? [...resolved.traits] : [],
+    themes: Array.isArray(resolved.themes) ? [...resolved.themes] : [],
     contentSourceWorkId: String(metadata.sourceWorkId ?? "").trim() || null,
-    contentSourceLabel: String(metadata.sourceWorkLabel ?? "").trim() || null,
+    contentSourceLabel: String(localizeContentToken(metadata.sourceWorkLabel ?? "")).trim() || null,
     contentSourcePage: Number.isFinite(sourcePage) ? sourcePage : null
   };
 }
@@ -65,10 +71,11 @@ function definitionMetadata(flags) {
 function descriptorFromDocument(document) {
   const flags = getAfflictionFlags(document) ?? {};
   const pack = packForDocument(document);
+  const definition = localizedDefinitionFromFlags(flags);
   return Object.freeze({
     uuid: document.uuid,
     id: document.id,
-    name: document.name,
+    name: definition?.name ?? localizeContentToken(document.name),
     img: document.img,
     pack: pack?.collection ?? null,
     sourceLabel: sourceLabel(document),
@@ -78,16 +85,17 @@ function descriptorFromDocument(document) {
     definitionVersion: Number(flags.definitionVersion ?? 1),
     copiedFromUuid: flags.copiedFromUuid ?? null,
     world: !pack,
-    ...definitionMetadata(flags)
+    ...definitionMetadata(flags, definition)
   });
 }
 
 function descriptorFromIndexEntry(pack, entry) {
   const flags = entry?.flags?.[MODULE_ID] ?? {};
+  const definition = localizedDefinitionFromFlags(flags);
   return Object.freeze({
     uuid: pack.getUuid(entry._id),
     id: entry._id,
-    name: entry.name,
+    name: definition?.name ?? localizeContentToken(entry.name),
     img: entry.img,
     pack: pack.collection,
     sourceLabel: pack.title,
@@ -97,7 +105,7 @@ function descriptorFromIndexEntry(pack, entry) {
     definitionVersion: Number(flags.definitionVersion ?? 1),
     copiedFromUuid: flags.copiedFromUuid ?? null,
     world: false,
-    ...definitionMetadata(flags)
+    ...definitionMetadata(flags, definition)
   });
 }
 

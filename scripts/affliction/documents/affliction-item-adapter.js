@@ -2,6 +2,7 @@ import { DOCUMENT_KINDS, MODULE_ID } from "../../constants.js";
 import { normalizeAfflictionDefinition } from "../schema/affliction-normalizer.js";
 import { assertValidAfflictionDefinition } from "../schema/affliction-validator.js";
 import { deepClone } from "../schema/utils.js";
+import { localizeContentTree } from "../i18n-content.js";
 import {
   buildTemplateFlags,
   getAfflictionFlags,
@@ -50,7 +51,8 @@ export function extractAfflictionDefinitionFromItem(item, { normalize = true } =
   else throw new TypeError(`Unsupported Affliction Forge document kind: ${flags.documentKind ?? "unknown"}.`);
 
   if (!definition) throw new TypeError("Affliction Forge item does not contain a definition payload.");
-  return normalize ? normalizeAfflictionDefinition(definition) : deepClone(definition);
+  const localized = localizeContentTree(definition);
+  return normalize ? normalizeAfflictionDefinition(localized) : localized;
 }
 
 export function inspectAfflictionItem(item) {

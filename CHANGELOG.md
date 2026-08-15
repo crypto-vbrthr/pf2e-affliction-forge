@@ -1,3 +1,7 @@
+## 0.1.60
+- Added provider-content i18n token resolution (`@i18n:`) for library descriptors and loaded Affliction definitions, enabling per-client localization of external read-only libraries.
+- Source-work labels stored in provider definitions are localized at render/search time.
+
 # Changelog
 
 ## 0.1.59 – Library Filters & Scroll Persistence

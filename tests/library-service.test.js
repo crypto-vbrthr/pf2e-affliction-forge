@@ -173,3 +173,32 @@ test("level-bounded library searches exclude provider entries with invalid level
   const bounded = await api.libraries.search({ minLevel: 1, maxLevel: 20, query: "Broken Level" });
   assert.equal(bounded.some((entry) => entry.uuid === packed.uuid), false);
 });
+
+test("provider descriptors localize tokenized name and source-work label per client", async () => {
+  const originalLocalize = game.i18n.localize;
+  game.i18n.localize = (key) => ({
+    "TEST.Provider.Name": "English Affliction",
+    "TEST.Provider.Source": "GM Core"
+  })[key] ?? originalLocalize(key);
+
+  const api = createPublicApi();
+  const definition = api.definitions.create({
+    name: "@i18n:TEST.Provider.Name",
+    afflictionType: "disease",
+    level: 4,
+    metadata: { sourceWorkId: "gm-core", sourceWorkLabel: "@i18n:TEST.Provider.Source", sourcePage: 88 }
+  });
+  const packed = await api.templates.create(definition, { pack: providerPack.collection });
+  api.providers.register({
+    id: "localized-provider",
+    label: "Localized Provider",
+    moduleId: "localized-provider",
+    libraries: [{ id: "localized-provider.core", label: "Localized Provider", packs: [providerPack.collection], writable: false }]
+  });
+
+  const entry = (await api.libraries.search()).find((candidate) => candidate.uuid === packed.uuid);
+  assert.equal(entry.name, "English Affliction");
+  assert.equal(entry.contentSourceLabel, "GM Core");
+  assert.equal((await api.templates.read(packed)).name, "English Affliction");
+  game.i18n.localize = originalLocalize;
+});

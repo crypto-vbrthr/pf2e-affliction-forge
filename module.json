@@ -2,7 +2,7 @@
   "id": "pf2e-affliction-forge",
   "title": "PF2E Affliction Forge",
   "description": "A modular PF2e framework for staged poisons, diseases, curses, and other afflictions. Version 0.1.59 adds template-library filters by affliction type and level range and preserves library scroll position when opening entries.",
-  "version": "0.1.59",
+  "version": "0.1.60",
   "socket": true,
   "authors": [
     {
