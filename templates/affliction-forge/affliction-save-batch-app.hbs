@@ -1,20 +1,43 @@
 <div class="affliction-save-batch-shell">
   <header class="affliction-save-batch-header">
     <div>
-      <h2><i class="fa-solid fa-dice-d20"></i> {{localize "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchTitle"}}</h2>
-      <p>{{localize "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchHint"}} <strong>{{actorName}}</strong></p>
+      {{#if singleVirulent}}
+        <h2><i class="fa-solid fa-dice-d20"></i> {{localize "PF2E_AFFLICTION_FORGE.Runtime.VirulentSaveWindowTitle"}}</h2>
+        <p>{{localize "PF2E_AFFLICTION_FORGE.Runtime.VirulentSaveWindowHint"}} <strong>{{actorName}}</strong></p>
+      {{else}}
+        <h2><i class="fa-solid fa-dice-d20"></i> {{localize "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchTitle"}}</h2>
+        <p>{{localize "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchHint"}} <strong>{{actorName}}</strong></p>
+      {{/if}}
     </div>
     <button type="button" data-action="rollAll" {{#if complete}}disabled{{/if}}>
-      <i class="fa-solid fa-dice"></i> {{localize "PF2E_AFFLICTION_FORGE.Runtime.RollAllSaves"}}
+      <i class="fa-solid fa-dice"></i>
+      {{#if single}}{{localize "PF2E_AFFLICTION_FORGE.Runtime.RollSave"}}{{else}}{{localize "PF2E_AFFLICTION_FORGE.Runtime.RollAllSaves"}}{{/if}}
     </button>
   </header>
 
   {{#if virulent.active}}
     <div class="affliction-save-virulent-progress">
       <i class="fa-solid fa-virus"></i>
-      <div>
+      <div class="affliction-save-virulent-progress-body">
         <strong>{{localize "PF2E_AFFLICTION_FORGE.Editor.Virulent"}}</strong>
-        <span>{{localize "PF2E_AFFLICTION_FORGE.Runtime.VirulentWindowHint"}} {{virulent.successes}}/{{virulent.required}}</span>
+        <span>{{localize "PF2E_AFFLICTION_FORGE.Runtime.VirulentWindowRule"}}</span>
+        <div class="affliction-save-virulent-slots" aria-label="{{localize 'PF2E_AFFLICTION_FORGE.Runtime.VirulentProgressLabel'}}">
+          {{#each virulent.slots as |slot|}}
+            <span class="affliction-save-virulent-slot {{#if slot.complete}}complete{{/if}}">
+              <i class="fa-solid {{#if slot.complete}}fa-check{{else}}fa-circle{{/if}}"></i>
+              {{slot.number}}
+            </span>
+          {{/each}}
+          <strong>{{virulent.successes}}/{{virulent.required}}</strong>
+        </div>
+        {{#if virulent.outcomeText}}
+          <span class="affliction-save-virulent-outcome">{{virulent.outcomeText}}</span>
+        {{else}}
+          <span>{{localize "PF2E_AFFLICTION_FORGE.Runtime.VirulentWindowHint"}} {{virulent.successes}}/{{virulent.required}}</span>
+        {{/if}}
+        {{#if virulent.waitingForNextInterval}}
+          <span class="affliction-save-virulent-next">{{localize "PF2E_AFFLICTION_FORGE.Runtime.VirulentNextInterval"}}</span>
+        {{/if}}
       </div>
     </div>
   {{/if}}
@@ -47,6 +70,10 @@
   </div>
 
   {{#if complete}}
-    <p class="affliction-save-batch-complete"><i class="fa-solid fa-circle-check"></i> {{localize "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchComplete"}}</p>
+    {{#if singleVirulent}}
+      <p class="affliction-save-batch-complete"><i class="fa-solid fa-circle-check"></i> {{localize "PF2E_AFFLICTION_FORGE.Runtime.VirulentSaveComplete"}}</p>
+    {{else}}
+      <p class="affliction-save-batch-complete"><i class="fa-solid fa-circle-check"></i> {{localize "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchComplete"}}</p>
+    {{/if}}
   {{/if}}
 </div>

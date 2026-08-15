@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.47
+
+- Fixed the virulent-save UX: a virulent affliction now uses a dedicated single-save window instead of presenting the current stage save as a misleading multi-save batch.
+- The virulent consecutive-success counter updates immediately after the roll while the window remains open.
+- Added two visible success slots and explicit text that the second required save is due at the next stage interval, not immediately.
+- Added live outcome feedback for first success, second success, critical success, broken streak, and no-progress failures.
+
 ## 0.1.46
 
 ### Virulent Save Window Follow-up
@@ -28,7 +35,7 @@
 
 ## 0.1.44
 
-### `Remastered Rules Coverage I`
+### Remastered Rules Coverage I
 
 - adds native `progression.virulent` / Ausgeprägt support without changing Affliction schema v2
 - virulent stage progression now requires two consecutive successful stage saves before reducing a stage by 1; a critical success reduces exactly 1 stage immediately

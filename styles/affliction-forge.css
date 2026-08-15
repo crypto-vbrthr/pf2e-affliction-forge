@@ -2181,3 +2181,42 @@
   flex-direction: column;
   gap: 0.15rem;
 }
+
+/* 0.1.47: virulent-save progress is explicit and updates in-place. */
+.affliction-save-virulent-progress-body {
+  flex: 1 1 auto;
+}
+
+.affliction-save-virulent-slots {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.25rem;
+}
+
+.affliction-save-virulent-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 2.6rem;
+  padding: 0.18rem 0.4rem;
+  border: 1px solid var(--color-border-light-2, #7776);
+  border-radius: 999px;
+  opacity: 0.7;
+}
+
+.affliction-save-virulent-slot.complete {
+  opacity: 1;
+  font-weight: 700;
+}
+
+.affliction-save-virulent-outcome {
+  margin-top: 0.2rem;
+  font-weight: 600;
+}
+
+.affliction-save-virulent-next {
+  font-size: 0.9em;
+  opacity: 0.82;
+}

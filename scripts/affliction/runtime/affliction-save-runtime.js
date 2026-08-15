@@ -124,6 +124,43 @@ function degreeLabel(degree) {
   return value && value !== key ? value : String(degree ?? "");
 }
 
+/**
+ * Preview the virulent recovery streak immediately after the save shown in the
+ * Affliction window. The persisted controller state is still resolved by the
+ * engine; this helper only keeps the open window in sync with the roll the
+ * user just made.
+ */
+export function previewVirulentProgress(progress, degree) {
+  if (progress?.active !== true) return progress ? { ...progress } : null;
+  const required = Math.max(1, Math.trunc(Number(progress.required ?? 2)));
+  const previous = Math.max(0, Math.min(required, Math.trunc(Number(progress.successes ?? 0))));
+  if (degree === "criticalSuccess") {
+    return { ...progress, active: true, successes: 0, required, previous, lastOutcome: "criticalSuccess" };
+  }
+  if (degree === "success") {
+    const successes = Math.min(required, previous + 1);
+    return {
+      ...progress,
+      active: true,
+      successes,
+      required,
+      previous,
+      lastOutcome: successes >= required ? "twoSuccesses" : "oneSuccess"
+    };
+  }
+  if (degree === "failure" || degree === "criticalFailure") {
+    return {
+      ...progress,
+      active: true,
+      successes: 0,
+      required,
+      previous,
+      lastOutcome: previous > 0 ? "streakBroken" : "noProgress"
+    };
+  }
+  return { ...progress, active: true, successes: previous, required, previous, lastOutcome: null };
+}
+
 function makeSaveBatchAppClass() {
   if (SaveBatchApp) return SaveBatchApp;
   const api = globalThis.foundry?.applications?.api;
@@ -160,24 +197,58 @@ function makeSaveBatchAppClass() {
     };
 
     constructor({ actor, checks, virulentProgress = null, id = null } = {}, options = {}) {
-      super({ ...options, ...(id ? { id } : {}) });
+      const list = (checks ?? []).map((check) => ({ ...check }));
+      const singleVirulent = list.length === 1 && virulentProgress?.active === true;
+      super({
+        ...options,
+        ...(id ? { id } : {}),
+        ...(singleVirulent ? {
+          window: {
+            ...(options.window ?? {}),
+            title: localize("PF2E_AFFLICTION_FORGE.Runtime.VirulentSaveWindowTitle")
+          }
+        } : {})
+      });
       this.actor = actor;
-      this.checks = (checks ?? []).map((check) => ({ ...check }));
+      this.checks = list;
       this.virulentProgress = virulentProgress ? { ...virulentProgress } : null;
       this.completion = new Promise((resolve) => { this.#resolveCompletion = resolve; });
     }
 
     async _prepareContext() {
+      const complete = this.checks.length > 0 && this.checks.every((check) => this.results.has(check.id));
+      const single = this.checks.length === 1;
       const virulent = this.virulentProgress?.active === true
-        ? {
-          active: true,
-          successes: Math.max(0, Math.trunc(Number(this.virulentProgress.successes ?? 0))),
-          required: Math.max(1, Math.trunc(Number(this.virulentProgress.required ?? 2)))
-        }
+        ? (() => {
+          const successes = Math.max(0, Math.trunc(Number(this.virulentProgress.successes ?? 0)));
+          const required = Math.max(1, Math.trunc(Number(this.virulentProgress.required ?? 2)));
+          const outcome = this.virulentProgress.lastOutcome ?? null;
+          const outcomeKey = {
+            criticalSuccess: "PF2E_AFFLICTION_FORGE.Runtime.VirulentCriticalSuccess",
+            oneSuccess: "PF2E_AFFLICTION_FORGE.Runtime.VirulentOneSuccess",
+            twoSuccesses: "PF2E_AFFLICTION_FORGE.Runtime.VirulentTwoSuccesses",
+            streakBroken: "PF2E_AFFLICTION_FORGE.Runtime.VirulentStreakBroken",
+            noProgress: "PF2E_AFFLICTION_FORGE.Runtime.VirulentNoProgress"
+          }[outcome] ?? null;
+          return {
+            active: true,
+            successes,
+            required,
+            outcome,
+            outcomeText: outcomeKey ? localize(outcomeKey) : "",
+            waitingForNextInterval: complete && outcome === "oneSuccess",
+            slots: Array.from({ length: required }, (_, index) => ({
+              number: index + 1,
+              complete: index < successes
+            }))
+          };
+        })()
         : null;
       return {
         actorName: this.actor?.name ?? "",
-        complete: this.checks.length > 0 && this.checks.every((check) => this.results.has(check.id)),
+        complete,
+        single,
+        singleVirulent: single && virulent?.active === true,
         virulent,
         checks: this.checks.map((check) => {
           const result = this.results.get(check.id) ?? null;
@@ -218,6 +289,9 @@ function makeSaveBatchAppClass() {
       });
       if (!result) return;
       this.results.set(checkId, result);
+      if (this.virulentProgress?.active === true && this.checks.length === 1) {
+        this.virulentProgress = previewVirulentProgress(this.virulentProgress, result.degree);
+      }
       await this.render({ force: true });
       this.#finishIfComplete();
     }

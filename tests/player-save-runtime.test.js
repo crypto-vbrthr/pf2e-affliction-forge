@@ -18,7 +18,8 @@ const {
   handleIncomingSaveRequestMessage,
   handlePlayerSavePrompt,
   matchingManualPlayerRequests,
-  preferredPlayerOwnerId
+  preferredPlayerOwnerId,
+  previewVirulentProgress
 } = await import("../scripts/affliction/runtime/affliction-save-runtime.js");
 
 function requestMessage({ requestId = "req-1", checkId = "save-1", statistic = "fortitude" } = {}) {
@@ -364,4 +365,24 @@ test("a grouped player-save request resolves two checks through one batch workfl
   const results = emitted.filter((entry) => entry[1]?.type === "save-result");
   assert.equal(results.length, 2);
   assert.deepEqual(results.map((entry) => entry[1].checkId), ["body", "mind"]);
+});
+
+
+test("virulent progress preview updates live after the current stage save", () => {
+  const start = { active: true, successes: 0, required: 2 };
+  const first = previewVirulentProgress(start, "success");
+  assert.equal(first.successes, 1);
+  assert.equal(first.lastOutcome, "oneSuccess");
+
+  const second = previewVirulentProgress({ active: true, successes: 1, required: 2 }, "success");
+  assert.equal(second.successes, 2);
+  assert.equal(second.lastOutcome, "twoSuccesses");
+
+  const broken = previewVirulentProgress({ active: true, successes: 1, required: 2 }, "failure");
+  assert.equal(broken.successes, 0);
+  assert.equal(broken.lastOutcome, "streakBroken");
+
+  const critical = previewVirulentProgress({ active: true, successes: 1, required: 2 }, "criticalSuccess");
+  assert.equal(critical.successes, 0);
+  assert.equal(critical.lastOutcome, "criticalSuccess");
 });

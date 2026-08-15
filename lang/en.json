@@ -377,5 +377,12 @@
   "PF2E_AFFLICTION_FORGE.Runtime.SourceDcRequired": "This affliction requires an external saving throw DC when it is applied.",
   "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchRequestTitleSingle": "Affliction Saving Throw",
   "PF2E_AFFLICTION_FORGE.Runtime.HiddenSaveBatchRequestTitleSingle": "Hidden Saving Throw Required",
-  "PF2E_AFFLICTION_FORGE.Runtime.VirulentWindowHint": "Consecutive successes before this stage save:"
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentWindowHint": "Consecutive successes before this stage save:",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentSaveWindowTitle": "Virulent Affliction Saving Throw",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentSaveWindowHint": "Stage saving throw currently due for",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentWindowRule": "Virulent requires two consecutive successful stage saves. Only one saving throw is due per stage interval.",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentProgressLabel": "Consecutive-success progress",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentNextInterval": "The second required saving throw is not due until the next stage interval.",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentNoProgress": "No progress. The counter remains at 0/2.",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentSaveComplete": "The currently due stage saving throw has been rolled. You can close this window."
 }

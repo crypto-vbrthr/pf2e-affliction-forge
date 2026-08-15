@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.46**
+Current release: **0.1.47**
 
-Version **0.1.46** keeps the 0.1.45 grouped-save and dynamic-DC workflow and fixes the single-save UX for Ausgeprägt/Virulent stage checks. A due virulent stage save now opens in the Affliction save window, shows the current consecutive-success progress, and retains the optional PF2e modifier dialog per roll. The rule timing is unchanged: the second required success is the next regular stage save, not an immediate extra roll. The public API remains compatibility version `0.1.0`.
+Version **0.1.47** keeps the 0.1.45 grouped-save and dynamic-DC workflow and fixes the single-save UX for Ausgeprägt/Virulent stage checks. A due virulent stage save now opens in the Affliction save window, shows the current consecutive-success progress, and retains the optional PF2e modifier dialog per roll. The rule timing is unchanged: the second required success is the next regular stage save, not an immediate extra roll. The public API remains compatibility version `0.1.0`.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 

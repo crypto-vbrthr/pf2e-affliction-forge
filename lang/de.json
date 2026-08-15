@@ -377,5 +377,12 @@
   "PF2E_AFFLICTION_FORGE.Runtime.SourceDcRequired": "Für dieses Leiden muss beim Anwenden ein externer Rettungswurf-SG angegeben werden.",
   "PF2E_AFFLICTION_FORGE.Runtime.SaveBatchRequestTitleSingle": "Rettungswurf für ein Leiden",
   "PF2E_AFFLICTION_FORGE.Runtime.HiddenSaveBatchRequestTitleSingle": "Verdeckter Rettungswurf erforderlich",
-  "PF2E_AFFLICTION_FORGE.Runtime.VirulentWindowHint": "Aufeinanderfolgende Erfolge vor diesem Phasenrettungswurf:"
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentWindowHint": "Aufeinanderfolgende Erfolge vor diesem Phasenrettungswurf:",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentSaveWindowTitle": "Rettungswurf für ausgeprägtes Leiden",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentSaveWindowHint": "Aktuell fälliger Phasenrettungswurf für",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentWindowRule": "Ausgeprägt verlangt zwei aufeinanderfolgende erfolgreiche Phasenrettungswürfe. Pro Phasenintervall ist nur ein Rettungswurf fällig.",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentProgressLabel": "Fortschritt der aufeinanderfolgenden Erfolge",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentNextInterval": "Der zweite erforderliche Rettungswurf wird erst beim nächsten Phasenintervall fällig.",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentNoProgress": "Kein Fortschritt. Der Zähler bleibt bei 0/2.",
+  "PF2E_AFFLICTION_FORGE.Runtime.VirulentSaveComplete": "Der aktuell fällige Phasenrettungswurf wurde durchgeführt. Das Fenster kann geschlossen werden."
 }
