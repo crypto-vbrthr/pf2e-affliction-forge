@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.62 – Phase Descriptions & Effect Presentation
+
+- Adds each authored phase description to the generated PF2e Effect Item for that active stage. Distinct Effect-specific/generated description text is retained after the phase text without duplicating identical content.
+- Fixes identified Affliction controller descriptions appearing twice on PF2e sheets by no longer storing the same text simultaneously in the public and GM-only description fields.
+- Keeps the real Affliction description GM-visible while a controller is hidden or suspected, then clears the redundant GM copy once the Affliction is identified.
+- Applies the same presentation rule to Critical Forge stage effects and native numeric-modifier stage effects; hidden/suspected stage descriptions remain GM-only and are restored publicly on identification.
+- No Affliction schema, Controller schema, reference schema, or public API compatibility change.
+- Full regression suite: 314/314 passing.
+
 ## 0.1.61 – Formula Timings & Timed Residuals
 
 - Extends ordinary Affliction durations with optional dice formulas for onset, stage duration, and maximum active duration. A formula is rolled once when that clock starts and its resolved world-time deadline is persisted.

@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.61**
+Current release: **0.1.62**
 
-Version **0.1.61** adds dice-formula timing for onset, stage intervals, and maximum active duration plus time-limited residual consequences. Formula clocks are rolled once when they begin and persisted as absolute Foundry world-time deadlines; timed residual effects can remain after a stage or the controller ends and are removed automatically when their own fixed or rolled duration expires.
+Version **0.1.62** improves runtime Effect presentation. Generated phase effects now carry the authored phase description, while identified Affliction controllers no longer repeat the same description in PF2e's public and GM-description fields. Hidden and suspected instances still keep the authored text available to the GM and restore it cleanly when identified.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -29,6 +29,7 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - persistent inert PF2e `effect` Items for Affliction Templates
 - active controller Items with definition snapshots, instance IDs, stage state, pending checks, last-check history, bounded runtime events, and lethal-stage mortality audit data
 - generated, instance-scoped persistent stage effects through Critical Forge's public Effect Engine API
+- generated stage-effect Items carry the phase description (plus any distinct Effect-specific description) and avoid duplicate public/GM text on identified rows
 - instant stage mechanics through Critical Forge `api.effects.execute()`, including one-shot damage and immediate death
 - same-stage interval resolution that preserves persistent stage Items while rerunning instant mechanics
 - manual stage transitions, reapplication, identification changes, and cleanup

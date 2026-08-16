@@ -272,6 +272,33 @@ test("applying a definition creates one controller plus a tagged stage effect", 
   assert.match(stageEffect.flags["pf2e-critical-forge"].definitionId, /^rot\.stage1\.affliction-instance\./);
 });
 
+test("identified controller descriptions are not duplicated and stage effect Items include the phase description", async () => {
+  const actor = new FakeActor("heroDescriptions", "Description Hero");
+  const service = createAfflictionInstanceService();
+  const stageEffectDefinition = effect("description.stage1", "Descriptive Rot · Phase 1");
+  stageEffectDefinition.description = "Additional mechanical note.";
+  const source = createAfflictionDefinition({
+    name: "Descriptive Rot",
+    description: "Affliction overview.",
+    initialCheck: null,
+    stages: [{
+      ...createDefaultStage({ number: 1 }),
+      description: "Phase 1 description.",
+      effect: stageEffectDefinition
+    }]
+  });
+
+  const [controller] = await service.applyDefinition(source, actor);
+  assert.equal(controller.system.description.value, "Affliction overview.");
+  assert.equal(controller.system.description.gm, "", "identified controller must not repeat its public description in GM notes");
+
+  const stageEffect = actor.items.find(isAfflictionStageEffect);
+  assert.ok(stageEffect);
+  assert.equal(stageEffect.system.description.value, "Phase 1 description.\n\nAdditional mechanical note.");
+  assert.equal(stageEffect.system.description.gm, "");
+  assert.equal(getAfflictionFlags(stageEffect).identifiedPresentation.description, "Phase 1 description.\n\nAdditional mechanical note.");
+});
+
 test("onset time does not start the maximum-active-duration clock before the first stage", async () => {
   const actor = new FakeActor("heroOnsetActiveClock", "Onset Active Clock Hero");
   const service = createAfflictionInstanceService();
@@ -785,6 +812,7 @@ test("runtime identification presentation conceals hidden afflictions and restor
     identification: { initialState: "hidden" },
     stages: [{
       ...createDefaultStage({ number: 1 }),
+      description: "Geheime Phasenbeschreibung.",
       effect: effect("visibility.stage1", "Geheime Fäule · Phase 1")
     }]
   });
@@ -794,7 +822,11 @@ test("runtime identification presentation conceals hidden afflictions and restor
   assert.equal(controller.name, "Unidentified Affliction");
   assert.equal(controller.img, "icons/svg/biohazard.svg");
   assert.equal(controller.system.tokenIcon.show, false);
+  assert.equal(controller.system.description.value, "");
+  assert.equal(controller.system.description.gm, "Die wahre Beschreibung.");
   assert.equal(stageEffect.name, "Unidentified Effect");
+  assert.equal(stageEffect.system.description.value, "");
+  assert.equal(stageEffect.system.description.gm, "Geheime Phasenbeschreibung.");
   assert.equal(stageEffect.system.tokenIcon.show, false);
 
   await service.setIdentification(controller, "suspected", { changedAt: 1100 });
@@ -807,8 +839,11 @@ test("runtime identification presentation conceals hidden afflictions and restor
   await service.setIdentification(controller, "identified", { changedAt: 1200 });
   assert.equal(controller.name, "Geheime Fäule");
   assert.equal(controller.system.description.value, "Die wahre Beschreibung.");
+  assert.equal(controller.system.description.gm, "");
   stageEffect = actor.items.find(isAfflictionStageEffect);
   assert.equal(stageEffect.name, "Geheime Fäule · Phase 1");
+  assert.equal(stageEffect.system.description.value, "Geheime Phasenbeschreibung.");
+  assert.equal(stageEffect.system.description.gm, "");
   assert.equal(stageEffect.system.tokenIcon.show, true);
   assert.equal(getAfflictionFlags(controller).state.events.at(-1).type, "identification-changed");
 });

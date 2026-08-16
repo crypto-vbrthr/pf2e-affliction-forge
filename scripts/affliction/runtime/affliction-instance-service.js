@@ -157,6 +157,41 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function cleanDescription(value) {
+  return String(value ?? "").trim();
+}
+
+function joinUniqueDescriptions(...values) {
+  const output = [];
+  const seen = new Set();
+  for (const value of values) {
+    const text = cleanDescription(value);
+    if (!text) continue;
+    const key = text.replace(/\s+/g, " ").trim();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(text);
+  }
+  return output.join("\n\n");
+}
+
+function descriptionFields(value, gm = "") {
+  const publicDescription = cleanDescription(value);
+  const gmDescription = cleanDescription(gm);
+  return {
+    value: publicDescription,
+    gm: gmDescription && gmDescription !== publicDescription ? gmDescription : ""
+  };
+}
+
+function controllerDescriptionFields(definition, presentation) {
+  return descriptionFields(presentation.controllerDescription, definition.description ?? "");
+}
+
+function stageItemDescription(stage, existing = "") {
+  return joinUniqueDescriptions(stage?.description ?? "", stage?.effect?.description ?? "", existing);
+}
+
 export function runtimePresentation(definitionInput, state = {}) {
   const definition = normalizeAfflictionDefinition(definitionInput);
   const identification = state.identification?.state ?? "identified";
@@ -449,7 +484,7 @@ function controllerItemSource(definition, state, {
     type: "effect",
     img: presentation.controllerImg,
     system: {
-      description: { value: presentation.controllerDescription, gm: definition.description ?? "" },
+      description: controllerDescriptionFields(definition, presentation),
       rules: [],
       slug: null,
       traits: { value: unidentified ? [] : [...definition.traits], otherTags: unidentified ? [] : [...definition.themes] },
@@ -560,10 +595,12 @@ async function buildCriticalStageEffectSources({ actor, controller, definition, 
     const list = Array.isArray(sources) ? sources : [sources];
     for (const source of list.filter(Boolean)) {
       const result = deepClone(source);
+      const generatedDescription = result.system?.description?.value ?? "";
+      const stageDescription = stageItemDescription(stage, generatedDescription);
       const identifiedPresentation = {
         name: stage.effect?.name ?? result.name ?? stage.name ?? `${definition.name} · ${stage.number}`,
         img: stage.effect?.img ?? result.img ?? definition.img,
-        description: stage.effect?.description ?? result.system?.description?.value ?? ""
+        description: stageDescription
       };
       result.flags ??= {};
       result.flags[MODULE_ID] = stageEffectFlags({
@@ -578,14 +615,16 @@ async function buildCriticalStageEffectSources({ actor, controller, definition, 
         componentIndices: group.indices
       });
       result.system ??= {};
+      const generatedGmDescription = result.system?.description?.gm ?? "";
+      result.system.description = unidentified
+        ? descriptionFields("", joinUniqueDescriptions(stageDescription, generatedGmDescription))
+        : descriptionFields(stageDescription, generatedGmDescription);
       result.system.unidentified = unidentified;
       result.system.tokenIcon ??= {};
       result.system.tokenIcon.show = presentation.showStageTokenIcon;
       if (unidentified) {
         result.name = presentation.stageEffectName;
         result.img = presentation.stageEffectImg;
-        result.system.description ??= { value: "", gm: "" };
-        result.system.description.value = "";
       }
       output.push(result);
     }
@@ -615,7 +654,9 @@ function buildNumericModifierStageSource({ controller, definition, state, stage 
     type: "effect",
     img: unidentified ? presentation.stageEffectImg : definition.img,
     system: {
-      description: { value: unidentified ? "" : (stage.description ?? ""), gm: stage.description ?? "" },
+      description: unidentified
+        ? descriptionFields("", stage.description ?? "")
+        : descriptionFields(stage.description ?? "", ""),
       rules,
       slug: null,
       traits: { value: unidentified ? [] : [...definition.traits], otherTags: unidentified ? [] : [...definition.themes] },
@@ -1086,7 +1127,7 @@ async function updateController(controller, definition, state) {
     name: presentation.controllerName,
     img: presentation.controllerImg,
     system: {
-      description: { value: presentation.controllerDescription, gm: definition.description ?? "" },
+      description: controllerDescriptionFields(definition, presentation),
       traits: { value: unidentified ? [] : [...definition.traits], otherTags: unidentified ? [] : [...definition.themes] },
       level: { value: unidentified ? 0 : definition.level },
       unidentified,
@@ -1770,10 +1811,9 @@ export class AfflictionInstanceService {
         name: unidentified ? presentation.stageEffectName : (identifiedPresentation.name ?? item.name),
         img: unidentified ? presentation.stageEffectImg : (identifiedPresentation.img ?? item.img),
         system: {
-          description: {
-            value: unidentified ? "" : (identifiedPresentation.description ?? item.system?.description?.value ?? ""),
-            gm: item.system?.description?.gm ?? ""
-          },
+          description: unidentified
+            ? descriptionFields("", identifiedPresentation.description ?? item.system?.description?.gm ?? "")
+            : descriptionFields(identifiedPresentation.description ?? item.system?.description?.value ?? "", ""),
           unidentified,
           tokenIcon: { show: presentation.showStageTokenIcon }
         }
