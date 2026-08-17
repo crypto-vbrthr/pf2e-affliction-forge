@@ -22,10 +22,24 @@ import {
 import { getCriticalForgeApi } from "../integration/critical-forge-adapter.js";
 import { createAfflictionEditorSession } from "./affliction-editor-session.js";
 import { deepClone } from "../schema/utils.js";
+import {
+  AFFLICTION_SEMANTIC_TAG_NAMESPACES,
+  AFFLICTION_SEMANTIC_TAG_VOCABULARY,
+  mergeAfflictionThemes,
+  splitAfflictionThemes
+} from "../tags/affliction-semantic-tags.js";
 
 export const AFFLICTION_EDITOR_TEMPLATE = `modules/${MODULE_ID}/templates/affliction-forge/affliction-editor.hbs`;
 
 const LABELS = Object.freeze({
+  semanticTagNamespace: {
+    creature: "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Creature",
+    family: "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Family",
+    habitat: "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Habitat",
+    theme: "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Theme",
+    origin: "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Origin",
+    delivery: "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Delivery"
+  },
   preActionKind: {
     "spell-cast": "PF2E_AFFLICTION_FORGE.PreAction.Kind.SpellCast",
     "item-activation": "PF2E_AFFLICTION_FORGE.PreAction.Kind.ItemActivation"
@@ -539,6 +553,19 @@ function prepareReaction(reaction, reactionIndex, checks) {
   };
 }
 
+function prepareSemanticTagEditor(themes = []) {
+  const split = splitAfflictionThemes(themes);
+  return {
+    freeThemesText: split.free.join(", "),
+    rows: AFFLICTION_SEMANTIC_TAG_NAMESPACES.map((namespace) => ({
+      namespace,
+      label: localize(LABELS.semanticTagNamespace[namespace]),
+      valuesText: split.tags[namespace].join(", "),
+      placeholder: AFFLICTION_SEMANTIC_TAG_VOCABULARY[namespace].slice(0, 4).join(", ")
+    }))
+  };
+}
+
 export async function prepareAfflictionEditorContext(session, {
   api = game.modules.get(MODULE_ID)?.api,
   validationReport = null
@@ -553,6 +580,7 @@ export async function prepareAfflictionEditorContext(session, {
     dirty: session.dirty,
     typeOptions: optionList(AFFLICTION_TYPES, definition.afflictionType, LABELS.type),
     rarityOptions: optionList(RARITIES, definition.rarity, LABELS.rarity),
+    semanticTags: prepareSemanticTagEditor(definition.themes),
     statisticCatalog: SAVE_STATISTICS,
     saveDefaults: {
       executionOptions: optionList(SAVE_EXECUTION_MODES, definition.saveDefaults.execution, LABELS.execution),
@@ -808,7 +836,15 @@ export class EmbeddedAfflictionEditor {
     definition.level = integerValue(value('[data-affliction-field="level"]', definition.level), definition.level);
     definition.rarity = String(value('[data-affliction-field="rarity"]', definition.rarity));
     definition.traits = parseStringList(value('[data-affliction-field="traits"]', definition.traits.join(", ")));
-    definition.themes = parseStringList(value('[data-affliction-field="themes"]', definition.themes.join(", ")));
+    const existingThemeSplit = splitAfflictionThemes(definition.themes);
+    const semanticTags = {};
+    for (const namespace of AFFLICTION_SEMANTIC_TAG_NAMESPACES) {
+      semanticTags[namespace] = parseStringList(value(`[data-affliction-semantic-tag="${namespace}"]`, existingThemeSplit.tags[namespace].join(", ")));
+    }
+    definition.themes = mergeAfflictionThemes({
+      free: parseStringList(value('[data-affliction-field="themes"]', existingThemeSplit.free.join(", "))),
+      tags: semanticTags
+    });
     definition.progression.belowStageOne = String(value('[data-affliction-field="belowStageOne"]', definition.progression.belowStageOne));
     definition.progression.aboveMaximumStage = String(value('[data-affliction-field="aboveMaximumStage"]', definition.progression.aboveMaximumStage));
     definition.progression.virulent = Boolean(root.querySelector('[data-affliction-field="virulent"]')?.checked);

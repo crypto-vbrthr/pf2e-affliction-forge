@@ -56,6 +56,22 @@ import {
 } from "../affliction/documents/affliction-item-adapter.js";
 import { createAfflictionTemplateService } from "../affliction/documents/affliction-template-service.js";
 import { createAfflictionLibraryService } from "../affliction/library/affliction-library-service.js";
+import {
+  AFFLICTION_SEMANTIC_TAG_CONTRACT_VERSION,
+  AFFLICTION_SEMANTIC_TAG_DEFAULT_WEIGHTS,
+  AFFLICTION_SEMANTIC_TAG_NAMESPACES,
+  AFFLICTION_SEMANTIC_TAG_VOCABULARY,
+  buildSemanticTag,
+  isSemanticTag,
+  matchesSemanticTags,
+  mergeAfflictionThemes,
+  normalizeSemanticTagValue,
+  parseSemanticTag,
+  scoreSemanticTags,
+  semanticProfile,
+  semanticTagsFromProfile,
+  splitAfflictionThemes
+} from "../affliction/tags/affliction-semantic-tags.js";
 import { createAfflictionApplicationService } from "../affliction/integration/affliction-application-service.js";
 import {
   afflictionCombatTriggerRuntimeStatus,
@@ -163,6 +179,23 @@ export function createPublicApi() {
     controllerSchemaVersion: CONTROLLER_SCHEMA_VERSION,
 
     contract: AFFLICTION_DATA_CONTRACT_V2,
+
+    semanticTags: Object.freeze({
+      version: AFFLICTION_SEMANTIC_TAG_CONTRACT_VERSION,
+      namespaces: () => [...AFFLICTION_SEMANTIC_TAG_NAMESPACES],
+      vocabulary: () => Object.fromEntries(Object.entries(AFFLICTION_SEMANTIC_TAG_VOCABULARY).map(([key, values]) => [key, [...values]])),
+      defaultWeights: () => ({ ...AFFLICTION_SEMANTIC_TAG_DEFAULT_WEIGHTS }),
+      normalizeValue: (value) => normalizeSemanticTagValue(value),
+      build: (namespace, value) => buildSemanticTag(namespace, value),
+      parse: (value) => parseSemanticTag(value),
+      isSemantic: (value) => isSemanticTag(value),
+      profile: (input = {}) => semanticProfile(input),
+      toTags: (profile = {}) => semanticTagsFromProfile(profile),
+      splitThemes: (themes = []) => splitAfflictionThemes(themes),
+      mergeThemes: (options = {}) => mergeAfflictionThemes(options),
+      matches: (themes = [], profile = {}, options = {}) => matchesSemanticTags(themes, profile, options),
+      score: (themes = [], profile = {}, options = {}) => scoreSemanticTags(themes, profile, options)
+    }),
 
     catalogs: Object.freeze({
       afflictionTypes: () => [...AFFLICTION_TYPES],

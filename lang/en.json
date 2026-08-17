@@ -538,5 +538,15 @@
   "PF2E_AFFLICTION_FORGE.Editor.DurationFormula": "Dice Formula",
   "PF2E_AFFLICTION_FORGE.Editor.DurationFormulaHint": "Optional. When a formula is provided, it is rolled once when this timing starts and takes precedence over the fixed value.",
   "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceTimed": "Timed",
-  "PF2E_AFFLICTION_FORGE.Restrictions.TimedPersistenceDuration": "Residual Duration"
+  "PF2E_AFFLICTION_FORGE.Restrictions.TimedPersistenceDuration": "Residual Duration",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Title": "Semantic Tags",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Hint": "Standardized tags for automatic matching by Creature Forge and other Forge modules. Enter comma-separated values; the namespace prefix is stored automatically.",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.FreeThemes": "Free Themes",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.FreeThemesHint": "Optional free-form or legacy themes without a namespace. They remain fully compatible but are not treated as structured Creature Forge tags.",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Creature": "Creature Type",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Family": "Creature Family",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Habitat": "Habitat",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Theme": "Theme",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Origin": "Origin",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Delivery": "Delivery"
 }

@@ -97,7 +97,7 @@ test("provider API turns compendium packs into named read-only libraries", async
     name: "Ghoul Rot",
     afflictionType: "disease",
     level: 7,
-    themes: ["undead", "decay"],
+    themes: ["undead", "decay", "creature:undead", "theme:disease", "habitat:underground", "delivery:bite"],
     metadata: { sourceWorkId: "gm-core", sourceWorkLabel: "GM Core", sourcePage: 88 }
   });
 
@@ -136,6 +136,16 @@ test("provider API turns compendium packs into named read-only libraries", async
   assert.equal(entry.contentSourceWorkId, "gm-core");
   assert.equal(entry.contentSourceLabel, "GM Core");
   assert.equal(entry.contentSourcePage, 88);
+  assert.deepEqual(entry.semanticTags.creature, ["undead"]);
+  assert.deepEqual(entry.semanticTags.habitat, ["underground"]);
+
+  const semanticMatches = await api.libraries.search({
+    tags: { creature: ["undead"], delivery: ["bite"] },
+    tagMode: "all"
+  });
+  assert.equal(semanticMatches.some((candidate) => candidate.uuid === packed.uuid), true);
+  const semanticMisses = await api.libraries.search({ tags: { family: ["spider"] } });
+  assert.equal(semanticMisses.some((candidate) => candidate.uuid === packed.uuid), false);
 
   const edited = api.documents.readDefinition(packed);
   edited.name = "Changed Ghoul Rot";

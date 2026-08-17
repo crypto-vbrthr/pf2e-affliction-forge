@@ -538,5 +538,15 @@
   "PF2E_AFFLICTION_FORGE.Editor.DurationFormula": "Würfelformel",
   "PF2E_AFFLICTION_FORGE.Editor.DurationFormulaHint": "Optional. Wenn eine Formel angegeben ist, wird sie beim Start dieses Zeitabschnitts einmal ausgewürfelt und überschreibt den festen Wert.",
   "PF2E_AFFLICTION_FORGE.Restrictions.PersistenceTimed": "Zeitlich begrenzt",
-  "PF2E_AFFLICTION_FORGE.Restrictions.TimedPersistenceDuration": "Dauer der Nachwirkung"
+  "PF2E_AFFLICTION_FORGE.Restrictions.TimedPersistenceDuration": "Dauer der Nachwirkung",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Title": "Semantische Tags",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Hint": "Standardisierte Tags für die automatische Zuordnung durch Creature Forge und andere Forge-Module. Werte werden kommasepariert eingegeben; der Präfix wird automatisch gespeichert.",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.FreeThemes": "Freie Themen",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.FreeThemesHint": "Optionale freie oder ältere Themen ohne Namensraum. Sie bleiben vollständig kompatibel, werden aber nicht als strukturierte Creature-Forge-Tags ausgewertet.",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Creature": "Kreaturentyp",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Family": "Kreaturenfamilie",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Habitat": "Lebensraum",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Theme": "Thema",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Origin": "Ursprung",
+  "PF2E_AFFLICTION_FORGE.SemanticTags.Namespace.Delivery": "Übertragung"
 }

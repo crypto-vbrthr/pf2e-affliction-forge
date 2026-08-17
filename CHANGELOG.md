@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.63 – Semantic Tags & Creature Forge Contract
+
+- Standardizes machine-readable Affliction tags as `namespace:value` entries in the existing schema-v2 `themes[]` array; no definition migration or schema-version change is required.
+- Adds six shared namespaces for Forge-suite matching: `creature`, `family`, `habitat`, `theme`, `origin`, and `delivery`, with a discoverable recommended vocabulary and extensible slug values.
+- Adds embedded-editor authoring fields for each semantic namespace while preserving unnamespaced legacy/free themes separately and losslessly.
+- Adds public `api.semanticTags` helpers for normalization, parsing, profile conversion, merge/split, all/any matching, and weighted scoring.
+- Defines default Creature Forge score weights (`family`/`delivery` 5, `theme` 4, `creature` 3, `habitat`/`origin` 2) without moving generation policy into Affliction Forge.
+- Extends library descriptors with parsed `semanticTags` and `api.libraries.search()` with structured `tags` plus `tagMode: "all" | "any"`; the legacy `themes` filter remains backward compatible.
+- Documents provider guidance: semantic tags belong on each Affliction definition; library `metadata.themes` remains descriptive library metadata and is not inherited by content.
+- Keeps public API compatibility `0.1.0`, Affliction schema v2, Controller schema v2, and reference schema v1.
+- Full regression suite: 317/317 passing.
+
 ## 0.1.62 – Phase Descriptions & Effect Presentation
 
 - Adds each authored phase description to the generated PF2e Effect Item for that active stage. Distinct Effect-specific/generated description text is retained after the phase text without duplicating identical content.

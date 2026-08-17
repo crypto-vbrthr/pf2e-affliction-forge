@@ -62,10 +62,25 @@
         </label>
       </div>
 
+      <div class="affliction-editor-semantic-tags full-width">
+        <div class="affliction-editor-subheading">
+          <strong>{{localize "PF2E_AFFLICTION_FORGE.SemanticTags.Title"}}</strong>
+          <small>{{localize "PF2E_AFFLICTION_FORGE.SemanticTags.Hint"}}</small>
+        </div>
+        <div class="affliction-editor-grid semantic-tag-grid">
+          {{#each semanticTags.rows}}
+          <label class="affliction-editor-field">
+            <span>{{label}} <code>{{namespace}}:</code></span>
+            <input data-affliction-semantic-tag="{{namespace}}" type="text" value="{{valuesText}}" placeholder="{{placeholder}}">
+          </label>
+          {{/each}}
+        </div>
+      </div>
+
       <label class="affliction-editor-field full-width">
-        <span>{{localize "PF2E_AFFLICTION_FORGE.Editor.Themes"}}</span>
-        <input data-affliction-field="themes" type="text" value="{{definition.themes}}" placeholder="undead, decay">
-        <small>{{localize "PF2E_AFFLICTION_FORGE.Editor.ListHint"}}</small>
+        <span>{{localize "PF2E_AFFLICTION_FORGE.SemanticTags.FreeThemes"}}</span>
+        <input data-affliction-field="themes" type="text" value="{{semanticTags.freeThemesText}}" placeholder="ash, fever">
+        <small>{{localize "PF2E_AFFLICTION_FORGE.SemanticTags.FreeThemesHint"}}</small>
       </label>
 
       <div class="affliction-editor-delivery-options" data-poison-delivery-options {{#unless isPoison}}hidden{{/unless}}>

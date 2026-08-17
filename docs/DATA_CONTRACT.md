@@ -2,6 +2,11 @@
 
 Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the normalizer and upgraded in memory to v2. Unknown future schema versions remain rejected.
 
+### Semantic themes
+
+Since 0.1.63, `themes[]` can carry standardized `namespace:value` semantic tags for Creature Forge and other consumers. This is an additive convention, not a schema-v3 field. Free themes remain valid. Recognized namespaces are `creature`, `family`, `habitat`, `theme`, `origin`, and `delivery`. Use the public `api.semanticTags` helpers and see `docs/SEMANTIC_TAGS.md`.
+
+
 ## Root definition
 
 ```js
@@ -15,7 +20,7 @@ Version 0.1.11 introduces schema v2. Schema-v1 definitions are accepted by the n
   level: 8,
   rarity: "common",
   traits: ["disease"],
-  themes: ["ash", "fever"],
+  themes: ["ash", "fever", "habitat:volcanic", "theme:disease"],
 
   saveDefaults: {
     execution: "player",   // automatic | player | gm

@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.62**
+Current release: **0.1.63**
 
-Version **0.1.62** improves runtime Effect presentation. Generated phase effects now carry the authored phase description, while identified Affliction controllers no longer repeat the same description in PF2e's public and GM-description fields. Hidden and suspected instances still keep the authored text available to the GM and restore it cleanly when identified.
+Version **0.1.63** adds the Semantic Tags & Creature Forge Contract. Afflictions can now author standardized namespaced tags inside the existing `themes[]` field, library searches accept structured tag profiles, and `api.semanticTags` exposes parsing, matching, and weighted scoring helpers without a schema migration.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
@@ -49,6 +49,7 @@ The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition
 - searchable multi-library template catalog with world, compendium, and registered external provider sources
 - read-only provider libraries with copy-to-world editing workflow and write protection through the public API
 - public `api.libraries` / `api.providers` contracts for content modules, library enable state, metadata, and filtered searches
+- standardized semantic `namespace:value` tags inside `themes[]`, structured library tag filters, and public `api.semanticTags` matching/scoring primitives for Creature Forge and other Forge-suite consumers
 - machine-readable ability/spell/attack references under `flags.pf2e-affliction-forge.afflictionReferences`
 - direct drag-and-drop reference zones on melee, weapon, action, feat, and spell Item sheets, plus embedded Actor-sheet item rows
 - reference trigger/application metadata for host modules without coupling progression logic into those hosts
@@ -161,7 +162,7 @@ A description can expose the same template as a draggable link:
 
 Low-level `api.instances.apply*()` methods remain available for integrations that explicitly need to create a controller without running the initial check.
 
-A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See `docs/API.md`, `docs/DATA_CONTRACT.md`, `docs/EMBEDDED_EDITOR.md`, `docs/LIBRARIES.md`, and `docs/REFERENCES_AND_DND.md` for the public contracts.
+A `pf2eAfflictionForgeReady` hook is emitted on `ready` with the API object. See `docs/API.md`, `docs/DATA_CONTRACT.md`, `docs/EMBEDDED_EDITOR.md`, `docs/LIBRARIES.md`, `docs/SEMANTIC_TAGS.md`, and `docs/REFERENCES_AND_DND.md` for the public contracts.
 
 ## Runtime boundary
 
@@ -180,6 +181,14 @@ Active Affliction controllers own their generated persistent stage Items. A live
 - 0.1.35: Affliction templates can be linked directly to attacks and abilities by dropping them onto eligible Item sheets or embedded Actor-sheet rows.
 - 0.1.33: Affliction templates can be dropped directly onto Actor Directory entries.
 
+
+## 0.1.63 Semantic Tags & Creature Forge Contract
+
+- Keeps schema v2 unchanged and stores structured tags in the existing `themes[]` array as `namespace:value`.
+- Adds editor fields for creature type, creature family, habitat, theme, origin, and delivery plus a separate backward-compatible free-theme field.
+- Adds `api.semanticTags` with vocabulary discovery, parsing, merging, all/any matching, and weighted scoring.
+- Extends library descriptors with parsed `semanticTags` and library search with structured `tags` / `tagMode` filters.
+- Defines default Creature Forge matching weights while leaving actual creature-generation policy in the consuming module.
 
 ## 0.1.59 Library filters & scroll persistence
 

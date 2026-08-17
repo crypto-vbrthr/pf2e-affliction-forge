@@ -223,3 +223,20 @@ test("pre-action concentrate gates are authorable in the embedded editor", async
   assert.match(template, /data-pre-action-kind/);
   assert.match(source, /addStagePreActionGate/);
 });
+
+test("embedded editor separates semantic Creature Forge tags from free themes without changing themes[]", async () => {
+  const definition = createAfflictionDefinition({
+    name: "Semantic Tag Probe",
+    themes: ["legacy-theme", "creature:animal", "family:spider", "delivery:bite"]
+  });
+  const session = createAfflictionEditorSession(definition);
+  const api = { definitions: { validate: () => ({ valid: true, issues: [], errors: [], warnings: [] }) } };
+  const context = await prepareAfflictionEditorContext(session, { api });
+
+  assert.equal(context.semanticTags.freeThemesText, "legacy-theme");
+  assert.equal(context.semanticTags.rows.find((row) => row.namespace === "family")?.valuesText, "spider");
+  assert.equal(context.semanticTags.rows.find((row) => row.namespace === "delivery")?.valuesText, "bite");
+  assert.match(template, /data-affliction-semantic-tag="\{\{namespace\}\}"/);
+  assert.match(template, /SemanticTags\.FreeThemes/);
+  assert.match(source, /mergeAfflictionThemes/);
+});

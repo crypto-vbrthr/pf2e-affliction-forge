@@ -44,14 +44,20 @@ const matches = await api.libraries.search({
   libraryIds: ["undead-horrors.core"],
   types: ["disease", "curse"],
   themes: ["undead"],
+  tags: { creature: ["undead"], theme: ["disease"] },
+  tagMode: "all",
   minLevel: 5,
   maxLevel: 10,
   query: "rot"
 });
 ```
 
-Search results are template descriptors enriched with `libraryId`, `libraryLabel`, `providerId`, `providerLabel`, `writable`, `afflictionType`, `level`, `rarity`, `traits`, and `themes`.
+Search results are template descriptors enriched with `libraryId`, `libraryLabel`, `providerId`, `providerLabel`, `writable`, `afflictionType`, `level`, `rarity`, `traits`, `themes`, and parsed `semanticTags`. Structured `tags` filters use the 0.1.63 semantic-tag contract while legacy `themes` filtering remains unchanged.
 
 ## Enable state
 
 `api.libraries.setEnabled(id, false)` stores a dynamic world-level state. Disabled libraries remain registered but are omitted from default library searches. This is intentionally separate from Foundry module activation.
+
+## Semantic tags
+
+Provider libraries should tag each Affliction definition, not only the library metadata. Structured tags are stored in `definition.themes` and documented in `SEMANTIC_TAGS.md`. Library `metadata.themes` is descriptive metadata and is not inherited by definitions.

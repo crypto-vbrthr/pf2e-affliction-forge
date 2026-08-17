@@ -352,10 +352,26 @@ editor.destroy();
 
 The library layer organizes Affliction Templates without changing their canonical UUID references. World Items form the built-in writable library, unclaimed Item compendia remain discoverable as implicit compendium libraries, and external modules can register curated provider libraries.
 
+Affliction Forge 0.1.63 also exposes the semantic tag contract used by Creature Forge-style consumers:
+
+```js
+api.semanticTags.version
+api.semanticTags.namespaces()
+api.semanticTags.vocabulary()
+api.semanticTags.build(namespace, value)
+api.semanticTags.parse(tag)
+api.semanticTags.splitThemes(themes)
+api.semanticTags.mergeThemes({ free, tags })
+api.semanticTags.matches(themes, profile, { mode: "all" | "any" })
+api.semanticTags.score(themes, profile, { weights })
+```
+
+Semantic tags remain stored in the schema-v2 `themes[]` array as `namespace:value`; see `docs/SEMANTIC_TAGS.md`.
+
 ```js
 api.libraries.list()
 api.libraries.get(libraryId)
-api.libraries.search({ query, libraryIds, types, themes, minLevel, maxLevel })
+api.libraries.search({ query, libraryIds, types, themes, tags, tagMode, minLevel, maxLevel })
 api.libraries.templates(options)
 api.libraries.setEnabled(libraryId, enabled)
 api.libraries.isEnabled(libraryId)

@@ -1,5 +1,6 @@
 import { MODULE_ID } from "../../constants.js";
 import { isAfflictionTemplate } from "../documents/affliction-flags.js";
+import { matchesSemanticTags, splitAfflictionThemes } from "../tags/affliction-semantic-tags.js";
 
 export const WORLD_LIBRARY_ID = "world";
 export const IMPLICIT_COMPENDIUM_PREFIX = "compendium:";
@@ -135,7 +136,8 @@ function definitionMetaFromDescriptor(entry) {
     level: Number.isFinite(Number(entry.level)) ? Number(entry.level) : null,
     rarity: entry.rarity ?? null,
     traits: stringArray(entry.traits),
-    themes: stringArray(entry.themes)
+    themes: stringArray(entry.themes),
+    semanticTags: splitAfflictionThemes(entry.themes).tags
   };
 }
 
@@ -143,6 +145,8 @@ function matchesSearch(entry, {
   query = "",
   types = null,
   themes = null,
+  tags = null,
+  tagMode = "all",
   minLevel = null,
   maxLevel = null,
   libraryIds = null
@@ -168,6 +172,7 @@ function matchesSearch(entry, {
   if (typeSet?.size && !typeSet.has(entry.afflictionType)) return false;
   const themeSet = themes == null ? null : new Set(stringArray(themes));
   if (themeSet?.size && ![...(entry.themes ?? [])].some((theme) => themeSet.has(theme))) return false;
+  if (tags != null && !matchesSemanticTags(entry.themes, tags, { mode: tagMode })) return false;
   const librarySet = libraryIds == null ? null : new Set(stringArray(libraryIds));
   if (librarySet?.size && !librarySet.has(entry.libraryId)) return false;
   const level = Number(entry.level);

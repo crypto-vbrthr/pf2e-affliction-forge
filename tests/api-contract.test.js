@@ -28,9 +28,14 @@ const { createPublicApi } = await import("../scripts/api/public-api.js");
 test("public API exposes definition, editor, persistence, and active runtime contracts", () => {
   const api = createPublicApi();
   assert.equal(api.version, "0.1.0");
-  assert.equal(api.moduleVersion, "0.1.62");
+  assert.equal(api.moduleVersion, "0.1.63");
   assert.equal(api.schemaVersion, 2);
   assert.equal(api.controllerSchemaVersion, 2);
+  assert.equal(api.semanticTags.version, "1.0.0");
+  assert.deepEqual(api.semanticTags.namespaces(), ["creature", "family", "habitat", "theme", "origin", "delivery"]);
+  assert.equal(api.semanticTags.build("family", "Giant Spider"), "family:giant-spider");
+  assert.deepEqual(api.semanticTags.splitThemes(["legacy", "family:spider"]).tags.family, ["spider"]);
+  assert.equal(api.semanticTags.score(["family:spider"], { family: ["spider"] }).score, 5);
   assert.equal(typeof api.definitions.create, "function");
   assert.equal(typeof api.definitions.validate, "function");
   assert.equal(typeof api.definitions.createSavePolicy, "function");

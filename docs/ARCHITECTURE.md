@@ -1,4 +1,4 @@
-# Architecture 0.1.57
+# Architecture 0.1.63
 
 ```text
 Affliction Template / Definition
@@ -66,6 +66,8 @@ Registered Provider Packs ┘              │
 The library layer is discovery and policy, not a new persistence format. Canonical templates remain PF2e `effect` Items and references remain Foundry UUIDs. A registered provider claims one or more Item compendium packs and can mark its library read-only even if the pack itself is technically writable. Public Affliction template updates and Save-As destinations respect that library policy. Unregistered visible Item compendia retain backward-compatible implicit-library discovery.
 
 External content modules register providers through `api.providers.register()` after `pf2eAfflictionForgeReady`; they do not need to implement any runtime affliction logic.
+
+Semantic Creature Forge matching is deliberately metadata-only: standardized `namespace:value` tags live in the existing `themes[]` array, the library service exposes parsed `semanticTags`, and `api.semanticTags` owns parsing/matching/scoring primitives. Creature Forge remains responsible for generation policy and weighting choices.
 
 ## Ownership rules
 
