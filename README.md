@@ -6,6 +6,16 @@ Version **0.1.63** adds the Semantic Tags & Creature Forge Contract. Afflictions
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
+
+## Part of the Forge Suite
+
+**Affliction Forge** is part of the **Forge Suite**, a growing collection of Foundry VTT modules and add-ons built for the busy Game Master. The suite is designed to reduce preparation and bookkeeping, make common GM tasks easier, and add useful tools that help make running and playing campaigns smoother and more enjoyable.
+
+An overview of the Forge Suite, its modules, add-ons, and shared documentation is available here:
+
+**Forge Suite:** https://github.com/crypto-vbrthr/pf2e-forge-suite
+
+
 ## Current 0.1.x scope
 
 - versioned `AfflictionDefinition` schema v2
