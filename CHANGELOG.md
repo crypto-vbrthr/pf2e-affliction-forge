@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.64 – Compact Item-Sheet Affliction Footer
+
+- Prevents the injected Affliction reference panel on PF2e item sheets from inheriting flexible/full-height sizing from the host sheet when the item window is enlarged.
+- Keeps the panel intrinsically sized at the bottom of the sheet, eliminating the large empty area visible below linked Afflictions.
+- Reduces panel/header/row/drop-zone spacing and control height so linked Afflictions read as a compact footer rather than a second full sheet section.
+- Preserves drag-and-drop, trigger/application controls, injury-poison charges, removal, host-theme adaptation, and responsive wrapping.
+- Adds regression coverage for intrinsic panel sizing and the compact drop target.
+
 ## 0.1.63 – Semantic Tags & Creature Forge Contract
 
 - Standardizes machine-readable Affliction tags as `namespace:value` entries in the existing schema-v2 `themes[]` array; no definition migration or schema-version change is required.

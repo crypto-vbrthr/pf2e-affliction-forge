@@ -1,8 +1,8 @@
 # PF2E Affliction Forge
 
-Current release: **0.1.63**
+Current release: **0.1.64**
 
-Version **0.1.63** adds the Semantic Tags & Creature Forge Contract. Afflictions can now author standardized namespaced tags inside the existing `themes[]` field, library searches accept structured tag profiles, and `api.semanticTags` exposes parsing, matching, and weighted scoring helpers without a schema migration.
+Version **0.1.64** makes the Affliction reference UI injected into PF2e item sheets substantially more compact and prevents the footer from stretching vertically when the host item window is enlarged. The 0.1.63 Semantic Tags & Creature Forge Contract remains unchanged.
 
 The editor remains deliberately host-agnostic: it edits an `AfflictionDefinition`, embeds Critical Forge's public Effect Editor for stage mechanics, performs live validation, and returns the edited definition to its container. The official Affliction Forge container owns persistence and application.
 
