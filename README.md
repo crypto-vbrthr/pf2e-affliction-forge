@@ -16,6 +16,19 @@ An overview of the Forge Suite, its modules, add-ons, and shared documentation i
 **Forge Suite:** https://github.com/crypto-vbrthr/pf2e-forge-suite
 
 
+## Feedback, Bug Reports & Feature Requests
+
+Found a bug, have an idea for an improvement, or would like to suggest a new feature?
+
+Feedback is always welcome. Please feel free to open a new **GitHub Issue** at any time, whether you want to report a problem, suggest a quality-of-life improvement, propose a new feature, or share an idea for how the module could be made more useful.
+
+When reporting a bug, please include as much relevant information as possible, such as the Foundry VTT version, PF2e system version, module version, steps to reproduce the issue, and any console errors or screenshots that may help identify the problem.
+
+Suggestions and feature requests are equally welcome. Even small ideas can lead to useful improvements.
+
+**Open an issue here:** https://github.com/crypto-vbrthr/pf2e-affliction-forge/issues
+
+
 ## Current 0.1.x scope
 
 - versioned `AfflictionDefinition` schema v2
